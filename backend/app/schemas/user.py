@@ -1,20 +1,21 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
 from typing import Optional
+from pydantic import Field
 
 class UserBase(BaseModel):
-    username: str
+    username: str = Field(min_length=3, max_length=64)
     email: EmailStr
 
 # 创建请求，必须传密码
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(min_length=6, max_length=128)
 
 # 更新请求：全可选
 class UserUpdate(BaseModel):
-    username: Optional[str] = None
+    username: Optional[str] = Field(min_length=3, max_length=64, default=None)
     email: Optional[EmailStr] = None
-    password: Optional[str] = None
+    password: Optional[str] = Field(min_length=6, max_length=128, default=None)
 
 # 响应对象：不返回密码
 class UserResponse(UserBase):

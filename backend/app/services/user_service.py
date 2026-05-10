@@ -101,7 +101,10 @@ class UserService:
         Returns:
             None
         """
-        # 确认用户存在
-        self.get_user(user_id)
-        # 删除用户
-        user_crud.delete_user(self.db, user_id)
+        deleted = user_crud.delete_user(self.db, user_id)
+        if deleted == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在"
+            )
+        return None

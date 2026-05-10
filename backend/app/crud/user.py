@@ -95,12 +95,15 @@ def update_user(db: Session, db_user: User, user_in: UserUpdate) -> User:
     return db_user
 
 
-def delete_user(db: Session, user_id: int) -> None:
+def delete_user(db: Session, user_id: int) -> int:
     """
     删除用户
     Args:
         db: 数据库会话
         user_id: 用户ID
+    Returns:
+        int: 删除数量
     """
-    db.query(User).filter(User.id == user_id).delete()
+    deleted = db.query(User).filter(User.id == user_id).delete(synchronize_session=False)
     db.commit()
+    return deleted

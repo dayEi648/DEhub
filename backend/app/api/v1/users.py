@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import Field
 
 from app.api.deps import get_db
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
@@ -35,7 +36,7 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     return service.get_user(user_id)
 
 @router.get("/", response_model=List[UserResponse])
-def list_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def list_users(skip: int = 0, limit: int = Field(default=20, ge=1, le=100), db: Session = Depends(get_db)):
     """
     获取用户列表
     Args:
