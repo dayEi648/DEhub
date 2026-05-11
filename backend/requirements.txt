@@ -6,3 +6,6 @@ pydantic
 pydantic-settings
 bcrypt
 python-jose[cryptography]
+oss2 
+python-multipart 
+aiofiles

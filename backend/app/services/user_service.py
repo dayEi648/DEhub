@@ -2,10 +2,10 @@ from sqlalchemy.orm import Session
 from app.crud import user as user_crud
 from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister
 from app.models.user import User
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
 from app.core.config import settings
-
+from app.storage.oss import delete_file_from_oss, upload_user_avatar, convert_oss_url_to_file_path
 
 class UserService:
 
@@ -123,15 +123,16 @@ class UserService:
         """
         return user_crud.get_users(self.db, skip=skip, limit=limit)
 
-    def update_user(self, user_id: int, user_in: UserUpdate, current_user: User) -> User:
+    async def update_user(self, user_id: int, user_in: UserUpdate, current_user: User, file: UploadFile | None = None) -> UserResponse:
         """
         更新用户
         Args:
             user_id: 用户ID
             user_in: 用户更新请求
             current_user: 当前登录用户
+            file: 头像文件
         Returns:
-            User: 用户对象
+            UserResponse: 用户响应
         """
         self._require_owner_or_admin(current_user, user_id)
         db_user = user_crud.get_user_by_id(self.db, user_id)
@@ -155,7 +156,15 @@ class UserService:
         if user_in.email and user_in.email != db_user.email:
             self._ensure_email_unique(user_in.email, exclude_user_id=db_user.id)
 
-        return user_crud.update_user(self.db, db_user, user_in)
+        if file:
+            # 删除旧头像
+            if db_user.avatar_url:
+                await delete_file_from_oss(convert_oss_url_to_file_path(db_user.avatar_url))
+            # 上传新头像
+            avatar_url = await upload_user_avatar(file)
+            user_in.avatar_url = avatar_url
+
+        return UserResponse.model_validate(user_crud.update_user(self.db, db_user, user_in))
 
     def delete_user(self, user_id: int, current_user: User) -> None:
         """

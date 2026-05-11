@@ -18,3 +18,5 @@ class User(Base):
     )
     permission: Mapped[int] = mapped_column(default=0, nullable=False)
     is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    personal_profile: Mapped[str | None] = mapped_column(nullable=True)

@@ -12,6 +12,8 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str = Field(min_length=6, max_length=128)
     permission: Optional[int] = Field(default=0, ge=0, le=2)
+    avatar_url: Optional[str] = Field(default=None, max_length=128)
+    personal_profile: Optional[str] = Field(default=None)
 
 # 更新请求：全可选
 class UserUpdate(BaseModel):
@@ -19,6 +21,8 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     password: Optional[str] = Field(min_length=6, max_length=128, default=None)
     permission: Optional[int] = Field(default=None, ge=0, le=2)
+    avatar_url: Optional[str] = Field(default=None, max_length=128)
+    personal_profile: Optional[str] = Field(default=None)
 
 # 响应对象：不返回密码
 class UserResponse(UserBase):
@@ -26,6 +30,8 @@ class UserResponse(UserBase):
     created_at: datetime
     permission: int
     is_deleted: bool
+    avatar_url: Optional[str] = None
+    personal_profile: Optional[str] = None
 
     # Pydantic v2 写法：允许从 ORM 对象读取属性
     model_config = ConfigDict(from_attributes=True)

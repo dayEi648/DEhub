@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = Field(default="")
     POSTGRES_DB: str = Field(default="DEhub")
 
+    OSS_ACCESS_KEY_ID: str = Field(default="")
+    OSS_ACCESS_KEY_SECRET: str = Field(default="")
+    OSS_ENDPOINT: str = Field(default="")
+    OSS_BUCKET_NAME: str = Field(default="")
+    OSS_DOMAIN: str = Field(default="")
+    OSS_USERS_AVATAR_DIR: str = Field(default="users/avatar")
+    MAX_USER_AVATAR_SIZE: int = Field(default=2097152)
+
     @property
     def DATABASE_URL(self) -> str:
         """拼接 PostgreSQL 连接字符串。"""

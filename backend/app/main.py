@@ -2,8 +2,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from app.api.v1 import users
-from app.db.session import engine
-from app.db.base import Base
 from app.core.exceptions import (
     http_exception_handler,
     validation_exception_handler,
@@ -12,6 +10,10 @@ from app.core.exceptions import (
 )
 from app.redis_client import init_redis_client, close_redis_client
 from contextlib import asynccontextmanager
+
+
+
+
 
 
 @asynccontextmanager

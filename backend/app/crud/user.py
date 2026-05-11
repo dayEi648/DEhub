@@ -65,7 +65,9 @@ def create_user(db: Session, user_in: UserCreate) -> User:
         username=user_in.username,
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
-        permission=getattr(user_in, "permission", 0))
+        permission=getattr(user_in, "permission", 0),
+        avatar_url=getattr(user_in, "avatar_url", None),
+        personal_profile=getattr(user_in, "personal_profile", None))
     db.add(db_user)
     db.commit()
     db.refresh(db_user)

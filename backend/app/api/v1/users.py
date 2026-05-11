@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session
 from typing import List
 from fastapi import Query
@@ -9,7 +9,7 @@ from app.services.user_service import UserService
 from app.models.user import User
 from app.core.security import get_current_user, get_token_from_header
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/users", tags=["用户管理"])
 
 @router.post("/", response_model=UserResponse, status_code=201)
 def create_user(
@@ -71,6 +71,7 @@ def list_users(
 def update_user(
     user_id: int,
     user_in: UserUpdate,
+    file: UploadFile | None = File(None, description="头像文件，最大5MB"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> UserResponse:
@@ -79,13 +80,14 @@ def update_user(
     Args:
         user_id: 用户ID
         user_in: 用户更新请求
+        file: 头像文件
         db: 数据库会话
         current_user: 当前登录用户
     Returns:
         UserResponse: 用户响应
     """
     service = UserService(db)
-    return service.update_user(user_id, user_in, current_user)
+    return service.update_user(user_id, user_in, file, current_user)
 
 @router.delete("/{user_id}", status_code=204)
 def delete_user(
