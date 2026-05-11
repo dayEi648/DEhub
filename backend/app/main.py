@@ -10,8 +10,19 @@ from app.core.exceptions import (
     sqlalchemy_exception_handler,
     catch_all_exception_handler,
 )
+from app.redis_client import init_redis_client, close_redis_client
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="DE个人网站", version="0.0.1")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动时
+    await init_redis_client()
+    yield
+    # 关闭时
+    await close_redis_client()
+
+app = FastAPI(title="DE个人网站", version="0.0.1", lifespan=lifespan)
 
 # 注册全局异常处理器
 app.add_exception_handler(HTTPException, http_exception_handler)

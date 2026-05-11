@@ -26,7 +26,9 @@ class Settings(BaseSettings):
     REDIS_HOST: str = Field(default="redis")
     REDIS_PORT: int = Field(default=6379)
     REDIS_DB: int = Field(default=0)
+    REDIS_PASSWORD: str = Field(default="")
     REDIS_SESSION_TTL: int = Field(default=1800)
+
 
     POSTGRES_HOST: str = Field(default="localhost")
     POSTGRES_PORT: int = Field(default=5432)

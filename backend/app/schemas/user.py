@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic.networks import validate_email
 from datetime import datetime
 from typing import Optional
 from pydantic import Field, field_validator
@@ -29,6 +30,7 @@ class UserResponse(UserBase):
 class UserLogin(BaseModel):
     account: str = Field(min_length=3, max_length=255, description="邮箱或用户名",)
     password: str = Field(min_length=6, max_length=128, description="密码")
+    is_remember: bool = Field(default=False, description="是否记住登录")
 
     @field_validator('account')
     def validate_account(cls, v: str) -> str:
@@ -41,23 +43,32 @@ class UserLogin(BaseModel):
         Raises:
             ValueError: 邮箱格式不正确 或 用户名长度必须在3到64之间
         """
+        v = v.strip()
         if '@' in v:
-            if not EmailStr.is_valid(v):
+            try:
+                validate_email(v)
+            except Exception:
                 raise ValueError("邮箱格式不正确")
-            elif len(v) > 255:
+            if len(v) > 255:
                 raise ValueError("邮箱长度必须在3到255之间")
         else:
             if len(v) < 3 or len(v) > 64:
                 raise ValueError("用户名长度必须在3到64之间")
-        return v.strip()
+        return v
 
 # 登录响应
 class UserLoginResponse(BaseModel):
     access_token: str
-    refresh_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "Bearer"
     user: UserResponse
     access_token_expires_in: int
-    refresh_token_expires_in: int
+    refresh_token_expires_in: Optional[int] = None
 
-# 注册请求
+# 刷新令牌请求
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(min_length=1, description="刷新令牌")
+
+# 登出请求
+class UserLogout(BaseModel):
+    refresh_token: Optional[str] = None

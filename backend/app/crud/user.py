@@ -85,7 +85,9 @@ def update_user(db: Session, db_user: User, user_in: UserUpdate) -> User:
     update_data = user_in.model_dump(exclude_unset=True)
     # 如果更新密码，需要哈希后存入 hashed_password 字段
     if "password" in update_data:
-        update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
+        password_value = update_data.pop("password")
+        if password_value is not None:
+            update_data["hashed_password"] = get_password_hash(password_value)
         
     for field, value in update_data.items():
         setattr(db_user, field, value)
