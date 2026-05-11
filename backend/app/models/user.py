@@ -16,3 +16,5 @@ class User(Base):
         server_default=func.now(),
         nullable=False
     )
+    permission: Mapped[int] = mapped_column(default=0, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False)

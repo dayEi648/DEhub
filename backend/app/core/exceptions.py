@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """
     HTTP 异常处理器
     处理主动抛出的 HTTPException（如 400 用户名已存在、404 用户不存在）
@@ -21,7 +21,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         content={"code": exc.status_code, "detail": exc.detail},
     )
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """
     Validation 异常处理器
     处理 Pydantic 参数校验失败（如 email 格式不对、必填字段缺失）
@@ -40,7 +40,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         },
     )
 
-async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
     """
     SQLAlchemy 异常处理器
     处理数据库异常（如连接断开、约束冲突）
@@ -58,7 +58,7 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -
         },
     )
 
-async def catch_all_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+def catch_all_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     全局异常处理器
     兜底：捕获所有未预料的异常，防止泄露堆栈信息

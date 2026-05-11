@@ -1,20 +1,14 @@
 from sqlalchemy.orm import Session
 from app.crud import user as user_crud
-from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout
+from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister
 from app.models.user import User
 from fastapi import HTTPException, status
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
 from app.core.config import settings
 
 
-
-
-
-
-
 class UserService:
 
-    
     def __init__(self, db: Session):
         """
         UserService 初始化
@@ -22,30 +16,86 @@ class UserService:
             db: 数据库会话
         """
         self.db = db
-    
-    def create_user(self, user_in: UserCreate) -> User:
+
+    # ---------- 共用校验方法 ----------
+
+    def _ensure_username_unique(self, username: str, exclude_user_id: int | None = None) -> None:
         """
-        创建用户
+        校验用户名唯一性
         Args:
-            user_in: 用户创建请求
-        Returns:
-            User: 用户对象
+            username: 待校验用户名
+            exclude_user_id: 排除的用户ID（更新场景下排除自身）
+        Raises:
+            HTTPException: 用户名已存在
         """
-        # 业务校验：用户名唯一性
-        if user_crud.get_user_by_username(self.db, user_in.username):
+        existing = user_crud.get_user_by_username(self.db, username)
+        if existing and (exclude_user_id is None or existing.id != exclude_user_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="用户名已存在"
             )
-        # 邮箱唯一性校验
-        if user_crud.get_user_by_email(self.db, user_in.email):
+
+    def _ensure_email_unique(self, email: str, exclude_user_id: int | None = None) -> None:
+        """
+        校验邮箱唯一性
+        Args:
+            email: 待校验邮箱
+            exclude_user_id: 排除的用户ID（更新场景下排除自身）
+        Raises:
+            HTTPException: 邮箱已存在
+        """
+        existing = user_crud.get_user_by_email(self.db, email)
+        if existing and (exclude_user_id is None or existing.id != exclude_user_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="邮箱已存在"
             )
-        # 创建用户
+
+    def _require_admin(self, current_user: User) -> None:
+        """
+        要求当前用户为管理员及以上权限
+        Args:
+            current_user: 当前登录用户
+        Raises:
+            HTTPException: 权限不足
+        """
+        if current_user.permission < 1:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="权限不足"
+            )
+
+    def _require_owner_or_admin(self, current_user: User, target_user_id: int) -> None:
+        """
+        要求当前用户为目标用户本人，或管理员及以上权限
+        Args:
+            current_user: 当前登录用户
+            target_user_id: 目标用户ID
+        Raises:
+            HTTPException: 权限不足
+        """
+        if current_user.id != target_user_id and current_user.permission < 1:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="权限不足"
+            )
+
+    # ---------- 业务方法 ----------
+
+    def create_user(self, user_in: UserCreate, current_user: User) -> User:
+        """
+        创建用户（管理员专属）
+        Args:
+            user_in: 用户创建请求
+            current_user: 当前登录用户
+        Returns:
+            User: 用户对象
+        """
+        self._require_admin(current_user)
+        self._ensure_username_unique(user_in.username)
+        self._ensure_email_unique(user_in.email)
         return user_crud.create_user(self.db, user_in)
-    
+
     def get_user(self, user_id: int) -> User:
         """
         根据用户ID获取用户
@@ -61,7 +111,7 @@ class UserService:
                 detail="用户不存在"
             )
         return user
-    
+
     def list_users(self, skip: int = 0, limit: int = 100) -> list[User]:
         """
         获取用户列表
@@ -72,44 +122,51 @@ class UserService:
             list[User]: 用户列表
         """
         return user_crud.get_users(self.db, skip=skip, limit=limit)
-    
-    def update_user(self, user_id: int, user_in: UserUpdate) -> User:
+
+    def update_user(self, user_id: int, user_in: UserUpdate, current_user: User) -> User:
         """
         更新用户
         Args:
             user_id: 用户ID
             user_in: 用户更新请求
+            current_user: 当前登录用户
         Returns:
             User: 用户对象
         """
-        # 确认用户存在
-        db_user = self.get_user(user_id)
+        self._require_owner_or_admin(current_user, user_id)
+        db_user = user_crud.get_user_by_id(self.db, user_id)
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在"
+            )
 
-        # 业务校验：用户名唯一性
+        # 普通用户禁止修改 permission 字段
+        if current_user.permission == 0:
+            update_data = user_in.model_dump(exclude_unset=True)
+            if "permission" in update_data:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="无权修改权限字段"
+                )
+
         if user_in.username and user_in.username != db_user.username:
-            if user_crud.get_user_by_username(self.db, user_in.username):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="用户名已存在"
-                )
-        # 邮箱唯一性校验
+            self._ensure_username_unique(user_in.username, exclude_user_id=db_user.id)
         if user_in.email and user_in.email != db_user.email:
-            if user_crud.get_user_by_email(self.db, user_in.email):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="邮箱已存在"
-                )
-        # 更新用户
+            self._ensure_email_unique(user_in.email, exclude_user_id=db_user.id)
+
         return user_crud.update_user(self.db, db_user, user_in)
 
-    def delete_user(self, user_id: int) -> None:
+    def delete_user(self, user_id: int, current_user: User) -> None:
         """
-        删除用户
+        删除用户（管理员专属）
         Args:
             user_id: 用户ID
+            current_user: 当前登录用户
         Returns:
             None
         """
+        self._require_admin(current_user)
         deleted = user_crud.delete_user(self.db, user_id)
         if deleted == 0:
             raise HTTPException(
@@ -137,7 +194,7 @@ class UserService:
         if not verify_password(user_login.password, user.hashed_password):
             return None
         return user
-    
+
     def login_user(self, user_login: UserLogin) -> UserLoginResponse:
         """
         登录
@@ -150,7 +207,7 @@ class UserService:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户不存在或密码错误"   
+                detail="用户不存在或密码错误"
             )
         return UserLoginResponse(
             token_type="Bearer",
@@ -158,12 +215,7 @@ class UserService:
             refresh_token=create_refresh_token(user.id) if user_login.is_remember else None,
             access_token_expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
             refresh_token_expires_in=settings.REFRESH_TOKEN_EXPIRE_MINUTES if user_login.is_remember else None,
-            user=UserResponse(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                created_at=user.created_at
-            )
+            user=UserResponse.model_validate(user)
         )
 
     async def refresh_access_token(self, refresh_token: str) -> UserLoginResponse:
@@ -202,12 +254,7 @@ class UserService:
             refresh_token=create_refresh_token(user.id),
             access_token_expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
             refresh_token_expires_in=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
-            user=UserResponse(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                created_at=user.created_at
-            )
+            user=UserResponse.model_validate(user)
         )
 
     async def logout_user(self, access_token: str, user_logout: UserLogout) -> None:
@@ -222,3 +269,18 @@ class UserService:
             None
         """
         await blacklist_token(access_token, user_logout.refresh_token if user_logout.refresh_token else None)
+
+    def register_user(self, user_register: UserRegister) -> UserResponse:
+        """
+        注册用户
+        Args:
+            user_register: 用户注册请求
+        Returns:
+            UserResponse: 用户响应
+        """
+        self._ensure_username_unique(user_register.username)
+        self._ensure_email_unique(user_register.email)
+        # 强制注册用户的 permission 为 0
+        user_data = user_register.model_copy(update={"permission": 0})
+        user = user_crud.create_user(self.db, user_data)
+        return UserResponse.model_validate(user)

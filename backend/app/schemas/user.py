@@ -11,17 +11,21 @@ class UserBase(BaseModel):
 # 创建请求，必须传密码
 class UserCreate(UserBase):
     password: str = Field(min_length=6, max_length=128)
+    permission: Optional[int] = Field(default=0, ge=0, le=2)
 
 # 更新请求：全可选
 class UserUpdate(BaseModel):
     username: Optional[str] = Field(min_length=3, max_length=64, default=None)
     email: Optional[EmailStr] = None
     password: Optional[str] = Field(min_length=6, max_length=128, default=None)
+    permission: Optional[int] = Field(default=None, ge=0, le=2)
 
 # 响应对象：不返回密码
 class UserResponse(UserBase):
     id: int
     created_at: datetime
+    permission: int
+    is_deleted: bool
 
     # Pydantic v2 写法：允许从 ORM 对象读取属性
     model_config = ConfigDict(from_attributes=True)
@@ -72,3 +76,7 @@ class RefreshTokenRequest(BaseModel):
 # 登出请求
 class UserLogout(BaseModel):
     refresh_token: Optional[str] = None
+
+# 注册请求
+class UserRegister(UserCreate):
+    pass

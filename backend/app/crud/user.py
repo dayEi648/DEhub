@@ -62,9 +62,10 @@ def create_user(db: Session, user_in: UserCreate) -> User:
         User: 用户对象
     """
     db_user = User(
-        username=user_in.username, 
-        email=user_in.email, 
-        hashed_password=get_password_hash(user_in.password))
+        username=user_in.username,
+        email=user_in.email,
+        hashed_password=get_password_hash(user_in.password),
+        permission=getattr(user_in, "permission", 0))
     db.add(db_user)
     db.commit()
     db.refresh(db_user)

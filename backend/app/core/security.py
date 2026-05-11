@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 http_bearer = HTTPBearer(auto_error=False)
 
 
-async def get_token_from_header(
+def get_token_from_header(
     credentials: HTTPAuthorizationCredentials | None = Depends(http_bearer)
 ) -> str:
     """
@@ -165,12 +165,12 @@ async def blacklist_token(access_token: str, refresh_token: Optional[str] = None
     if sub_refresh and jti_refresh and exp_refresh:
         ttl = int(exp_refresh) - int(datetime.now(timezone.utc).timestamp())
         if ttl > 0:
-            redis = await get_redis_client()
+            redis = get_redis_client()
             await redis.setex(f"jwt_blacklist:{jti_refresh}", ttl, "revoked")
     if sub_access and jti_access and exp_access:
         ttl = int(exp_access) - int(datetime.now(timezone.utc).timestamp())
         if ttl > 0:
-            redis = await get_redis_client()
+            redis = get_redis_client()
             await redis.setex(f"jwt_blacklist:{jti_access}", ttl, "revoked")
 
 async def is_token_blacklisted(jti: str) -> bool:
@@ -181,6 +181,6 @@ async def is_token_blacklisted(jti: str) -> bool:
     Returns:
         bool: 是否在黑名单中
     """
-    redis = await get_redis_client()
+    redis = get_redis_client()
     return await redis.exists(f"jwt_blacklist:{jti}") > 0
 

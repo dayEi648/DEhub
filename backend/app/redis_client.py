@@ -30,7 +30,7 @@ async def close_redis_client() -> None:
         await redis_client.close()
     print("Redis客户端关闭成功")
 
-async def get_redis_client() -> aioredis.Redis:
+def get_redis_client() -> aioredis.Redis:
     """
     获取Redis客户端
     """
