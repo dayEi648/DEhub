@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
 from typing import Optional
-from pydantic import Field
+from pydantic import Field, field_validator
 
 class UserBase(BaseModel):
     username: str = Field(min_length=3, max_length=64)
@@ -24,3 +24,40 @@ class UserResponse(UserBase):
 
     # Pydantic v2 写法：允许从 ORM 对象读取属性
     model_config = ConfigDict(from_attributes=True)
+
+# 登录请求
+class UserLogin(BaseModel):
+    account: str = Field(min_length=3, max_length=255, description="邮箱或用户名",)
+    password: str = Field(min_length=6, max_length=128, description="密码")
+
+    @field_validator('account')
+    def validate_account(cls, v: str) -> str:
+        """
+        验证账号格式
+        Args:
+            v: 账号
+        Returns:
+            str: 账号
+        Raises:
+            ValueError: 邮箱格式不正确 或 用户名长度必须在3到64之间
+        """
+        if '@' in v:
+            if not EmailStr.is_valid(v):
+                raise ValueError("邮箱格式不正确")
+            elif len(v) > 255:
+                raise ValueError("邮箱长度必须在3到255之间")
+        else:
+            if len(v) < 3 or len(v) > 64:
+                raise ValueError("用户名长度必须在3到64之间")
+        return v.strip()
+
+# 登录响应
+class UserLoginResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "Bearer"
+    user: UserResponse
+    access_token_expires_in: int
+    refresh_token_expires_in: int
+
+# 注册请求

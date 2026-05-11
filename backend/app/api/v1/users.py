@@ -4,13 +4,13 @@ from typing import List
 from pydantic import Field
 
 from app.api.deps import get_db
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLoginResponse, UserLogin
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 @router.post("/", response_model=UserResponse, status_code=201)
-def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
+def create_user(user_in: UserCreate, db: Session = Depends(get_db)) -> UserResponse:
     """
     创建用户
     Args:
@@ -23,7 +23,7 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     return service.create_user(user_in)
 
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, db: Session = Depends(get_db)):
+def get_user(user_id: int, db: Session = Depends(get_db)) -> UserResponse:
     """
     获取用户
     Args:
@@ -36,7 +36,7 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     return service.get_user(user_id)
 
 @router.get("/", response_model=List[UserResponse])
-def list_users(skip: int = 0, limit: int = Field(default=20, ge=1, le=100), db: Session = Depends(get_db)):
+def list_users(skip: int = 0, limit: int = Field(default=20, ge=1, le=100), db: Session = Depends(get_db)) -> List[UserResponse]:
     """
     获取用户列表
     Args:
@@ -50,7 +50,7 @@ def list_users(skip: int = 0, limit: int = Field(default=20, ge=1, le=100), db: 
     return service.list_users(skip, limit)
 
 @router.put("/{user_id}", response_model=UserResponse)
-def update_user(user_id: int, user_in: UserUpdate, db: Session = Depends(get_db)):
+def update_user(user_id: int, user_in: UserUpdate, db: Session = Depends(get_db)) -> UserResponse:
     """
     更新用户
     Args:
@@ -64,7 +64,7 @@ def update_user(user_id: int, user_in: UserUpdate, db: Session = Depends(get_db)
     return service.update_user(user_id, user_in)
 
 @router.delete("/{user_id}", status_code=204)
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user(user_id: int, db: Session = Depends(get_db)) -> None:
     """
     删除用户
     Args:
@@ -76,3 +76,16 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     service = UserService(db)
     service.delete_user(user_id)
     return None
+
+@router.post("/login", response_model=UserLoginResponse)
+def login(user_login: UserLogin, db: Session = Depends(get_db)) -> UserLoginResponse:
+    """
+    登录
+    Args:
+        user_login: 用户登录请求
+        db: 数据库会话
+    Returns:
+        UserLoginResponse: 用户登录响应
+    """
+    service = UserService(db)
+    return service.login_user(user_login)

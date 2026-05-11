@@ -1,10 +1,12 @@
 from sqlalchemy.orm import Session
 from app.crud import user as user_crud
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse
 from app.models.user import User
 from fastapi import HTTPException, status
-
+from app.core.security import verify_password, create_access_token, create_refresh_token
+from app.core.config import settings
 class UserService:
+
     
     def __init__(self, db: Session):
         """
@@ -108,3 +110,46 @@ class UserService:
                 detail="用户不存在"
             )
         return None
+
+    def authenticate_user(self, user_login: UserLogin) -> User | None:
+        """
+        验证用户
+        Args:
+            user_login: 用户登录请求
+        Returns:
+            User | None: 用户对象或None
+        """
+        user = user_crud.get_user_by_email(self.db, user_login.account) or user_crud.get_user_by_username(self.db, user_login.account)
+        if not user:
+            return None
+        if not verify_password(user_login.password, user.hashed_password):
+            return None
+        return user
+    
+    def login_user(self, user_login: UserLogin) -> UserLoginResponse:
+        """
+        登录
+        Args:
+            user_login: 用户登录请求
+        Returns:
+            UserLoginResponse: 用户登录响应
+        """
+        user = self.authenticate_user(user_login)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户不存在或密码错误"   
+            )
+        return UserLoginResponse(
+            token_type="Bearer",
+            access_token=create_access_token(user.id, user.email),
+            refresh_token=create_refresh_token(user.id, user.email),
+            access_token_expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+            refresh_token_expires_in=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
+            user=UserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                created_at=user.created_at
+            )
+        )

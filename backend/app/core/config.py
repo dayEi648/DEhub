@@ -13,6 +13,11 @@ class Settings(BaseSettings):
         extra = "ignore",
     )
     
+    SECRET_KEY: str = Field(default="")
+    ALGORITHM: str = Field(default="HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 24)
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 24 * 30)
+
     APP_NAME: str = Field(default="DE Hub")
     APP_VERSION: str = Field(default="0.0.1")
     APP_DESCRIPTION: str = Field(default="A personal platform for DE")
