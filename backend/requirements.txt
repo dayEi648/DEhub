@@ -9,3 +9,4 @@ python-jose[cryptography]
 oss2 
 python-multipart 
 aiofiles
+filetype

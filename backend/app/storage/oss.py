@@ -1,6 +1,9 @@
 import oss2
 import uuid
 import mimetypes
+import asyncio
+import filetype
+from urllib.parse import urlparse
 from datetime import datetime
 from fastapi import HTTPException, UploadFile
 from app.core.config import settings
@@ -10,7 +13,8 @@ auth = oss2.Auth(settings.OSS_ACCESS_KEY_ID, settings.OSS_ACCESS_KEY_SECRET)
 bucket = oss2.Bucket(auth, settings.OSS_ENDPOINT, settings.OSS_BUCKET_NAME)
 
 # 允许的文件类型
-ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+
 
 def generate_file_path(file: UploadFile, folder: str) -> str:
     """
@@ -26,11 +30,13 @@ def generate_file_path(file: UploadFile, folder: str) -> str:
     unique_name = f"{uuid.uuid4().hex}{ext}"
     return f"{folder}/{date_str}/{unique_name}"
 
+
 async def upload_file_to_oss(
-    file: UploadFile, 
-    folder: str, 
-    allowed_types: set[str], 
-    max_size: int) -> str:
+    file: UploadFile,
+    folder: str,
+    allowed_types: set[str],
+    max_size: int
+) -> str:
     """
     上传文件到OSS
     Args:
@@ -41,23 +47,40 @@ async def upload_file_to_oss(
     Returns:
         str: 文件路径
     """
-    # 校验文件类型
+    # 校验文件类型（基于客户端声明）
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="不支持的文件类型")
 
     # 读取并校验文件大小
     content = await file.read()
     if len(content) > max_size:
-        raise HTTPException(status_code=413, detail=f"文件大小超过限制，最大支持 {max_size // 1024 // 1024} MB")
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件大小超过限制，最大支持 {max_size // 1024 // 1024} MB"
+        )
+
+    # 通过文件头校验真实文件类型
+    kind = filetype.guess(content[:2048])
+    if kind is None or kind.mime not in allowed_types:
+        raise HTTPException(status_code=400, detail="不支持的文件类型")
 
     # 生成文件路径
     file_path = generate_file_path(file, folder)
 
     # 上传文件
     try:
-        result = bucket.put_object(file_path, content, headers={'Content-Type': file.content_type})
-        if not result.status == 200:
+        result = await asyncio.to_thread(
+            bucket.put_object,
+            file_path,
+            content,
+            headers={'Content-Type': file.content_type}
+        )
+        if result.status != 200:
             raise HTTPException(status_code=500, detail="上传文件失败")
+    except HTTPException:
+        raise
+    except oss2.exceptions.OssError as e:
+        raise HTTPException(status_code=500, detail=f"OSS上传失败: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"上传文件失败: {str(e)}")
 
@@ -69,7 +92,7 @@ async def upload_file_to_oss(
 
     return url
 
-# 删除文件
+
 async def delete_file_from_oss(file_path: str) -> None:
     """
     删除文件从OSS
@@ -78,15 +101,22 @@ async def delete_file_from_oss(file_path: str) -> None:
     Returns:
         None
     """
+    if not file_path:
+        return
     try:
-        result = bucket.delete_object(file_path)
-        if not result.status == 204:
+        result = await asyncio.to_thread(bucket.delete_object, file_path)
+        if result.status != 204:
             raise HTTPException(status_code=500, detail="删除文件失败")
+    except HTTPException:
+        raise
+    except oss2.exceptions.OssError as e:
+        # 忽略文件不存在错误，其余 OSS 错误抛出
+        if e.status != 404:
+            raise HTTPException(status_code=500, detail=f"OSS删除失败: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除文件失败: {str(e)}")
 
 
-# 便捷函数
 async def upload_user_avatar(file: UploadFile) -> str:
     """
     上传用户头像
@@ -96,9 +126,13 @@ async def upload_user_avatar(file: UploadFile) -> str:
         str: 文件URL
     """
     return await upload_file_to_oss(
-        file, settings.OSS_USERS_AVATAR_DIR, ALLOWED_IMAGE_TYPES, settings.MAX_USER_AVATAR_SIZE)
+        file,
+        settings.OSS_USERS_AVATAR_DIR,
+        ALLOWED_IMAGE_TYPES,
+        settings.MAX_USER_AVATAR_SIZE
+    )
 
-# 将OSS url 转为 file_path
+
 def convert_oss_url_to_file_path(oss_url: str) -> str:
     """
     将OSS url转为 file_path
@@ -107,4 +141,16 @@ def convert_oss_url_to_file_path(oss_url: str) -> str:
     Returns:
         str: file_path
     """
-    return oss_url.replace(settings.OSS_DOMAIN, "") if settings.OSS_DOMAIN else oss_url
+    if not oss_url:
+        return ""
+    # 若配置了 OSS_DOMAIN 且 URL 以其开头，直接截取
+    if settings.OSS_DOMAIN and oss_url.startswith(settings.OSS_DOMAIN):
+        file_path = oss_url[len(settings.OSS_DOMAIN):]
+        return file_path.lstrip("/")
+    # 兜底：通过 URL 解析提取 path
+    parsed = urlparse(oss_url)
+    path = parsed.path.lstrip("/")
+    # 若路径以 bucket 名开头，去掉 bucket 前缀
+    if settings.OSS_BUCKET_NAME and path.startswith(settings.OSS_BUCKET_NAME + "/"):
+        path = path[len(settings.OSS_BUCKET_NAME) + 1:]
+    return path

@@ -12,7 +12,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str = Field(min_length=6, max_length=128)
     permission: Optional[int] = Field(default=0, ge=0, le=2)
-    avatar_url: Optional[str] = Field(default=None, max_length=128)
+    avatar_url: Optional[str] = Field(default=None, max_length=255)
     personal_profile: Optional[str] = Field(default=None)
 
 # 更新请求：全可选
@@ -21,7 +21,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     password: Optional[str] = Field(min_length=6, max_length=128, default=None)
     permission: Optional[int] = Field(default=None, ge=0, le=2)
-    avatar_url: Optional[str] = Field(default=None, max_length=128)
+    avatar_url: Optional[str] = Field(default=None, max_length=255)
     personal_profile: Optional[str] = Field(default=None)
 
 # 响应对象：不返回密码
