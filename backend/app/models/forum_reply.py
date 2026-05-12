@@ -1,0 +1,27 @@
+from datetime import datetime
+from sqlalchemy import DateTime, func, Integer, ForeignKey, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import TYPE_CHECKING
+from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.forum_post import ForumPost
+
+
+class ForumReply(Base):
+    __tablename__ = "forum_replies"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    post_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("forum_posts.id"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    likecount: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    post: Mapped["ForumPost"] = relationship("ForumPost", back_populates="replies")

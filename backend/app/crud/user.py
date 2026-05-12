@@ -39,17 +39,38 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     return db.query(User).filter(User.email == email).first()
 
 
-def get_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:
+def get_users(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    include_deleted: bool = False,
+    username: str | None = None,
+    email: str | None = None,
+    permission: int | None = None,
+) -> list[User]:
     """
-    获取用户列表
+    获取用户列表（支持分页与筛选）
     Args:
         db: 数据库会话
         skip: 跳过数量
         limit: 限制数量
+        include_deleted: 是否包含已逻辑删除的用户
+        username: 用户名模糊筛选
+        email: 邮箱模糊筛选
+        permission: 权限值筛选
     Returns:
         list[User]: 用户列表
     """
-    return db.query(User).offset(skip).limit(limit).all()
+    query = db.query(User)
+    if not include_deleted:
+        query = query.filter(User.is_deleted == False)
+    if username:
+        query = query.filter(User.username.ilike(f"%{username}%"))
+    if email:
+        query = query.filter(User.email.ilike(f"%{email}%"))
+    if permission is not None:
+        query = query.filter(User.permission == permission)
+    return query.offset(skip).limit(limit).all()
 
 
 def create_user(db: Session, user_in: UserCreate) -> User:
@@ -100,9 +121,26 @@ def update_user(db: Session, db_user: User, user_in: UserUpdate) -> User:
     return db_user
 
 
-def delete_user(db: Session, user_id: int) -> int:
+def soft_delete_user(db: Session, user_id: int) -> int:
     """
-    删除用户
+    逻辑删除用户（注销）
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+    Returns:
+        int: 更新行数
+    """
+    result = db.query(User).filter(
+        User.id == user_id,
+        User.is_deleted == False
+    ).update({"is_deleted": True}, synchronize_session=False)
+    db.commit()
+    return result
+
+
+def hard_delete_user(db: Session, user_id: int) -> int:
+    """
+    硬删除用户（从数据库移除）
     Args:
         db: 数据库会话
         user_id: 用户ID

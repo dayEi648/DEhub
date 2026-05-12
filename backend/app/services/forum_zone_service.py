@@ -1,0 +1,168 @@
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.models.user import User
+from app.models.forum_zone import ForumZone
+from app.core.permissions import require_admin
+from app.schemas.forum_zone import ForumZoneCreate, ForumZoneUpdate, ForumZoneResponse
+from app.crud import forum_zone as forum_zone_crud
+from app.crud import forum_post as forum_post_crud
+from app.core.zone_manager import (
+    get_zone_manager_id,
+    set_zone_manager_cache,
+    delete_zone_manager_cache,
+)
+
+
+class ForumZoneService:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def _require_admin(self, current_user: User) -> None:
+        """要求当前用户为管理员及以上"""
+        require_admin(current_user)
+
+    def _is_zone_manager(self, zone: ForumZone, current_user: User) -> bool:
+        """判断当前用户是否为指定分区的区主"""
+        return zone.manager_id == current_user.id
+
+    def _ensure_slug_unique(
+        self, slug: str, exclude_zone_id: int | None = None
+    ) -> None:
+        """
+        校验分区 slug 唯一性
+        Args:
+            slug: 待校验 slug
+            exclude_zone_id: 排除的分区ID（更新场景下排除自身）
+        Raises:
+            HTTPException: 400 slug 已存在
+        """
+        existing = forum_zone_crud.get_zone_by_slug(self.db, slug)
+        if existing and (exclude_zone_id is None or existing.id != exclude_zone_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="分区 slug 已存在",
+            )
+
+    def create_zone(
+        self, zone_in: ForumZoneCreate, current_user: User
+    ) -> ForumZone:
+        """
+        创建分区（管理员及以上）
+        Args:
+            zone_in: 分区创建请求
+            current_user: 当前登录用户
+        Returns:
+            ForumZone: 分区对象
+        Raises:
+            HTTPException: 403 权限不足
+        """
+        self._require_admin(current_user)
+        self._ensure_slug_unique(zone_in.slug)
+        return forum_zone_crud.create_zone(self.db, zone_in, current_user.id)
+
+    def update_zone(
+        self, zone_id: int, zone_in: ForumZoneUpdate, current_user: User
+    ) -> ForumZone:
+        """
+        编辑分区（管理员及以上 或 区主）
+        区主不能修改 manager_id
+        Args:
+            zone_id: 分区ID
+            zone_in: 分区更新请求
+            current_user: 当前登录用户
+        Returns:
+            ForumZone: 分区对象
+        Raises:
+            HTTPException: 404 分区不存在 / 403 无权编辑 / 400 slug 已存在
+        """
+        db_zone = forum_zone_crud.get_zone_by_id(self.db, zone_id)
+        if not db_zone:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
+            )
+
+        is_admin = current_user.permission >= 1
+        is_manager = self._is_zone_manager(db_zone, current_user)
+
+        if not is_admin and not is_manager:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="无权编辑此分区"
+            )
+
+        update_data = zone_in.model_dump(exclude_unset=True)
+
+        # 仅管理员可修改 manager_id
+        manager_id_changed = False
+        if "manager_id" in update_data:
+            if not is_admin:
+                del update_data["manager_id"]
+            else:
+                manager_id_changed = update_data["manager_id"] != db_zone.manager_id
+
+        if "slug" in update_data and update_data["slug"] != db_zone.slug:
+            self._ensure_slug_unique(update_data["slug"], exclude_zone_id=db_zone.id)
+
+        filtered_zone_in = ForumZoneUpdate(**update_data)
+        updated_zone = forum_zone_crud.update_zone(
+            self.db, db_zone, filtered_zone_in
+        )
+
+        if manager_id_changed:
+            set_zone_manager_cache(updated_zone.id, updated_zone.manager_id)
+
+        return updated_zone
+
+    def delete_zone(self, zone_id: int, current_user: User) -> None:
+        """
+        删除分区（管理员及以上）
+        若该分区下还有帖子，将返回 400
+        Args:
+            zone_id: 分区ID
+            current_user: 当前登录用户
+        Raises:
+            HTTPException: 404 分区不存在 / 400 分区下还有帖子 / 403 权限不足
+        """
+        self._require_admin(current_user)
+        db_zone = forum_zone_crud.get_zone_by_id(self.db, zone_id)
+        if not db_zone:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
+            )
+
+        posts = forum_post_crud.get_posts(
+            self.db, zone_id=zone_id, skip=0, limit=1
+        )
+        if posts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该分区下还有帖子，无法删除",
+            )
+
+        forum_zone_crud.delete_zone(self.db, zone_id)
+        delete_zone_manager_cache(zone_id)
+
+    def get_zone(self, zone_id: int) -> ForumZone:
+        """
+        获取分区详情
+        Args:
+            zone_id: 分区ID
+        Returns:
+            ForumZone: 分区对象
+        Raises:
+            HTTPException: 404 分区不存在
+        """
+        db_zone = forum_zone_crud.get_zone_by_id(self.db, zone_id)
+        if not db_zone:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
+            )
+        return db_zone
+
+    def list_zones(self) -> list[ForumZone]:
+        """
+        获取所有分区列表
+        Returns:
+            list[ForumZone]: 分区列表
+        """
+        return forum_zone_crud.get_all_zones(self.db)

@@ -1,0 +1,28 @@
+from datetime import datetime
+from sqlalchemy import String, DateTime, func, BigInteger, Boolean, ARRAY, Integer, ForeignKey
+from sqlalchemy.dialects.postgresql import TEXT
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import TYPE_CHECKING
+from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.blog_category import BlogCategory
+
+
+class BlogPost(Base):
+    __tablename__ = "blog_posts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(64), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    summary: Mapped[str | None] = mapped_column(TEXT)
+    content_md: Mapped[str] = mapped_column(TEXT, nullable=False)
+    cover_image_url: Mapped[str | None] = mapped_column(String(255))
+    category_id: Mapped[int] = mapped_column(Integer, ForeignKey("blog_categories.id"), nullable=False)
+    category: Mapped["BlogCategory"] = relationship("BlogCategory", back_populates="posts")
+    tags: Mapped[list[str]] = mapped_column(ARRAY(TEXT), default=list)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    view_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

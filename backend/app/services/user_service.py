@@ -5,6 +5,7 @@ from app.models.user import User
 from fastapi import HTTPException, status, UploadFile
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
 from app.core.config import settings
+from app.core.permissions import require_admin
 from app.storage.oss import delete_file_from_oss, upload_user_avatar, convert_oss_url_to_file_path
 
 class UserService:
@@ -54,16 +55,8 @@ class UserService:
     def _require_admin(self, current_user: User) -> None:
         """
         要求当前用户为管理员及以上权限
-        Args:
-            current_user: 当前登录用户
-        Raises:
-            HTTPException: 权限不足
         """
-        if current_user.permission < 1:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="权限不足"
-            )
+        require_admin(current_user)
 
     def _require_owner_or_admin(self, current_user: User, target_user_id: int) -> None:
         """
@@ -96,13 +89,10 @@ class UserService:
         self._ensure_email_unique(user_in.email)
         return user_crud.create_user(self.db, user_in)
 
-    def get_user(self, user_id: int) -> User:
+    def get_user(self, user_id: int, current_user: User) -> User:
         """
         根据用户ID获取用户
-        Args:
-            user_id: 用户ID
-        Returns:
-            User: 用户对象
+        若用户已逻辑删除，仅管理员及以上可查看
         """
         user = user_crud.get_user_by_id(self.db, user_id)
         if not user:
@@ -110,18 +100,34 @@ class UserService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="用户不存在"
             )
+        if user.is_deleted and current_user.permission < 1:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在"
+            )
         return user
 
-    def list_users(self, skip: int = 0, limit: int = 100) -> list[User]:
+    def list_users(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        include_deleted: bool = False,
+        username: str | None = None,
+        email: str | None = None,
+        permission: int | None = None,
+    ) -> list[User]:
         """
-        获取用户列表
-        Args:
-            skip: 跳过数量
-            limit: 限制数量
-        Returns:
-            list[User]: 用户列表
+        获取用户列表（支持分页与筛选）
         """
-        return user_crud.get_users(self.db, skip=skip, limit=limit)
+        return user_crud.get_users(
+            self.db,
+            skip=skip,
+            limit=limit,
+            include_deleted=include_deleted,
+            username=username,
+            email=email,
+            permission=permission,
+        )
 
     async def update_user(self, user_id: int, user_in: UserUpdate, current_user: User, file: UploadFile | None = None) -> UserResponse:
         """
@@ -166,23 +172,37 @@ class UserService:
 
         return UserResponse.model_validate(user_crud.update_user(self.db, db_user, user_in))
 
-    def delete_user(self, user_id: int, current_user: User) -> None:
+    def soft_delete_user(self, user_id: int, current_user: User) -> None:
         """
-        删除用户（管理员专属）
-        Args:
-            user_id: 用户ID
-            current_user: 当前登录用户
-        Returns:
-            None
+        逻辑删除用户（注销，管理员或本人）
+        注销后会在 Redis 中标记该用户撤销时间，使其所有已签发 token 失效
+        """
+        self._require_owner_or_admin(current_user, user_id)
+        result = user_crud.soft_delete_user(self.db, user_id)
+        if result == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在或已被注销"
+            )
+
+        # 在 Redis 中记录注销时间戳，使该用户所有已有 token 失效
+        from app.redis_client import get_sync_redis_client
+        import time
+        revoked_at = int(time.time())
+        redis = get_sync_redis_client()
+        redis.set(f"user_revoked:{user_id}", revoked_at)
+
+    def hard_delete_user(self, user_id: int, current_user: User) -> None:
+        """
+        硬删除用户（从数据库移除，管理员专属）
         """
         self._require_admin(current_user)
-        deleted = user_crud.delete_user(self.db, user_id)
+        deleted = user_crud.hard_delete_user(self.db, user_id)
         if deleted == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="用户不存在"
             )
-        return None
 
     # 预生成一个无效的 bcrypt hash，用于时序攻击防护（dummy check）
     _DUMMY_HASH = "$2b$12$4LPTZltcFxdjkL4ONdOM0OQnYxLfYQvH3h1xWJQu7e1KqCb0XvC7e"

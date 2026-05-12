@@ -1,0 +1,41 @@
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class CommentUserInfo(BaseModel):
+    """评论中嵌套的精简用户信息"""
+    id: int
+    username: str
+    avatar_url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CommentCreate(BaseModel):
+    """创建评论请求"""
+    target_type: str = Field(min_length=1, max_length=32)
+    target_id: int = Field(ge=1)
+    parent_id: Optional[int] = Field(default=None, ge=1)
+    content: str = Field(min_length=1)
+
+
+class CommentResponse(BaseModel):
+    """评论完整响应"""
+    id: int
+    target_type: str
+    target_id: int
+    parent_id: Optional[int] = None
+    user_id: int
+    content: str
+    likecount: int
+    created_at: datetime
+    user: CommentUserInfo
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CommentListResponse(BaseModel):
+    """评论分页列表响应"""
+    items: list[CommentResponse]
+    total: int

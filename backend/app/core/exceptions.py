@@ -18,7 +18,7 @@ def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse
     """
     return JSONResponse(
         status_code=exc.status_code,
-        content={"code": exc.status_code, "detail": exc.detail},
+        content={"code": exc.status_code, "message": exc.detail},
     )
 
 def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:

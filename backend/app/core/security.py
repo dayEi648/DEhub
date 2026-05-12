@@ -31,8 +31,6 @@ def get_token_from_header(
     return credentials.credentials
 
 
-
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     验证密码
@@ -69,7 +67,7 @@ def create_access_token(user_id: int) -> str:
     jti = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {"sub": str(user_id), "exp": expire, "jti": jti, "type": "access", "iat": now}
+    to_encode = {"sub": str(user_id), "exp": int(expire.timestamp()), "jti": jti, "type": "access", "iat": int(now.timestamp())}
     return jwt.encode(
         to_encode,
         settings.SECRET_KEY,
@@ -87,7 +85,7 @@ def create_refresh_token(user_id: int) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
     jti = str(uuid.uuid4())
-    to_encode = {"sub": str(user_id), "exp": expire, "jti": jti, "type": "refresh", "iat": now}
+    to_encode = {"sub": str(user_id), "exp": int(expire.timestamp()), "jti": jti, "type": "refresh", "iat": int(now.timestamp())}
     return jwt.encode(
         to_encode,
         settings.SECRET_KEY,
@@ -140,6 +138,18 @@ async def get_current_user(token: str = Depends(get_token_from_header), db: Sess
     user = await run_in_threadpool(user_crud.get_user_by_id, db, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在")
+
+    # 检查用户是否已被注销（用户级 token 撤销）
+    redis = get_redis_client()
+    revoked_at_str = await redis.get(f"user_revoked:{user_id}")
+    if revoked_at_str:
+        iat = payload.get("iat")
+        if iat and float(iat) < float(revoked_at_str):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户已注销",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     return user
     

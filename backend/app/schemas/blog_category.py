@@ -1,0 +1,33 @@
+from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class BlogCategoryBase(BaseModel):
+    """分类基础字段"""
+    name: str = Field(min_length=1, max_length=64)
+    slug: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class BlogCategoryCreate(BlogCategoryBase):
+    """创建分类请求"""
+    pass
+
+
+class BlogCategoryUpdate(BaseModel):
+    """更新分类请求：全可选"""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    slug: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class BlogCategoryResponse(BlogCategoryBase):
+    """分类响应"""
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BlogCategoryWithPostCount(BlogCategoryResponse):
+    """分类响应（附带文章数量）"""
+    post_count: int = 0

@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Query
 from sqlalchemy.orm import Session
 from typing import List
-from fastapi import Query
 
 from app.api.deps import get_db
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLoginResponse, UserLogin, UserLogout, RefreshTokenRequest, UserRegister
@@ -37,38 +36,37 @@ def get_user(
 ) -> UserResponse:
     """
     获取用户
-    Args:
-        user_id: 用户ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        UserResponse: 用户响应
+    若用户已注销，仅管理员及以上可查看
     """
     service = UserService(db)
-    return service.get_user(user_id)
+    return service.get_user(user_id, current_user)
 
 @router.get("/", response_model=List[UserResponse])
 def list_users(
     skip: int = 0,
     limit: int = Query(default=20, ge=1, le=100),
+    include_deleted: bool = Query(default=False, description="是否包含已注销用户（仅管理员有效）"),
+    username: str | None = Query(default=None, description="用户名模糊筛选"),
+    email: str | None = Query(default=None, description="邮箱模糊筛选"),
+    permission: int | None = Query(default=None, ge=0, le=2, description="权限值筛选"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> List[UserResponse]:
     """
-    获取用户列表
-    Args:
-        skip: 跳过数量
-        limit: 限制数量
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        List[UserResponse]: 用户列表
+    获取用户列表（支持分页与筛选）
     """
     service = UserService(db)
-    return service.list_users(skip, limit)
+    return service.list_users(
+        skip=skip,
+        limit=limit,
+        include_deleted=include_deleted,
+        username=username,
+        email=email,
+        permission=permission,
+    )
 
 @router.put("/{user_id}", response_model=UserResponse)
-def update_user(
+async def update_user(
     user_id: int,
     user_in: UserUpdate,
     file: UploadFile | None = File(None, description="头像文件，最大5MB"),
@@ -87,25 +85,34 @@ def update_user(
         UserResponse: 用户响应
     """
     service = UserService(db)
-    return service.update_user(user_id, user_in, file, current_user)
+    return await service.update_user(user_id, user_in, file, current_user)
 
-@router.delete("/{user_id}", status_code=204)
-def delete_user(
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def soft_delete_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> None:
     """
-    删除用户（管理员专属）
-    Args:
-        user_id: 用户ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        None
+    注销用户（逻辑删除，管理员或本人）
+    注销后该用户所有已签发的 token 将自动失效
     """
     service = UserService(db)
-    service.delete_user(user_id, current_user)
+    service.soft_delete_user(user_id, current_user)
+    return None
+
+
+@router.delete("/{user_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
+def hard_delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> None:
+    """
+    硬删除用户（从数据库彻底移除，管理员专属）
+    """
+    service = UserService(db)
+    service.hard_delete_user(user_id, current_user)
     return None
 
 @router.post("/login", response_model=UserLoginResponse)
