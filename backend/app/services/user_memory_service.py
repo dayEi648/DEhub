@@ -15,13 +15,9 @@ from app.db.session import SessionLocal
 from app.infrastructure.embedding_client import get_embedding_client
 from app.infrastructure.llm_client import get_llm_small_client
 from app.models.user_memory_embedding import UserMemoryEmbedding
+from app.prompts.chat_prompts import CONVERSATION_SUMMARY
 
 logger = logging.getLogger(__name__)
-
-_SUMMARY_SYSTEM_PROMPT = (
-    "请用一段话总结以下对话的核心主题、用户意图和关键信息。"
-    "要求简洁，不超过100字。只输出总结内容，不要解释。"
-)
 
 _RETENTION_DAYS = 180
 
@@ -105,7 +101,7 @@ class UserMemoryService:
 
             summary = await get_llm_small_client().achat(
                 messages=[{"role": "user", "content": transcript}],
-                system_prompt=_SUMMARY_SYSTEM_PROMPT,
+                system_prompt=CONVERSATION_SUMMARY,
             )
             summary = summary.strip()
             if not summary:

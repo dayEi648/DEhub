@@ -12,15 +12,17 @@ from app.crud import ai_conversation as conv_crud
 from app.crud import conversation_message as msg_crud
 from app.infrastructure.langchain_adapter import CustomChatModel
 from app.models.ai_conversation import AIConversation
+from app.prompts.chat_prompts import (
+    MEMORY_REFERENCE_HEADER,
+    MEMORY_SUMMARY_LABEL,
+    MEMORY_TURN_LABEL,
+    TITLE_GENERATION,
+)
 from app.services.user_memory_service import UserMemoryService
 
 logger = logging.getLogger(__name__)
 
 _TITLE_MAX_LENGTH = 30
-_TITLE_SYSTEM_PROMPT = (
-    "请用一句话总结用户问题的核心主题，作为对话标题，"
-    "要求简洁明了，不超过15个字。只输出标题内容，不要有任何解释。"
-)
 
 
 class ChatState(MessagesState):
@@ -49,7 +51,7 @@ def _format_memories(memories: list) -> list[str]:
     if not memories:
         return []
     return [
-        f"[{'对话摘要' if mem.memory_type == 'summary' else '历史对话'}] {mem.content_text}"
+        f"{MEMORY_SUMMARY_LABEL if mem.memory_type == 'summary' else MEMORY_TURN_LABEL} {mem.content_text}"
         for mem in memories
     ]
 
@@ -61,10 +63,7 @@ def _build_system_prompt(
     if not memory_prompts:
         return original_system
     memory_text = "\n---\n".join(memory_prompts)
-    memory_section = (
-        "以下是与该用户相关的历史记忆（来自过往对话），"
-        "请在不违背当前上下文的前提下参考：\n" + memory_text
-    )
+    memory_section = f"{MEMORY_REFERENCE_HEADER}\n{memory_text}"
     base = original_system.strip() if original_system else ""
     if base:
         return f"{base}\n\n{memory_section}"
@@ -106,7 +105,10 @@ def _build_prepare_node(llm_small: CustomChatModel):
         title_prompt = state.get("title_prompt", "")
         try:
             title = await llm_small.ainvoke(
-                [HumanMessage(content=title_prompt)]
+                [
+                    SystemMessage(content=TITLE_GENERATION),
+                    HumanMessage(content=title_prompt),
+                ]
             )
             title = title.content.strip().replace("\n", " ")
             if len(title) > _TITLE_MAX_LENGTH:
