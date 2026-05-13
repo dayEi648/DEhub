@@ -7,6 +7,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.blog_category import BlogCategory
+    from app.models.blog_post_embedding import BlogPostEmbedding
 
 
 class BlogPost(Base):
@@ -26,3 +27,7 @@ class BlogPost(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    embedding: Mapped["BlogPostEmbedding | None"] = relationship(
+        "BlogPostEmbedding", back_populates="post", uselist=False
+    )

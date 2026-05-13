@@ -10,4 +10,16 @@ oss2
 python-multipart 
 aiofiles
 filetype
+redis
 pytest
+pytest-asyncio
+langchain
+langgraph
+langchain-openai
+langchain-postgres
+pgvector
+langchain-community
+mcp
+pypdf
+beautifulsoup4
+lxml
