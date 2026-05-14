@@ -1,5 +1,5 @@
 import client from './client'
-import type { UserResponse, UserListResponse } from '@/types'
+import type { UserResponse, UserListResponse, UserCreate } from '@/types'
 
 export function fetchUsers(params?: {
   skip?: number
@@ -18,7 +18,7 @@ export function fetchUserById(id: number) {
 
 export function updateUser(id: number, formData: FormData) {
   return client.put<UserResponse>(`/users/${id}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+    headers: { 'Content-Type': undefined }
   })
 }
 
@@ -28,6 +28,10 @@ export function deleteUser(id: number) {
 
 export function hardDeleteUser(id: number) {
   return client.delete(`/users/${id}/hard`)
+}
+
+export function createUser(data: UserCreate) {
+  return client.post<UserResponse>('/users/', data)
 }
 
 export function changePassword(data: { old_password: string; new_password: string }) {

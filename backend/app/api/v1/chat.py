@@ -51,7 +51,6 @@ async def stream_chat(
                 user_id=current_user.id,
                 conversation_id=chat_in.conversation_id,
                 content=chat_in.content,
-                system_prompt=chat_in.system_prompt,
             ):
                 yield f"data: {chunk}\n\n"
         except Exception:

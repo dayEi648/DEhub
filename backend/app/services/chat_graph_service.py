@@ -79,7 +79,6 @@ class ChatGraphService:
         user_id: int,
         conversation_id: int | None,
         content: str,
-        system_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         流式对话入口。
@@ -91,7 +90,6 @@ class ChatGraphService:
             user_id: 用户 ID
             conversation_id: 对话 ID（None 则新建）
             content: 用户输入内容
-            system_prompt: 可选的 System Prompt
 
         Yields:
             str: LLM 生成的文本增量
@@ -120,7 +118,6 @@ class ChatGraphService:
         initial_state = {
             "user_id": user_id,
             "conversation_id": conversation_id,
-            "system_prompt": system_prompt,
             "messages": messages,
             "title_prompt": content,
         }

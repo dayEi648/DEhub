@@ -258,7 +258,6 @@ export interface CommentListResponse {
 export interface ChatCreate {
   conversation_id?: number
   content: string
-  system_prompt?: string
 }
 
 export interface ConversationResponse {

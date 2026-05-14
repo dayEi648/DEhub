@@ -95,10 +95,21 @@ const router = createRouter({
       meta: { title: '个人中心' }
     },
     {
-      path: '/admin/users',
-      name: 'user-admin',
-      component: () => import('@/views/user/UserAdminView.vue'),
-      meta: { title: '用户管理', requiresAdmin: true }
+      path: '/admin',
+      meta: { requiresAdmin: true },
+      component: () => import('@/views/admin/AdminLayout.vue'),
+      children: [
+        {
+          path: '',
+          redirect: '/admin/users'
+        },
+        {
+          path: 'users',
+          name: 'user-admin',
+          component: () => import('@/views/admin/UserAdminView.vue'),
+          meta: { title: '用户管理', requiresAdmin: true }
+        }
+      ]
     },
     {
       path: '/404',

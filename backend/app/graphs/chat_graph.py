@@ -42,7 +42,6 @@ class ChatState(MessagesState):
 
     user_id: int
     conversation_id: int | None
-    system_prompt: str | None
     effective_system_prompt: str | None
     long_term_memories: list[str]
     blog_knowledge: list[str]
@@ -81,15 +80,11 @@ def _format_blog_knowledge(results: list) -> list[str]:
     return formatted
 
 
-def _build_system_prompt(
-    original_system: str | None, memory_prompts: list[str]
-) -> str | None:
-    """将原始 System Prompt 与长期记忆拼接，并追加安全约束。"""
+def _build_system_prompt(memory_prompts: list[str]) -> str | None:
+    """将默认 System Prompt 与长期记忆拼接，并追加安全约束。"""
     sections: list[str] = []
 
-    # 优先使用传入的 system_prompt，否则使用默认角色设定
-    base_prompt = original_system or DEFAULT_SYSTEM
-    sections.append(base_prompt.strip())
+    sections.append(DEFAULT_SYSTEM.strip())
 
     if memory_prompts:
         memory_text = "\n---\n".join(memory_prompts)
@@ -185,9 +180,7 @@ def _build_retrieve_node():
             exclude_conversation_id=conversation_id,
         )
         memory_texts = _format_memories(memories)
-        effective = _build_system_prompt(
-            state.get("system_prompt"), memory_texts
-        )
+        effective = _build_system_prompt(memory_texts)
         return {
             "long_term_memories": memory_texts,
             "blog_knowledge": [],

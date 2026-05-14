@@ -7,6 +7,7 @@ from app.storage.oss import (
     convert_oss_url_to_file_path,
     upload_file_to_oss,
     delete_file_from_oss,
+    compress_image,
     ALLOWED_IMAGE_TYPES,
 )
 
@@ -169,3 +170,222 @@ class TestDeleteFileFromOss:
                 await delete_file_from_oss("users/avatar/20250101/abc.jpg")
             assert exc_info.value.status_code == 500
             assert "OSS删除失败" in exc_info.value.detail
+
+
+# ---------- compress_image 测试 ----------
+
+class TestCompressImage:
+    def test_pillow_not_installed(self, monkeypatch):
+        """Pillow 未安装时应抛出 500"""
+        original_import = __builtins__["__import__"]
+
+        def mock_import(name, *args, **kwargs):
+            if name == "PIL" or name.startswith("PIL."):
+                raise ImportError("No module named 'PIL'")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr("builtins.__import__", mock_import)
+        with pytest.raises(HTTPException) as exc_info:
+            compress_image(b"fake", 1024)
+        assert exc_info.value.status_code == 500
+        assert "图片压缩服务不可用" in exc_info.value.detail
+
+    def _mock_pil(self, mock_img):
+        """构造可注入 sys.modules 的 mock PIL 模块"""
+        from unittest.mock import MagicMock
+        import sys
+
+        mock_pil = MagicMock()
+        mock_pil.Image.open.return_value = mock_img
+        mock_pil.Image.new.return_value = mock_img
+        return mock_pil
+
+    def test_compress_success(self):
+        """正常压缩应返回 JPEG 字节"""
+        from unittest.mock import MagicMock, patch
+        import sys
+
+        mock_img = MagicMock()
+        mock_img.mode = "RGB"
+        mock_img.size = (800, 600)
+        mock_img._getexif.return_value = None
+
+        def fake_thumbnail(size, filter):
+            mock_img.size = (800, 600)
+
+        mock_img.thumbnail = fake_thumbnail
+
+        def fake_save(fp, *args, **kwargs):
+            fp.write(b"compressed_jpeg_bytes")
+
+        mock_img.save = fake_save
+
+        mock_pil = self._mock_pil(mock_img)
+        with patch.dict(sys.modules, {"PIL": mock_pil, "PIL.Image": mock_pil.Image}):
+            result = compress_image(b"fake_png", 1024 * 1024)
+            assert result == b"compressed_jpeg_bytes"
+
+    def test_compress_exif_orientation(self):
+        """EXIF 方向标记应被正确应用"""
+        from unittest.mock import MagicMock, patch
+        import sys
+
+        mock_img = MagicMock()
+        mock_img.mode = "RGB"
+        mock_img.size = (600, 800)
+        mock_img._getexif.return_value = {274: 6}
+
+        rotated_img = MagicMock()
+        rotated_img.mode = "RGB"
+        rotated_img.size = (800, 600)
+        rotated_img._getexif.return_value = None
+
+        def fake_rotate(angle, expand=False):
+            return rotated_img
+
+        mock_img.rotate = fake_rotate
+
+        def fake_thumbnail(size, filter):
+            pass
+
+        mock_img.thumbnail = fake_thumbnail
+        rotated_img.thumbnail = fake_thumbnail
+
+        def fake_save(fp, *args, **kwargs):
+            fp.write(b"rotated_jpeg")
+
+        rotated_img.save = fake_save
+
+        mock_pil = self._mock_pil(mock_img)
+        mock_pil.Image.open.return_value = mock_img
+        with patch.dict(sys.modules, {"PIL": mock_pil, "PIL.Image": mock_pil.Image}):
+            result = compress_image(b"fake", 1024 * 1024)
+            assert result == b"rotated_jpeg"
+
+    def test_compress_rgba_to_rgb(self):
+        """RGBA 透明图应转为白底 RGB"""
+        from unittest.mock import MagicMock, patch
+        import sys
+
+        mock_bg = MagicMock()
+        mock_bg.mode = "RGB"
+        mock_bg.size = (500, 500)
+        mock_bg._getexif.return_value = None
+
+        mock_img = MagicMock()
+        mock_img.mode = "RGBA"
+        mock_img.size = (500, 500)
+        mock_img._getexif.return_value = None
+        mock_img.split.return_value = [MagicMock(), MagicMock(), MagicMock(), MagicMock()]
+
+        def fake_paste(src, mask=None):
+            pass
+
+        mock_bg.paste = fake_paste
+
+        def fake_thumbnail(size, filter):
+            pass
+
+        mock_bg.thumbnail = fake_thumbnail
+
+        def fake_save(fp, *args, **kwargs):
+            fp.write(b"rgb_jpeg")
+
+        mock_bg.save = fake_save
+
+        mock_pil = self._mock_pil(mock_img)
+        mock_pil.Image.new.return_value = mock_bg
+        mock_pil.Image.open.return_value = mock_img
+        with patch.dict(sys.modules, {"PIL": mock_pil, "PIL.Image": mock_pil.Image}):
+            result = compress_image(b"fake", 1024 * 1024)
+            assert result == b"rgb_jpeg"
+
+    def test_compress_still_oversized_raises(self):
+        """压缩后仍超过限制应抛出 413"""
+        from unittest.mock import MagicMock, patch
+        import sys
+
+        mock_img = MagicMock()
+        mock_img.mode = "RGB"
+        mock_img.size = (50, 50)
+        mock_img._getexif.return_value = None
+
+        def fake_thumbnail(size, filter):
+            mock_img.size = (50, 50)
+
+        mock_img.thumbnail = fake_thumbnail
+
+        def fake_save(fp, *args, **kwargs):
+            fp.write(b"x" * 10000)
+
+        mock_img.save = fake_save
+
+        mock_pil = self._mock_pil(mock_img)
+        with patch.dict(sys.modules, {"PIL": mock_pil, "PIL.Image": mock_pil.Image}):
+            with pytest.raises(HTTPException) as exc_info:
+                compress_image(b"fake", 100)
+            assert exc_info.value.status_code == 413
+            assert "压缩后仍超过" in exc_info.value.detail
+
+
+# ---------- upload_file_to_oss compress 测试 ----------
+
+class TestUploadFileToOssCompress:
+    @pytest.fixture(autouse=True)
+    def patch_settings(self, monkeypatch):
+        monkeypatch.setattr(oss_module.settings, "OSS_DOMAIN", "https://cdn.example.com")
+        monkeypatch.setattr(oss_module.settings, "OSS_BUCKET_NAME", "my-bucket")
+
+    @pytest.fixture
+    def fake_png(self):
+        return b"\x89PNG\r\n\x1a\n" + b"\x00" * 200
+
+    def _make_upload_file(self, content: bytes, content_type: str, filename: str = "test"):
+        mock_file = MagicMock()
+        mock_file.content_type = content_type
+        mock_file.read = AsyncMock(return_value=content)
+        mock_file.filename = filename
+        return mock_file
+
+    @pytest.mark.asyncio
+    async def test_compress_enabled_calls_compress_and_uploads_jpeg(self, fake_png):
+        """开启压缩时应调用 compress_image 并上传 JPEG"""
+        file = self._make_upload_file(fake_png, "image/png", "test.png")
+
+        mock_result = MagicMock()
+        mock_result.status = 200
+
+        with patch.object(oss_module, "compress_image", return_value=b"compressed_jpeg") as mock_compress:
+            with patch.object(oss_module.bucket, "put_object", return_value=mock_result) as mock_put:
+                url = await upload_file_to_oss(
+                    file, "avatars", ALLOWED_IMAGE_TYPES, 1024 * 1024, compress=True
+                )
+                mock_compress.assert_called_once_with(fake_png, 1024 * 1024, 1024)
+                assert url.startswith("https://cdn.example.com/avatars/")
+                # 验证 Content-Type 为 jpeg
+                call_kwargs = mock_put.call_args[1]
+                assert call_kwargs.get("headers", {}).get("Content-Type") == "image/jpeg"
+
+    @pytest.mark.asyncio
+    async def test_compress_enabled_uses_given_max_dimension(self, fake_png):
+        """应传递自定义的 compress_max_dimension"""
+        file = self._make_upload_file(fake_png, "image/png", "test.png")
+
+        mock_result = MagicMock()
+        mock_result.status = 200
+
+        with patch.object(oss_module, "compress_image", return_value=b"compressed") as mock_compress:
+            with patch.object(oss_module.bucket, "put_object", return_value=mock_result):
+                await upload_file_to_oss(
+                    file, "avatars", ALLOWED_IMAGE_TYPES, 1024 * 1024,
+                    compress=True, compress_max_dimension=512
+                )
+                mock_compress.assert_called_once_with(fake_png, 1024 * 1024, 512)
+
+    @pytest.mark.asyncio
+    async def test_compress_disabled_oversized_blocked(self, fake_png):
+        """未开启压缩时超大文件仍应被拦截"""
+        file = self._make_upload_file(fake_png, "image/png", "test.png")
+        with pytest.raises(HTTPException) as exc_info:
+            await upload_file_to_oss(file, "test", ALLOWED_IMAGE_TYPES, 50, compress=False)
+        assert exc_info.value.status_code == 413

@@ -1,15 +1,5 @@
 <template>
   <div class="chat-input-area">
-    <div class="system-prompt-toggle" @click="showSystem = !showSystem">
-      {{ showSystem ? '收起' : '展开' }}系统提示词（可选）
-    </div>
-    <textarea
-      v-if="showSystem"
-      v-model="systemPrompt"
-      class="system-input"
-      rows="1"
-      placeholder="系统提示词..."
-    />
     <div class="input-row">
       <textarea
         ref="textareaRef"
@@ -39,12 +29,10 @@ import { useChatStore } from '@/stores/chat'
 
 const chatStore = useChatStore()
 const content = ref('')
-const systemPrompt = ref('')
-const showSystem = ref(false)
 const textareaRef = ref<HTMLTextAreaElement>()
 
 const emit = defineEmits<{
-  send: [payload: { content: string; systemPrompt?: string }]
+  send: [payload: { content: string }]
   stop: []
 }>()
 
@@ -71,10 +59,7 @@ function handleButtonClick() {
 
 function send() {
   if (!content.value.trim() || chatStore.isStreaming) return
-  emit('send', {
-    content: content.value.trim(),
-    systemPrompt: systemPrompt.value || undefined
-  })
+  emit('send', { content: content.value.trim() })
   content.value = ''
   // Reset textarea height
   if (textareaRef.value) {
@@ -88,24 +73,6 @@ function send() {
   padding: 16px 24px;
   background: var(--bg-black);
   border-top: 1px solid var(--dark-surface-3);
-}
-.system-prompt-toggle {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.48);
-  cursor: pointer;
-  margin-bottom: 8px;
-}
-.system-input {
-  width: 100%;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--text-white);
-  background: var(--dark-surface-2);
-  border: none;
-  border-radius: var(--radius-md);
-  margin-bottom: 8px;
-  resize: none;
-  outline: none;
 }
 .input-row {
   display: flex;

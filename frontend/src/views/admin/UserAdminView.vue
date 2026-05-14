@@ -1,71 +1,85 @@
 <template>
   <div class="user-admin-page">
     <div class="container">
-      <template v-if="authStore.isAdmin">
+      <div class="page-header">
         <h1 class="page-title">用户管理</h1>
+        <PrimaryButton @click="openCreateModal">创建用户</PrimaryButton>
+      </div>
 
-        <div class="toolbar">
-          <FilterButton
-            as-input
-            v-model="searchQuery"
-            placeholder="搜索用户名/邮箱"
-            @enter="handleSearch"
-          />
-          <select v-model="permissionFilter" class="filter-select">
-            <option value="">全部权限</option>
-            <option value="0">普通用户</option>
-            <option value="1">管理员</option>
-            <option value="2">超级管理员</option>
-          </select>
-          <label class="checkbox-label">
-            <input v-model="includeDeleted" type="checkbox" />
-            包含已注销
-          </label>
-          <PrimaryButton @click="handleSearch">查询</PrimaryButton>
-        </div>
-
-        <div v-if="userStore.userList.length" class="admin-table">
-          <div class="table-row header">
-            <div class="col-id">ID</div>
-            <div class="col-user">用户</div>
-            <div class="col-email">邮箱</div>
-            <div class="col-perm">权限</div>
-            <div class="col-date">注册时间</div>
-            <div class="col-status">状态</div>
-            <div class="col-actions">操作</div>
-          </div>
-          <div v-for="user in userStore.userList" :key="user.id" class="table-row">
-            <div class="col-id">{{ user.id }}</div>
-            <div class="col-user">
-              <Avatar :src="user.avatar_url" :name="user.username" :size="32" />
-              <span>{{ user.username }}</span>
-            </div>
-            <div class="col-email">{{ user.email }}</div>
-            <div class="col-perm">
-              <span class="perm-badge" :class="permClass(user.permission)">{{ permLabel(user.permission) }}</span>
-            </div>
-            <div class="col-date">{{ formatDate(user.created_at) }}</div>
-            <div class="col-status">
-              <span class="status-dot" :class="user.is_deleted ? 'deleted' : 'active'" />
-              {{ user.is_deleted ? '已注销' : '正常' }}
-            </div>
-            <div class="col-actions">
-              <button v-if="!user.is_deleted" class="action-link" @click="confirmDelete(user.id)">注销</button>
-              <button class="action-link danger" @click="confirmHardDelete(user.id)">硬删除</button>
-            </div>
-          </div>
-        </div>
-        <EmptyState v-else description="暂无用户数据" />
-
-        <Pagination
-          v-if="userStore.totalUsers > pageSize"
-          v-model:current-page="currentPage"
-          :total="userStore.totalUsers"
-          :page-size="pageSize"
+      <div class="toolbar">
+        <FilterButton
+          as-input
+          v-model="searchQuery"
+          placeholder="搜索用户名/邮箱"
+          @enter="handleSearch"
         />
-      </template>
-      <EmptyState v-else description="权限不足，无法访问用户管理" />
+        <select v-model="permissionFilter" class="filter-select">
+          <option value="">全部权限</option>
+          <option value="0">普通用户</option>
+          <option value="1">管理员</option>
+          <option value="2">超级管理员</option>
+        </select>
+        <label class="checkbox-label">
+          <input v-model="includeDeleted" type="checkbox" />
+          包含已注销
+        </label>
+        <PrimaryButton @click="handleSearch">查询</PrimaryButton>
+      </div>
+
+      <div v-if="userStore.userList.length" class="admin-table">
+        <div class="table-row header">
+          <div class="col-id">ID</div>
+          <div class="col-user">用户</div>
+          <div class="col-email">邮箱</div>
+          <div class="col-perm">权限</div>
+          <div class="col-date">注册时间</div>
+          <div class="col-status">状态</div>
+          <div class="col-actions">操作</div>
+        </div>
+        <div v-for="user in userStore.userList" :key="user.id" class="table-row">
+          <div class="col-id">{{ user.id }}</div>
+          <div class="col-user">
+            <Avatar :src="user.avatar_url" :name="user.username" :size="32" />
+            <span>{{ user.username }}</span>
+          </div>
+          <div class="col-email">{{ user.email }}</div>
+          <div class="col-perm">
+            <span class="perm-badge" :class="permClass(user.permission)">{{ permLabel(user.permission) }}</span>
+          </div>
+          <div class="col-date">{{ formatDate(user.created_at) }}</div>
+          <div class="col-status">
+            <span class="status-dot" :class="user.is_deleted ? 'deleted' : 'active'" />
+            {{ user.is_deleted ? '已注销' : '正常' }}
+          </div>
+          <div class="col-actions">
+            <button class="action-link" @click="openEditModal(user)">编辑</button>
+            <button v-if="!user.is_deleted" class="action-link" @click="confirmDelete(user.id)">注销</button>
+            <button class="action-link danger" @click="confirmHardDelete(user.id)">硬删除</button>
+          </div>
+        </div>
+      </div>
+      <EmptyState v-else description="暂无用户数据" />
+
+      <Pagination
+        v-if="userStore.totalUsers > pageSize"
+        v-model:current-page="currentPage"
+        :total="userStore.totalUsers"
+        :page-size="pageSize"
+      />
     </div>
+
+    <UserFormModal
+      v-model="createModalOpen"
+      mode="create"
+      @success="handleCreateSuccess"
+    />
+
+    <UserFormModal
+      v-model="editModalOpen"
+      mode="edit"
+      :user="editingUser"
+      @success="handleEditSuccess"
+    />
 
     <Modal v-model="deleteModalOpen" title="确认注销">
       <p>确定要注销该用户吗？注销后用户将变为不可用状态。</p>
@@ -87,17 +101,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { useUiStore } from '@/stores/ui'
+import type { UserResponse } from '@/types'
 import Avatar from '@/components/Avatar.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import FilterButton from '@/components/FilterButton.vue'
 import Pagination from '@/components/Pagination.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Modal from '@/components/Modal.vue'
+import UserFormModal from '@/components/UserFormModal.vue'
 
-const authStore = useAuthStore()
 const userStore = useUserStore()
 const uiStore = useUiStore()
 
@@ -107,15 +121,17 @@ const includeDeleted = ref(false)
 const currentPage = ref(1)
 const pageSize = 20
 
+const createModalOpen = ref(false)
+const editModalOpen = ref(false)
+const editingUser = ref<UserResponse | null>(null)
+
 const deleteModalOpen = ref(false)
 const hardDeleteModalOpen = ref(false)
 const pendingDeleteId = ref<number | null>(null)
 const pendingHardDeleteId = ref<number | null>(null)
 
 onMounted(() => {
-  if (authStore.isAdmin) {
-    loadUsers()
-  }
+  loadUsers()
 })
 
 watch(currentPage, () => {
@@ -136,6 +152,28 @@ function loadUsers() {
 function handleSearch() {
   currentPage.value = 1
   loadUsers()
+}
+
+function openCreateModal() {
+  createModalOpen.value = true
+}
+
+function handleCreateSuccess() {
+  uiStore.showToast('用户创建成功', 'success')
+  loadUsers()
+}
+
+function openEditModal(user: UserResponse) {
+  editingUser.value = user
+  editModalOpen.value = true
+}
+
+function handleEditSuccess(updatedUser: UserResponse) {
+  uiStore.showToast('用户更新成功', 'success')
+  const idx = userStore.userList.findIndex(u => u.id === updatedUser.id)
+  if (idx !== -1) {
+    userStore.userList[idx] = updatedUser
+  }
 }
 
 function confirmDelete(id: number) {
@@ -192,15 +230,20 @@ function formatDate(date: string) {
 <style scoped>
 .user-admin-page {
   background: var(--bg-gray);
-  min-height: calc(100vh - 48px);
-  padding: 40px 0;
+  min-height: calc(100vh - 48px - 44px - 32px);
+}
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
 }
 .page-title {
   font-family: var(--font-display);
   font-size: 40px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 32px;
+  margin: 0;
 }
 .toolbar {
   display: flex;

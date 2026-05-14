@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useUiStore } from '@/stores/ui'
+import { compressImage } from '@/utils/imageCompress'
 import Avatar from './Avatar.vue'
 
 interface Props {
@@ -32,7 +33,7 @@ const props = withDefaults(defineProps<Props>(), {
   name: '',
   size: 160,
   accept: 'image/*',
-  maxSize: 5 * 1024 * 1024
+  maxSize: 10 * 1024 * 1024
 })
 
 const emit = defineEmits<{
@@ -46,14 +47,22 @@ function triggerFileInput() {
   fileInput.value?.click()
 }
 
-function handleFileChange(e: Event) {
+async function handleFileChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
   if (file.size > props.maxSize) {
     uiStore.showToast(`文件大小不能超过 ${props.maxSize / 1024 / 1024}MB`, 'error')
     return
   }
-  emit('select', file)
+
+  uiStore.showToast('正在压缩图片…')
+  try {
+    const compressed = await compressImage(file, 1024, 1024, 2 * 1024 * 1024)
+    uiStore.showToast('图片压缩完成', 'success')
+    emit('select', compressed)
+  } catch (err: any) {
+    uiStore.showToast(err.message || '图片压缩失败', 'error')
+  }
 }
 </script>
 

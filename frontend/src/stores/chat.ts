@@ -37,7 +37,7 @@ export const useChatStore = defineStore('chat', () => {
     uiStore.showToast('对话已删除', 'success')
   }
 
-  function sendMessage(content: string, conversationId?: number, systemPrompt?: string) {
+  function sendMessage(content: string, conversationId?: number) {
     // Optimistic user message
     const userMessage: MessageResponse = {
       id: Date.now(),
@@ -63,8 +63,7 @@ export const useChatStore = defineStore('chat', () => {
     const { abort } = chatApi.sendStreamMessage(
       {
         conversation_id: conversationId,
-        content,
-        system_prompt: systemPrompt
+        content
       },
       {
         onMessage: (chunk: string) => {

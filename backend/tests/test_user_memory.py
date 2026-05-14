@@ -46,35 +46,22 @@ class TestFormatMemories:
 
 
 class TestBuildSystemPrompt:
-    """测试 System Prompt 拼接逻辑"""
+    """测试 System Prompt 拼接逻辑（仅使用后端既定 DEFAULT_SYSTEM）"""
 
-    def test_no_memory_no_original(self):
-        """无记忆无原始 system prompt 时应返回默认角色设定+安全约束"""
-        result = _build_system_prompt(None, "")
+    def test_no_memory(self):
+        """无记忆时应返回默认角色设定+安全约束"""
+        result = _build_system_prompt([])
         assert "禁止" in result
         assert "DE Hub" in result
 
-    def test_no_memory_with_original(self):
-        """无记忆但有原始 system prompt 时应返回原始值+安全约束"""
-        result = _build_system_prompt("原始提示", "")
-        assert "原始提示" in result
-        assert "禁止" in result
-
-    def test_memory_no_original(self):
-        """有记忆但无原始 system prompt 时应返回默认角色设定+记忆+安全约束"""
-        result = _build_system_prompt(None, ["记忆内容"])
+    def test_memory(self):
+        """有记忆时应返回默认角色设定+记忆+安全约束"""
+        result = _build_system_prompt(["记忆内容"])
         assert "记忆内容" in result
         assert "历史记忆" in result
-        assert "禁止" in result
-        assert "DE Hub" in result
-
-    def test_memory_with_original(self):
-        """有记忆且有原始 system prompt 时应正确拼接并追加安全约束"""
-        result = _build_system_prompt("原始提示", ["记忆内容"])
-        assert "原始提示" in result
-        assert "记忆内容" in result
         assert "\n\n" in result
         assert "禁止" in result
+        assert "DE Hub" in result
 
 
 class TestUserMemoryServiceSyncTurn:

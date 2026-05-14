@@ -9,9 +9,6 @@ class ChatCreate(BaseModel):
         default=None, ge=1, description="对话ID，留空则创建新对话"
     )
     content: str = Field(min_length=1, description="用户消息内容")
-    system_prompt: Optional[str] = Field(
-        default=None, description="系统提示词，可选"
-    )
 
 
 class ConversationResponse(BaseModel):

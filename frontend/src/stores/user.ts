@@ -21,6 +21,7 @@ export const useUserStore = defineStore('user', () => {
 
   async function updateProfile(id: number, data: Partial<UserResponse> & { password?: string }, file?: File) {
     const formData = new FormData()
+    // FastAPI multipart 中 Pydantic 模型通过同名字段传递 JSON 字符串
     formData.append('user_in', JSON.stringify(data))
     if (file) formData.append('file', file)
     const { data: updated } = await userApi.updateUser(id, formData)
@@ -49,6 +50,13 @@ export const useUserStore = defineStore('user', () => {
     uiStore.showToast('用户已彻底删除', 'success')
   }
 
+  async function createUser(data: import('@/types').UserCreate) {
+    const { data: userData } = await userApi.createUser(data)
+    userList.value.unshift(userData)
+    totalUsers.value += 1
+    return userData
+  }
+
   async function changePassword(data: { old_password: string; new_password: string }) {
     await userApi.changePassword(data)
     uiStore.showToast('密码修改成功，请重新登录', 'success')
@@ -65,6 +73,7 @@ export const useUserStore = defineStore('user', () => {
     fetchUsers,
     deleteUser,
     hardDeleteUser,
+    createUser,
     changePassword
   }
 })

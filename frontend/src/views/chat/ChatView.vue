@@ -2,6 +2,16 @@
   <div class="chat-page">
     <ChatSidebar />
     <div class="chat-main">
+      <div class="chat-toolbar">
+        <button
+          v-if="uiStore.isChatSidebarCollapsed"
+          class="sidebar-toggle"
+          title="展开侧边栏"
+          @click="uiStore.toggleChatSidebar()"
+        >
+          ☰
+        </button>
+      </div>
       <div ref="messageListRef" class="message-list" @scroll="handleScroll">
         <div v-if="chatStore.currentMessages.length === 0" class="chat-welcome">
           <h1 class="welcome-title">DE hub AI</h1>
@@ -29,11 +39,13 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import { useUiStore } from '@/stores/ui'
 import ChatSidebar from '@/components/ChatSidebar.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
 
 const chatStore = useChatStore()
+const uiStore = useUiStore()
 const messageListRef = ref<HTMLElement>()
 const showScrollToBottom = ref(false)
 const isUserScrolledUp = ref(false)
@@ -63,11 +75,10 @@ function handleScroll() {
   }
 }
 
-function handleSend(payload: { content: string; systemPrompt?: string }) {
+function handleSend(payload: { content: string }) {
   const result = chatStore.sendMessage(
     payload.content,
-    chatStore.currentConversationId || undefined,
-    payload.systemPrompt
+    chatStore.currentConversationId || undefined
   )
   currentAbort = result.abort
   // Auto-scroll on send
@@ -124,6 +135,24 @@ watch(
   flex-direction: column;
   min-width: 0;
   position: relative;
+}
+.chat-toolbar {
+  padding: 8px 16px 0;
+  display: flex;
+  align-items: center;
+}
+.sidebar-toggle {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+.sidebar-toggle:hover {
+  color: var(--text-white);
 }
 .message-list {
   flex: 1;

@@ -39,26 +39,19 @@ class TestFormatBlogKnowledge:
 
 
 class TestBuildSystemPrompt:
-    """测试 System Prompt 与记忆拼接"""
+    """测试 System Prompt 与记忆拼接（仅使用后端既定 DEFAULT_SYSTEM）"""
 
     def test_no_memories(self):
-        result = _build_system_prompt("原始提示", [])
-        assert "原始提示" in result
+        result = _build_system_prompt([])
+        assert "DE Hub" in result  # 默认角色设定
         assert "禁止" in result  # 安全约束应被追加
 
-    def test_with_memories_and_original(self):
-        result = _build_system_prompt("原始提示", ["[摘要] 用户喜欢Python"])
-        assert "原始提示" in result
+    def test_with_memories(self):
+        result = _build_system_prompt(["[摘要] 用户喜欢Python"])
+        assert "DE Hub" in result  # 默认角色设定
         assert "用户喜欢Python" in result
         assert "历史记忆" in result
         assert "禁止" in result  # 安全约束应被追加
-
-    def test_with_memories_no_original(self):
-        result = _build_system_prompt(None, ["[摘要] 用户喜欢Python"])
-        assert "用户喜欢Python" in result
-        assert "历史记忆" in result
-        assert "禁止" in result  # 安全约束应被追加
-        assert "DE Hub" in result  # 默认角色设定应被注入
 
 
 class TestShouldContinue:

@@ -21,6 +21,7 @@
           <Avatar :src="authStore.user?.avatar_url" :name="authStore.user?.username || ''" :size="32" />
           <div v-if="dropdownOpen" class="dropdown">
             <router-link to="/profile" class="dropdown-item">个人中心</router-link>
+            <router-link v-if="authStore.isAdmin" to="/admin" class="dropdown-item">管理后台</router-link>
             <div class="dropdown-divider" />
             <button class="dropdown-item" @click="handleLogout">登出</button>
           </div>

@@ -10,6 +10,7 @@ export interface ToastItem {
 
 export const useUiStore = defineStore('ui', () => {
   const isMobileMenuOpen = ref(false)
+  const isChatSidebarCollapsed = ref(false)
   const globalLoading = ref(false)
   const toasts = ref<ToastItem[]>([])
   let toastId = 0
@@ -34,13 +35,19 @@ export const useUiStore = defineStore('ui', () => {
     isMobileMenuOpen.value = !isMobileMenuOpen.value
   }
 
+  function toggleChatSidebar() {
+    isChatSidebarCollapsed.value = !isChatSidebarCollapsed.value
+  }
+
   return {
     isMobileMenuOpen,
+    isChatSidebarCollapsed,
     globalLoading,
     toasts,
     setLoading,
     showToast,
     removeToast,
-    toggleMobileMenu
+    toggleMobileMenu,
+    toggleChatSidebar
   }
 })

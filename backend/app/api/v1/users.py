@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Query
+import json
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Query, Form
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -64,11 +65,16 @@ def list_users(
         permission=permission,
     )
 
+def parse_user_update(user_in: str = Form(..., description="用户更新请求的 JSON 字符串")) -> UserUpdate:
+    """解析前端传来的 user_in JSON 字符串为 UserUpdate 模型"""
+    return UserUpdate.model_validate(json.loads(user_in))
+
+
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
-    user_in: UserUpdate,
-    file: UploadFile | None = File(None, description="头像文件，最大5MB"),
+    user_in: UserUpdate = Depends(parse_user_update),
+    file: UploadFile | None = File(None, description="头像文件，最大2MB，支持自动压缩"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> UserResponse:
@@ -84,7 +90,7 @@ async def update_user(
         UserResponse: 用户响应
     """
     service = UserService(db)
-    return await service.update_user(user_id, user_in, file, current_user)
+    return await service.update_user(user_id, user_in, current_user, file)
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def soft_delete_user(

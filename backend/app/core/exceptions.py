@@ -31,10 +31,11 @@ def validation_exception_handler(request: Request, exc: RequestValidationError) 
     Returns:
         JSONResponse: JSON 响应
     """
+    logger.warning(f"请求参数校验失败: {exc.errors()}")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
-            "code": 422, 
+            "code": 422,
             "message": "请求参数校验失败",
             "detail": exc.errors()
         },

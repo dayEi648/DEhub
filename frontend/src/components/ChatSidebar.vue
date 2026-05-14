@@ -1,7 +1,14 @@
 <template>
-  <aside class="chat-sidebar" :class="{ open: uiStore.isMobileMenuOpen }">
+  <aside class="chat-sidebar" :class="{ open: uiStore.isMobileMenuOpen, collapsed: uiStore.isChatSidebarCollapsed }">
     <div class="sidebar-header">
       <PrimaryButton class="new-chat-btn" @click="startNewChat">新建对话</PrimaryButton>
+      <button
+        class="collapse-btn"
+        title="收起侧边栏"
+        @click="uiStore.isChatSidebarCollapsed = true"
+      >
+        «
+      </button>
     </div>
     <div class="conversation-list">
       <div
@@ -67,6 +74,7 @@ function confirmDelete(id: number) {
 
 function executeDelete() {
   if (pendingDeleteId.value !== null) {
+    showDeleteModal.value = false
     chatStore.deleteConversation(pendingDeleteId.value)
     pendingDeleteId.value = null
   }
@@ -86,10 +94,34 @@ function formatDate(date: string) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width 0.3s ease, opacity 0.3s ease;
+  flex-shrink: 0;
+}
+.chat-sidebar.collapsed {
+  width: 0;
+  opacity: 0;
+  padding: 0;
+  border: none;
 }
 .sidebar-header {
   padding: 16px;
   border-bottom: 1px solid var(--dark-surface-3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.collapse-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+.collapse-btn:hover {
+  color: var(--text-white);
 }
 .new-chat-btn {
   width: 100%;
@@ -169,9 +201,15 @@ function formatDate(date: string) {
     z-index: 100;
     transform: translateX(-100%);
     transition: transform 0.3s ease;
+    width: 280px;
+    opacity: 1;
   }
   .chat-sidebar.open {
     transform: translateX(0);
+  }
+  .chat-sidebar.collapsed {
+    width: 280px;
+    opacity: 1;
   }
   .sidebar-backdrop {
     display: block;

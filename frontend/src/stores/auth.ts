@@ -102,21 +102,19 @@ export const useAuthStore = defineStore('auth', () => {
       }
     }
 
+    // 优先恢复 accessToken，避免 refresh 网络波动导致无辜登出
+    if (at) {
+      accessToken.value = at
+    }
+
     if (rt) {
       refreshToken.value = rt
       try {
         const { data } = await authApi.refreshToken(rt)
         persistSession(data, !!localStorage.getItem('refresh_token'))
-        return
       } catch {
-        clearAuth()
-        clearStorage()
-        return
+        // refresh 失败不强制清除已有状态；后续 API 返回 401 时由拦截器处理
       }
-    }
-
-    if (at) {
-      accessToken.value = at
     }
   }
 
