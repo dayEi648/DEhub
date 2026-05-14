@@ -1,8 +1,9 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import settings
 from app.crud.blog_post_embedding import search_similar
 from app.infrastructure.embedding_client import get_embedding_client
+from app.models.blog_post import BlogPost
 from app.schemas.blog_post_embedding import BlogPostSearchResult
 
 
@@ -41,9 +42,19 @@ class BlogVectorSearchService:
         query_embedding = await get_embedding_client().aembed_single(query)
         raw_results = search_similar(self.db, query_embedding, top_k=top_k)
 
+        # 批量预加载博客文章，消除 N+1 查询
+        post_ids = [row.post_id for row, _ in raw_results if row.post_id]
+        posts = (
+            self.db.query(BlogPost)
+            .options(joinedload(BlogPost.category))
+            .filter(BlogPost.id.in_(post_ids))
+            .all()
+        ) if post_ids else []
+        post_map = {p.id: p for p in posts}
+
         results: list[BlogPostSearchResult] = []
         for embedding_record, distance in raw_results:
-            post = embedding_record.post
+            post = post_map.get(embedding_record.post_id)
             if not post:
                 continue
 

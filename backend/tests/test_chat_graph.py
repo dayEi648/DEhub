@@ -160,24 +160,15 @@ class TestGraphCompile:
     """测试 Graph 编译与缓存"""
 
     def test_compile_success(self):
-        from app.graphs import chat_graph as cg_module
         from app.graphs.chat_graph import build_chat_graph, invalidate_graph_cache
-        from app.infrastructure.langchain_adapter import CustomChatModel
-        from app.infrastructure.llm_client import LLMClient
 
         # 清理缓存，确保每次测试都重新编译
         invalidate_graph_cache()
 
-        client = LLMClient(
-            base_url="http://test",
-            api_key="k",
-            model="m",
-            max_tokens=100,
-            temperature=0.5,
-            timeout=5,
-        )
-        llm = CustomChatModel(client)
-        llm_small = CustomChatModel(client)
+        llm = MagicMock()
+        llm.model_name = "m"
+        llm_small = MagicMock()
+        llm_small.model_name = "m"
 
         graph = build_chat_graph(llm, llm_small)
         assert graph is not None
@@ -189,27 +180,21 @@ class TestGraphCompile:
     def test_cache_by_model_config(self):
         """不同模型配置应生成不同的缓存实例"""
         from app.graphs.chat_graph import build_chat_graph, invalidate_graph_cache
-        from app.infrastructure.langchain_adapter import CustomChatModel
-        from app.infrastructure.llm_client import LLMClient
 
         invalidate_graph_cache()
 
-        client1 = LLMClient(
-            base_url="http://test", api_key="k", model="model-a",
-            max_tokens=100, temperature=0.5, timeout=5,
-        )
-        client2 = LLMClient(
-            base_url="http://test", api_key="k", model="model-b",
-            max_tokens=100, temperature=0.5, timeout=5,
-        )
+        llm_a = MagicMock()
+        llm_a.model_name = "model-a"
+        llm_b = MagicMock()
+        llm_b.model_name = "model-b"
 
-        graph_a = build_chat_graph(CustomChatModel(client1), CustomChatModel(client1))
-        graph_b = build_chat_graph(CustomChatModel(client2), CustomChatModel(client2))
+        graph_a = build_chat_graph(llm_a, llm_a)
+        graph_b = build_chat_graph(llm_b, llm_b)
 
         assert graph_a is not graph_b
 
         # 相同模型配置再次调用应命中缓存
-        graph_a2 = build_chat_graph(CustomChatModel(client1), CustomChatModel(client1))
+        graph_a2 = build_chat_graph(llm_a, llm_a)
         assert graph_a2 is graph_a
 
 
@@ -222,7 +207,7 @@ class TestStreamChatInternal:
 
         mock_db = MagicMock()
         mock_llm = MagicMock()
-        mock_llm._client._model = "test-model"
+        mock_llm.model_name = "test-model"
 
         with patch(
             "app.infrastructure.redis_checkpoint.get_redis_client", return_value=MagicMock()

@@ -14,6 +14,8 @@ from app.crud.user_memory_embedding import (
 from app.db.session import SessionLocal
 from app.core.config import settings
 from app.infrastructure.embedding_client import get_embedding_client
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from app.infrastructure.llm_client import get_llm_small_client
 from app.models.user_memory_embedding import UserMemoryEmbedding
 from app.prompts.chat_prompts import CONVERSATION_SUMMARY
@@ -100,10 +102,11 @@ class UserMemoryService:
                 f"{msg.role}: {msg.content}" for msg in messages
             )
 
-            summary = await get_llm_small_client().achat(
-                messages=[{"role": "user", "content": transcript}],
-                system_prompt=CONVERSATION_SUMMARY,
-            )
+            response = await get_llm_small_client().ainvoke([
+                SystemMessage(content=CONVERSATION_SUMMARY),
+                HumanMessage(content=transcript),
+            ])
+            summary = response.content
             summary = summary.strip()
             if not summary:
                 logger.warning(

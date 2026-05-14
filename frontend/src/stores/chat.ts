@@ -2,7 +2,6 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { ConversationResponse, MessageResponse } from '@/types'
 import * as chatApi from '@/api/chat'
-import { fetchSSE } from '@/utils/sse'
 import { useUiStore } from './ui'
 
 export const useChatStore = defineStore('chat', () => {
@@ -39,8 +38,6 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function sendMessage(content: string, conversationId?: number, systemPrompt?: string) {
-    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token') || ''
-
     // Optimistic user message
     const userMessage: MessageResponse = {
       id: Date.now(),
@@ -63,32 +60,29 @@ export const useChatStore = defineStore('chat', () => {
 
     isStreaming.value = true
 
-    const { abort } = fetchSSE('/api/v1/chat/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
+    const { abort } = chatApi.sendStreamMessage(
+      {
         conversation_id: conversationId,
         content,
         system_prompt: systemPrompt
-      }),
-      onMessage: (chunk: string) => {
-        assistantMessage.content += chunk
       },
-      onError: (err: any) => {
-        isStreaming.value = false
-        assistantMessage.content += '\n[发生错误]'
-        uiStore.showToast(err.message || '对话异常', 'error')
-      },
-      onDone: () => {
-        isStreaming.value = false
-        if (!conversationId) {
-          fetchConversations()
+      {
+        onMessage: (chunk: string) => {
+          assistantMessage.content += chunk
+        },
+        onError: (err: any) => {
+          isStreaming.value = false
+          assistantMessage.content += '\n[发生错误]'
+          uiStore.showToast(err.message || '对话异常', 'error')
+        },
+        onDone: () => {
+          isStreaming.value = false
+          if (!conversationId) {
+            fetchConversations()
+          }
         }
       }
-    })
+    )
 
     return { abort }
   }

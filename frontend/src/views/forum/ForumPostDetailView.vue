@@ -15,7 +15,7 @@
         <div class="post-body">{{ forumStore.currentPost.content }}</div>
         <div v-if="canManage" class="post-actions">
           <PillLink :to="`/forum/post/edit/${forumStore.currentPost.id}`">编辑</PillLink>
-          <button class="action-link danger" @click="handleDelete">删除</button>
+          <button class="action-link danger" @click="showDeletePostModal = true">删除</button>
         </div>
       </Card>
 
@@ -37,7 +37,7 @@
               </div>
               <p class="reply-content">{{ reply.content }}</p>
               <div v-if="canManageReply(reply.user_id)" class="reply-actions-bar">
-                <button class="action-link danger" @click="handleDeleteReply(reply.id)">删除</button>
+                <button class="action-link danger" @click="openDeleteReplyModal(reply.id)">删除</button>
               </div>
             </div>
           </div>
@@ -54,28 +54,53 @@
         <PillLink :to="`/forum/${forumStore.currentZone?.slug || ''}`">← 返回帖子列表</PillLink>
       </div>
     </div>
+
+    <!-- Delete Post Modal -->
+    <Modal v-model="showDeletePostModal" title="确认删除">
+      <p>确认删除此帖子？此操作不可撤销。</p>
+      <template #footer>
+        <button class="action-link danger" @click="confirmDeletePost">确认删除</button>
+        <PillLink @click="showDeletePostModal = false">取消</PillLink>
+      </template>
+    </Modal>
+
+    <!-- Delete Reply Modal -->
+    <Modal v-model="showDeleteReplyModal" title="确认删除">
+      <p>确认删除此回复？此操作不可撤销。</p>
+      <template #footer>
+        <button class="action-link danger" @click="confirmDeleteReply">确认删除</button>
+        <PillLink @click="showDeleteReplyModal = false">取消</PillLink>
+      </template>
+    </Modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useForumStore } from '@/stores/forum'
+import { useUiStore } from '@/stores/ui'
 import Card from '@/components/Card.vue'
 import Avatar from '@/components/Avatar.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import PillLink from '@/components/PillLink.vue'
 import Pagination from '@/components/Pagination.vue'
+import Modal from '@/components/Modal.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const forumStore = useForumStore()
+const uiStore = useUiStore()
 
 const replyContent = ref('')
 const currentPage = ref(1)
 const pageSize = 20
+
+const showDeletePostModal = ref(false)
+const showDeleteReplyModal = ref(false)
+const pendingReplyId = ref<number | null>(null)
 
 const postId = computed(() => Number(route.params.postId))
 
@@ -96,9 +121,38 @@ function canManageReply(userId: number) {
 }
 
 onMounted(() => {
-  forumStore.fetchPostById(postId.value)
-  forumStore.fetchReplies(postId.value, { limit: pageSize })
+  loadPostData(postId.value)
 })
+
+onBeforeRouteUpdate((to) => {
+  const newPostId = Number(to.params.postId)
+  if (newPostId !== postId.value) {
+    currentPage.value = 1
+    replyContent.value = ''
+    loadPostData(newPostId)
+  }
+})
+
+watch(currentPage, () => {
+  forumStore.fetchReplies(postId.value, {
+    skip: (currentPage.value - 1) * pageSize,
+    limit: pageSize
+  })
+})
+
+async function loadPostData(id: number) {
+  try {
+    const post = await forumStore.fetchPostById(id)
+    if (post?.zone_id) {
+      await forumStore.fetchZoneById(post.zone_id)
+    }
+    await forumStore.fetchReplies(id, { limit: pageSize })
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      router.push('/404')
+    }
+  }
+}
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString('zh-CN')
@@ -106,20 +160,41 @@ function formatDate(date: string) {
 
 async function submitReply() {
   if (!replyContent.value.trim()) return
-  await forumStore.createReply(postId.value, replyContent.value.trim())
-  replyContent.value = ''
-}
-
-async function handleDelete() {
-  if (confirm('确认删除此帖子？')) {
-    await forumStore.deletePost(postId.value)
-    router.push(`/forum/${forumStore.currentZone?.slug || ''}`)
+  try {
+    await forumStore.createReply(postId.value, replyContent.value.trim())
+    replyContent.value = ''
+  } catch (error: any) {
+    const message = error.response?.data?.message || '回复失败，请重试'
+    uiStore.showToast(message, 'error')
   }
 }
 
-async function handleDeleteReply(replyId: number) {
-  if (confirm('确认删除此回复？')) {
-    await forumStore.deleteReply(replyId)
+async function confirmDeletePost() {
+  showDeletePostModal.value = false
+  try {
+    await forumStore.deletePost(postId.value)
+    router.push(`/forum/${forumStore.currentZone?.slug || ''}`)
+  } catch (error: any) {
+    const message = error.response?.data?.message || '删除失败'
+    uiStore.showToast(message, 'error')
+  }
+}
+
+function openDeleteReplyModal(replyId: number) {
+  pendingReplyId.value = replyId
+  showDeleteReplyModal.value = true
+}
+
+async function confirmDeleteReply() {
+  showDeleteReplyModal.value = false
+  if (pendingReplyId.value !== null) {
+    try {
+      await forumStore.deleteReply(pendingReplyId.value)
+    } catch (error: any) {
+      const message = error.response?.data?.message || '删除失败'
+      uiStore.showToast(message, 'error')
+    }
+    pendingReplyId.value = null
   }
 }
 </script>

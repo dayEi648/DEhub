@@ -31,25 +31,91 @@ export function fetchSSE(url: string, options: SSEOptions) {
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
 
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (trimmed.startsWith('event: error')) {
-            options.onError?.(new Error('SSE error event'))
+        // SSE events are separated by double newlines
+        const eventChunks = buffer.split('\n\n')
+        // The last chunk may be incomplete, keep it in buffer
+        buffer = eventChunks.pop() || ''
+
+        for (const chunk of eventChunks) {
+          if (!chunk.trim()) continue
+
+          const lines = chunk.split('\n')
+          let eventType = 'message'
+          let data = ''
+
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (trimmed.startsWith('event:')) {
+              eventType = trimmed.slice(6).trim()
+            } else if (trimmed.startsWith('data:')) {
+              // Append multiple data lines with newlines
+              if (data) data += '\n'
+              data += trimmed.slice(5).trimStart()
+            }
+          }
+
+          if (eventType === 'error') {
+            let errorMessage = 'SSE error event'
+            try {
+              const parsed = JSON.parse(data)
+              errorMessage = parsed.message || errorMessage
+            } catch {
+              if (data) errorMessage = data
+            }
+            options.onError?.(new Error(errorMessage))
             return
           }
-          if (trimmed.startsWith('data: ')) {
-            const data = trimmed.slice(6)
-            if (data === '[DONE]') {
-              options.onDone?.()
-              return
-            }
+
+          if (data === '[DONE]') {
+            options.onDone?.()
+            return
+          }
+
+          if (data) {
             options.onMessage(data)
           }
         }
       }
+
+      // Handle any remaining complete event in buffer
+      if (buffer.trim()) {
+        const lines = buffer.split('\n')
+        let eventType = 'message'
+        let data = ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('event:')) {
+            eventType = trimmed.slice(6).trim()
+          } else if (trimmed.startsWith('data:')) {
+            if (data) data += '\n'
+            data += trimmed.slice(5).trimStart()
+          }
+        }
+
+        if (eventType === 'error') {
+          let errorMessage = 'SSE error event'
+          try {
+            const parsed = JSON.parse(data)
+            errorMessage = parsed.message || errorMessage
+          } catch {
+            if (data) errorMessage = data
+          }
+          options.onError?.(new Error(errorMessage))
+          return
+        }
+
+        if (data === '[DONE]') {
+          options.onDone?.()
+          return
+        }
+
+        if (data) {
+          options.onMessage(data)
+        }
+      }
+
       options.onDone?.()
     } catch (err) {
       options.onError?.(err)

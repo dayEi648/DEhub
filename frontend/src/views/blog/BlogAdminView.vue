@@ -68,7 +68,7 @@
               <button
                 v-if="!post.is_deleted"
                 class="action-link"
-                @click="post.status === 'published' ? blogStore.unpublishPost(post.id) : blogStore.publishPost(post.id)"
+                @click="togglePublish(post)"
               >
                 {{ post.status === 'published' ? '下线' : '发布' }}
               </button>
@@ -263,14 +263,32 @@ function handleSearch() {
   currentPage.value = 1
 }
 
+async function togglePublish(post: any) {
+  try {
+    if (post.status === 'published') {
+      await blogStore.unpublishPost(post.id)
+    } else {
+      await blogStore.publishPost(post.id)
+    }
+  } catch (error: any) {
+    const message = error.response?.data?.message || '操作失败'
+    uiStore.showToast(message, 'error')
+  }
+}
+
 function handleDelete(id: number) {
   pendingDeleteId.value = id
   showDeleteModal.value = true
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (pendingDeleteId.value !== null) {
-    blogStore.deletePost(pendingDeleteId.value)
+    try {
+      await blogStore.deletePost(pendingDeleteId.value)
+    } catch (error: any) {
+      const message = error.response?.data?.message || '删除失败'
+      uiStore.showToast(message, 'error')
+    }
   }
   showDeleteModal.value = false
   pendingDeleteId.value = null
@@ -281,9 +299,14 @@ function handleHardDelete(id: number) {
   showHardDeleteModal.value = true
 }
 
-function confirmHardDelete() {
+async function confirmHardDelete() {
   if (pendingHardDeleteId.value !== null) {
-    blogStore.hardDeletePost(pendingHardDeleteId.value)
+    try {
+      await blogStore.hardDeletePost(pendingHardDeleteId.value)
+    } catch (error: any) {
+      const message = error.response?.data?.message || '彻底删除失败'
+      uiStore.showToast(message, 'error')
+    }
   }
   showHardDeleteModal.value = false
   pendingHardDeleteId.value = null
@@ -293,10 +316,14 @@ function handleCleanup() {
   showCleanupModal.value = true
 }
 
-function confirmCleanup() {
-  blogStore.cleanupDeletedPosts().then(() => {
-    blogStore.fetchPosts({ include_unpublished: true })
-  })
+async function confirmCleanup() {
+  try {
+    await blogStore.cleanupDeletedPosts()
+    await blogStore.fetchPosts({ include_unpublished: true })
+  } catch (error: any) {
+    const message = error.response?.data?.message || '清理失败'
+    uiStore.showToast(message, 'error')
+  }
   showCleanupModal.value = false
 }
 
@@ -316,17 +343,22 @@ function openEditCategory(cat: BlogCategoryWithPostCount) {
   showCategoryModal.value = true
 }
 
-function saveCategory() {
+async function saveCategory() {
   if (!categoryForm.name || !categoryForm.slug) {
     uiStore.showToast('名称和 Slug 不能为空', 'error')
     return
   }
-  if (editingCategory.value) {
-    blogStore.updateCategory(editingCategory.value.id, { ...categoryForm })
-  } else {
-    blogStore.createCategory({ ...categoryForm })
+  try {
+    if (editingCategory.value) {
+      await blogStore.updateCategory(editingCategory.value.id, { ...categoryForm })
+    } else {
+      await blogStore.createCategory({ ...categoryForm })
+    }
+    showCategoryModal.value = false
+  } catch (error: any) {
+    const message = error.response?.data?.message || '保存失败'
+    uiStore.showToast(message, 'error')
   }
-  showCategoryModal.value = false
 }
 </script>
 

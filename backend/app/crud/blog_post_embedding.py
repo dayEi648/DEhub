@@ -38,7 +38,7 @@ def upsert_embedding(
     Args:
         db: 数据库会话
         post_id: 文章 ID
-        embedding: 1024 维向量
+        embedding: 向量（维度由 EMBEDDING_DIMENSION 配置决定，默认 1024）
         content_hash: 内容指纹，用于跳过无变化的重复嵌入
 
     Returns:
@@ -104,10 +104,12 @@ def search_similar(
     """
     stmt = text(
         """
-        SELECT id, post_id, embedding, content_hash, created_at, updated_at,
-               embedding <=> :embedding::vector AS distance
-        FROM blog_post_embeddings
-        ORDER BY embedding <=> :embedding::vector
+        SELECT e.id, e.post_id, e.embedding, e.content_hash, e.created_at, e.updated_at,
+               e.embedding <=> :embedding::vector AS distance
+        FROM blog_post_embeddings e
+        JOIN blog_posts p ON p.id = e.post_id
+        WHERE p.is_deleted = false AND p.status = 'published'
+        ORDER BY e.embedding <=> :embedding::vector
         LIMIT :top_k
         """
     ).bindparams(embedding=query_embedding, top_k=top_k)

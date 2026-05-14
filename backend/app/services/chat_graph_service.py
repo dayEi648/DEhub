@@ -4,15 +4,55 @@ import uuid
 from typing import AsyncGenerator
 
 from fastapi import HTTPException, status
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy.orm import Session
 
-from app.infrastructure.langchain_adapter import CustomChatModel
 from app.infrastructure.llm_client import get_llm_client, get_llm_small_client
 from app.infrastructure.redis_checkpoint import RedisCheckpointSaver
 from app.graphs.chat_graph import build_chat_graph
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# 历史消息最大字符数（近似上下文窗口管理）
+_MAX_HISTORY_CHARS = 16000
+
+
+def _truncate_messages(messages: list) -> list:
+    """
+    截断历史消息，使总字符数不超过阈值。
+
+    保留最后一条用户消息，从后往前累加，超出时丢弃更早的消息。
+    SystemMessage（如果存在）会被保留在头部。
+    """
+    if not messages:
+        return messages
+
+    # 分离 system message（如果存在）
+    system_msg = None
+    other_messages = []
+    for msg in messages:
+        if isinstance(msg, SystemMessage):
+            system_msg = msg
+        else:
+            other_messages.append(msg)
+
+    # 从后往前累加，保留最近的消息
+    kept: list = []
+    total_chars = 0
+    for msg in reversed(other_messages):
+        content_len = len(msg.content or "")
+        if total_chars + content_len > _MAX_HISTORY_CHARS and kept:
+            # 已超出且至少保留了一条，则停止
+            break
+        kept.insert(0, msg)
+        total_chars += content_len
+
+    result: list = []
+    if system_msg:
+        result.append(system_msg)
+    result.extend(kept)
+    return result
 
 
 class ChatGraphService:
@@ -26,11 +66,12 @@ class ChatGraphService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self._checkpointer = RedisCheckpointSaver()
-        self._llm = CustomChatModel(get_llm_client())
-        self._llm_small = CustomChatModel(get_llm_small_client())
+        self._llm = get_llm_client()
+        self._llm_small = get_llm_small_client()
         self._graph = build_chat_graph(
             llm=self._llm,
             llm_small=self._llm_small,
+            checkpointer=self._checkpointer,
         )
 
     async def stream_chat(
@@ -74,7 +115,7 @@ class ChatGraphService:
                     history_messages.append(HumanMessage(content=msg.content))
                 elif msg.role == "assistant":
                     history_messages.append(AIMessage(content=msg.content))
-            messages = history_messages + messages
+            messages = _truncate_messages(history_messages + messages)
 
         initial_state = {
             "user_id": user_id,

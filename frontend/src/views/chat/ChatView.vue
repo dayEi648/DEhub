@@ -2,7 +2,7 @@
   <div class="chat-page">
     <ChatSidebar />
     <div class="chat-main">
-      <div ref="messageListRef" class="message-list">
+      <div ref="messageListRef" class="message-list" @scroll="handleScroll">
         <div v-if="chatStore.currentMessages.length === 0" class="chat-welcome">
           <h1 class="welcome-title">DE hub AI</h1>
           <p class="welcome-subtitle">有什么可以帮你的？</p>
@@ -14,7 +14,14 @@
           :is-streaming="chatStore.isStreaming && index === chatStore.currentMessages.length - 1 && msg.role === 'assistant'"
         />
       </div>
-      <ChatInput @send="handleSend" />
+      <div
+        v-if="showScrollToBottom"
+        class="scroll-to-bottom"
+        @click="scrollToBottom(true)"
+      >
+        新消息 ↓
+      </div>
+      <ChatInput @send="handleSend" @stop="handleStop" />
     </div>
   </div>
 </template>
@@ -28,17 +35,78 @@ import ChatInput from '@/components/ChatInput.vue'
 
 const chatStore = useChatStore()
 const messageListRef = ref<HTMLElement>()
+const showScrollToBottom = ref(false)
+const isUserScrolledUp = ref(false)
+let currentAbort: (() => void) | null = null
 
-function handleSend(payload: { content: string; systemPrompt?: string }) {
-  chatStore.sendMessage(payload.content, chatStore.currentConversationId || undefined, payload.systemPrompt)
+function isNearBottom(el: HTMLElement) {
+  return el.scrollTop + el.clientHeight >= el.scrollHeight - 50
 }
 
+function scrollToBottom(smooth = true) {
+  if (messageListRef.value) {
+    messageListRef.value.scrollTo({
+      top: messageListRef.value.scrollHeight,
+      behavior: smooth ? 'smooth' : 'auto'
+    })
+  }
+  showScrollToBottom.value = false
+  isUserScrolledUp.value = false
+}
+
+function handleScroll() {
+  if (!messageListRef.value) return
+  const nearBottom = isNearBottom(messageListRef.value)
+  isUserScrolledUp.value = !nearBottom
+  if (nearBottom) {
+    showScrollToBottom.value = false
+  }
+}
+
+function handleSend(payload: { content: string; systemPrompt?: string }) {
+  const result = chatStore.sendMessage(
+    payload.content,
+    chatStore.currentConversationId || undefined,
+    payload.systemPrompt
+  )
+  currentAbort = result.abort
+  // Auto-scroll on send
+  isUserScrolledUp.value = false
+  showScrollToBottom.value = false
+}
+
+function handleStop() {
+  if (currentAbort) {
+    currentAbort()
+    currentAbort = null
+  }
+}
+
+// Auto-scroll when new messages arrive, unless user has scrolled up
 watch(
   () => chatStore.currentMessages.length,
   async () => {
     await nextTick()
-    if (messageListRef.value) {
-      messageListRef.value.scrollTop = messageListRef.value.scrollHeight
+    if (!isUserScrolledUp.value) {
+      scrollToBottom(false)
+    } else {
+      showScrollToBottom.value = true
+    }
+  }
+)
+
+// Auto-scroll during streaming (content changes on the last message)
+watch(
+  () => {
+    const lastMsg = chatStore.currentMessages[chatStore.currentMessages.length - 1]
+    return lastMsg?.content
+  },
+  async () => {
+    await nextTick()
+    if (!isUserScrolledUp.value) {
+      scrollToBottom(false)
+    } else {
+      showScrollToBottom.value = true
     }
   }
 )
@@ -55,6 +123,7 @@ watch(
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: relative;
 }
 .message-list {
   flex: 1;
@@ -82,5 +151,19 @@ watch(
 .welcome-subtitle {
   font-size: 17px;
   color: rgba(255, 255, 255, 0.48);
+}
+.scroll-to-bottom {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: var(--dark-surface-1);
+  color: var(--text-white);
+  font-size: 13px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  z-index: 10;
+  animation: fadeIn 0.2s ease;
 }
 </style>

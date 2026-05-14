@@ -11,7 +11,7 @@ from sqlalchemy import func
 
 from app.core.config import settings
 from app.crud import ai_conversation as conv_crud
-from app.infrastructure.langchain_adapter import CustomChatModel
+from langchain_core.language_models.chat_models import BaseChatModel
 from app.models.ai_conversation import AIConversation
 from app.models.conversation_message import ConversationMessage
 from app.prompts.chat_prompts import (
@@ -46,6 +46,7 @@ class ChatState(MessagesState):
     effective_system_prompt: str | None
     long_term_memories: list[str]
     blog_knowledge: list[str]
+    retrieved_sources: list[dict]
     conversation: Any
     title_prompt: str | None
 
@@ -107,7 +108,7 @@ def _require_owner(conv: AIConversation, user_id: int) -> None:
         )
 
 
-def _build_prepare_node(llm_small: CustomChatModel):
+def _build_prepare_node(llm_small: BaseChatModel):
     """构建【获取/创建对话】节点。"""
 
     async def prepare_conversation_node(
@@ -196,7 +197,7 @@ def _build_retrieve_node():
     return retrieve_memories_node
 
 
-def _build_call_model_node(llm: CustomChatModel):
+def _build_call_model_node(llm: BaseChatModel):
     """构建【调用 LLM】节点。
 
     支持 Tool Calling：
@@ -218,12 +219,12 @@ def _build_call_model_node(llm: CustomChatModel):
             # 最终回复阶段：流式生成
             chunks: list[str] = []
             total_length = 0
-            max_output = settings.LLM_MAIN_MAX_OUTPUT_TOKENS
+            max_output = settings.LLM_MAIN_MAX_OUTPUT_CHARS
 
             async for chunk in llm.astream(messages):
                 token = chunk.content or ""
                 if total_length + len(token) > max_output:
-                    logger.warning("LLM 输出超过最大长度限制 %s，截断", max_output)
+                    logger.warning("LLM 输出超过最大字符数限制 %s，截断", max_output)
                     break
                 chunks.append(token)
                 total_length += len(token)
@@ -253,6 +254,8 @@ def _build_tools_node():
         db = config["configurable"]["db"]
         tool_results: list[ToolMessage] = []
 
+        retrieved_sources: list[dict] = []
+
         for tc in last_msg.tool_calls:
             if tc["name"] == "search_blog":
                 query = tc["args"].get("query", "")
@@ -261,12 +264,29 @@ def _build_tools_node():
                     blog_results = await blog_service.search(query, top_k=3)
                     knowledge = _format_blog_knowledge(blog_results)
                     content = "\n\n".join(knowledge) if knowledge else "未找到相关博客文章。"
+                    retrieved_sources.extend(
+                        [
+                            {
+                                "post_id": r.post_id,
+                                "title": r.title,
+                                "similarity_score": r.similarity_score,
+                            }
+                            for r in blog_results
+                        ]
+                    )
                 except Exception:
                     logger.exception("博客向量检索失败")
                     content = "博客检索服务暂时不可用。"
                 tool_results.append(ToolMessage(content=content, tool_call_id=tc["id"]))
+            else:
+                tool_results.append(
+                    ToolMessage(
+                        content=f"未知工具: {tc['name']}",
+                        tool_call_id=tc["id"],
+                    )
+                )
 
-        return {"messages": tool_results}
+        return {"messages": tool_results, "retrieved_sources": retrieved_sources}
 
     return tools_node
 
@@ -327,6 +347,16 @@ def _build_persist_node():
                 break
 
         try:
+            meta: dict | None = None
+            if assistant_msg:
+                meta = {}
+                if getattr(assistant_msg, "tool_calls", None):
+                    meta["tool_calls"] = assistant_msg.tool_calls
+                if state.get("retrieved_sources"):
+                    meta["retrieved_sources"] = state["retrieved_sources"]
+                if not meta:
+                    meta = None
+
             if user_msg:
                 db.add(
                     ConversationMessage(
@@ -341,6 +371,7 @@ def _build_persist_node():
                         conversation_id=conversation_id,
                         role="assistant",
                         content=assistant_msg.content or "",
+                        meta=meta,
                     )
                 )
 
@@ -385,24 +416,26 @@ async def _fire_and_forget(coro) -> None:
 _graph_cache: dict[str, CompiledStateGraph] = {}
 
 
-def _build_graph_key(llm: CustomChatModel, llm_small: CustomChatModel) -> str:
+def _build_graph_key(llm: BaseChatModel, llm_small: BaseChatModel) -> str:
     """基于模型配置生成 Graph 缓存键，支持热更新时自动失效。"""
-    return f"{llm._client._model}:{llm_small._client._model}"
+    return f"{llm.model_name}:{llm_small.model_name}"
 
 
 def build_chat_graph(
-    llm: CustomChatModel,
-    llm_small: CustomChatModel,
+    llm: BaseChatModel,
+    llm_small: BaseChatModel,
+    checkpointer: Any | None = None,
 ) -> CompiledStateGraph:
     """
     编译对话 StateGraph（按模型配置缓存）。
 
     Args:
-        llm: 主对话模型（CustomChatModel）
+        llm: 主对话模型（BaseChatModel）
         llm_small: 小模型（用于标题生成）
+        checkpointer: LangGraph Checkpointer 实例（如 RedisCheckpointSaver）
 
     Returns:
-        编译后的 StateGraph（尚未注入 checkpointer，由调用方注入）
+        编译后的 StateGraph（已绑定 checkpointer）
     """
     key = _build_graph_key(llm, llm_small)
     if key in _graph_cache:
@@ -425,7 +458,7 @@ def build_chat_graph(
     builder.add_edge("tools", "model")
     builder.add_edge("persist", END)
 
-    compiled = builder.compile()
+    compiled = builder.compile(checkpointer=checkpointer)
     _graph_cache[key] = compiled
     return compiled
 

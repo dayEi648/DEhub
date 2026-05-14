@@ -13,7 +13,7 @@
       >
         <span class="conv-title">{{ conv.title }}</span>
         <span class="conv-time">{{ formatDate(conv.created_at) }}</span>
-        <button class="delete-btn" @click.stop="chatStore.deleteConversation(conv.id)">🗑</button>
+        <button class="delete-btn" @click.stop="confirmDelete(conv.id)">🗑</button>
       </div>
       <div v-if="chatStore.conversations.length === 0" class="empty-conversations">
         暂无历史对话
@@ -21,16 +21,29 @@
     </div>
   </aside>
   <div v-if="uiStore.isMobileMenuOpen" class="sidebar-backdrop" @click="uiStore.isMobileMenuOpen = false" />
+
+  <Modal v-model="showDeleteModal" title="确认删除">
+    <p>确定要删除这个对话吗？此操作无法撤销。</p>
+    <template #footer>
+      <button class="action-link danger" @click="executeDelete">确认删除</button>
+      <PillLink @click="showDeleteModal = false">取消</PillLink>
+    </template>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { useUiStore } from '@/stores/ui'
 import PrimaryButton from './PrimaryButton.vue'
+import PillLink from './PillLink.vue'
+import Modal from './Modal.vue'
 
 const chatStore = useChatStore()
 const uiStore = useUiStore()
+
+const showDeleteModal = ref(false)
+const pendingDeleteId = ref<number | null>(null)
 
 onMounted(() => {
   chatStore.fetchConversations()
@@ -45,6 +58,18 @@ function startNewChat() {
 function selectConversation(id: number) {
   chatStore.fetchMessages(id)
   uiStore.isMobileMenuOpen = false
+}
+
+function confirmDelete(id: number) {
+  pendingDeleteId.value = id
+  showDeleteModal.value = true
+}
+
+function executeDelete() {
+  if (pendingDeleteId.value !== null) {
+    chatStore.deleteConversation(pendingDeleteId.value)
+    pendingDeleteId.value = null
+  }
 }
 
 function formatDate(date: string) {
@@ -119,6 +144,17 @@ function formatDate(date: string) {
   text-align: center;
   font-size: 14px;
   color: rgba(255, 255, 255, 0.48);
+}
+.action-link {
+  background: none;
+  border: none;
+  color: var(--apple-blue);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0;
+}
+.action-link.danger {
+  color: var(--error-red);
 }
 .sidebar-backdrop {
   display: none;

@@ -29,3 +29,7 @@ export function deleteUser(id: number) {
 export function hardDeleteUser(id: number) {
   return client.delete(`/users/${id}/hard`)
 }
+
+export function changePassword(data: { old_password: string; new_password: string }) {
+  return client.post('/users/me/change-password', data)
+}

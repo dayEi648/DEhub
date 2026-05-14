@@ -35,7 +35,7 @@
         <PillLink :to="`/blog/edit/${blogStore.currentPost.slug}`">编辑</PillLink>
         <button
           class="action-link"
-          @click="blogStore.currentPost.status === 'published' ? blogStore.unpublishPost(blogStore.currentPost.id) : blogStore.publishPost(blogStore.currentPost.id)"
+          @click="togglePublish"
         >
           {{ blogStore.currentPost.status === 'published' ? '下线' : '发布' }}
         </button>
@@ -75,6 +75,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBlogStore } from '@/stores/blog'
+import { useUiStore } from '@/stores/ui'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import PillLink from '@/components/PillLink.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
@@ -85,6 +86,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const blogStore = useBlogStore()
+const uiStore = useUiStore()
 
 const showDeleteModal = ref(false)
 
@@ -97,6 +99,20 @@ async function loadPost() {
     if (error.response?.status === 404) {
       router.push('/404')
     }
+  }
+}
+
+async function togglePublish() {
+  if (!blogStore.currentPost) return
+  try {
+    if (blogStore.currentPost.status === 'published') {
+      await blogStore.unpublishPost(blogStore.currentPost.id)
+    } else {
+      await blogStore.publishPost(blogStore.currentPost.id)
+    }
+  } catch (error: any) {
+    const message = error.response?.data?.message || '操作失败'
+    uiStore.showToast(message, 'error')
   }
 }
 
@@ -115,8 +131,13 @@ function formatDate(date: string) {
 async function confirmDelete() {
   showDeleteModal.value = false
   if (!blogStore.currentPost) return
-  await blogStore.deletePost(blogStore.currentPost.id)
-  router.push('/blog')
+  try {
+    await blogStore.deletePost(blogStore.currentPost.id)
+    router.push('/blog')
+  } catch (error: any) {
+    const message = error.response?.data?.message || '删除失败'
+    uiStore.showToast(message, 'error')
+  }
 }
 </script>
 

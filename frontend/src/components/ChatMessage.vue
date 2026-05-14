@@ -1,11 +1,16 @@
 <template>
   <div class="chat-message" :class="message.role">
-    <div class="message-bubble">
-      <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" />
-      <template v-else>{{ message.content }}</template>
-      <span v-if="isStreaming" class="cursor">|</span>
-    </div>
-    <span class="message-time">{{ formatTime(message.created_at) }}</span>
+    <template v-if="message.role === 'system'">
+      <span class="system-text">{{ message.content }}</span>
+    </template>
+    <template v-else>
+      <div class="message-bubble">
+        <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" />
+        <template v-else>{{ message.content }}</template>
+        <span v-if="isStreaming" class="cursor">|</span>
+      </div>
+      <span class="message-time">{{ formatTime(message.created_at) }}</span>
+    </template>
   </div>
 </template>
 
@@ -36,8 +41,10 @@ function formatTime(date: string) {
 .chat-message.assistant {
   align-items: flex-start;
 }
+.chat-message.system {
+  align-items: center;
+}
 .message-bubble {
-  max-width: 80%;
   padding: 12px 16px;
   font-size: 15px;
   line-height: 1.6;
@@ -47,15 +54,28 @@ function formatTime(date: string) {
   background: var(--apple-blue);
   color: var(--text-white);
   border-radius: 18px 18px 4px 18px;
+  max-width: 70%;
 }
 .chat-message.assistant .message-bubble {
   background: var(--dark-surface-1);
   color: var(--text-white);
   border-radius: 4px 18px 18px 18px;
+  max-width: 80%;
+}
+.system-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.48);
+  padding: 4px 0;
 }
 .message-time {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.4);
+}
+.chat-message.user .message-time {
+  text-align: right;
+}
+.chat-message.assistant .message-time {
+  text-align: left;
 }
 .cursor {
   display: inline-block;

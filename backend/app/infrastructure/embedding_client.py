@@ -1,14 +1,21 @@
 import asyncio
-from typing import AsyncGenerator
+import logging
+from typing import Any, AsyncGenerator
 
 import httpx
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 _embedding_client: "EmbeddingClient | None" = None
 
 # 阿里云百炼 text-embedding-v4 单次请求最多 25 条文本
 _MAX_BATCH_SIZE = 25
+
+# 需要重试的 HTTP 状态码
+_RETRY_STATUS_CODES = {429, 502, 503, 504}
+_MAX_RETRIES = 3
 
 
 class EmbeddingClient:
@@ -16,6 +23,7 @@ class EmbeddingClient:
     异步 Embedding HTTP 客户端，封装 OpenAI 兼容接口的向量嵌入调用。
 
     适配阿里云百炼平台 text-embedding-v4 等模型。
+    对 429/502/503/504 状态码自动进行指数退避重试（最多 3 次）。
     """
 
     def __init__(self) -> None:
@@ -23,6 +31,36 @@ class EmbeddingClient:
             base_url=settings.EMBEDDING_BASE_URL,
             headers={"Authorization": f"Bearer {settings.EMBEDDING_API_KEY}"},
             timeout=settings.EMBEDDING_TIMEOUT,
+        )
+
+    async def _request_with_retry(
+        self,
+        request_coro,
+    ) -> httpx.Response:
+        """带指数退避重试的 HTTP 请求。
+
+        :param request_coro: 返回 awaitable Response 的可调用对象
+        """
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                resp = await request_coro()
+                if resp.status_code not in _RETRY_STATUS_CODES:
+                    return resp
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code not in _RETRY_STATUS_CODES or attempt == _MAX_RETRIES:
+                    raise
+                wait = 2 ** (attempt - 1)
+                logger.warning(
+                    "Embedding API 返回 %s，第 %d 次重试，等待 %ds",
+                    exc.response.status_code,
+                    attempt,
+                    wait,
+                )
+                await asyncio.sleep(wait)
+        # 理论上不会到达这里，但为了类型检查
+        raise httpx.HTTPStatusError(
+            "Max retries exceeded", request=None, response=None  # type: ignore[arg-type]
         )
 
     async def aembed(self, texts: list[str]) -> list[list[float]]:
@@ -83,7 +121,9 @@ class EmbeddingClient:
         if settings.EMBEDDING_DIMENSION is not None:
             payload["dimensions"] = settings.EMBEDDING_DIMENSION
 
-        resp = await self._client.post("/v1/embeddings", json=payload)
+        resp = await self._request_with_retry(
+            lambda: self._client.post("/v1/embeddings", json=payload)
+        )
         resp.raise_for_status()
         return _extract_embeddings(resp.json())
 

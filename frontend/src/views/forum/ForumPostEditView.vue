@@ -11,6 +11,7 @@
         <div class="form-group">
           <label>分区</label>
           <select v-model="form.zone_id" class="form-input">
+            <option disabled :value="undefined">请选择分区</option>
             <option v-for="zone in forumStore.zones" :key="zone.id" :value="zone.id">{{ zone.zone_name }}</option>
           </select>
           <p v-if="errors.zone_id" class="error-text">{{ errors.zone_id }}</p>
@@ -36,7 +37,7 @@
 
 <script setup lang="ts">
 import { reactive, onMounted, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { useForumStore } from '@/stores/forum'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import PillLink from '@/components/PillLink.vue'
@@ -55,15 +56,21 @@ const form = reactive({
 })
 
 onMounted(async () => {
+  await initForm()
+})
+
+onBeforeRouteUpdate(async (to) => {
+  if (to.name === 'forum-post-edit' && to.params.postId !== route.params.postId) {
+    await initForm(Number(to.params.postId))
+  }
+})
+
+async function initForm(editPostId?: number) {
   if (forumStore.zones.length === 0) {
     await forumStore.fetchZones()
   }
-  const zoneId = route.query.zoneId
-  if (zoneId) {
-    form.zone_id = Number(zoneId)
-  }
   if (isEdit.value) {
-    const postId = Number(route.params.postId)
+    const postId = editPostId || Number(route.params.postId)
     await forumStore.fetchPostById(postId)
     const post = forumStore.currentPost
     if (post) {
@@ -71,8 +78,13 @@ onMounted(async () => {
       form.content = post.content
       form.zone_id = post.zone_id
     }
+  } else {
+    form.title = ''
+    form.content = ''
+    const zoneId = route.query.zoneId
+    form.zone_id = zoneId ? Number(zoneId) : undefined
   }
-})
+}
 
 function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])

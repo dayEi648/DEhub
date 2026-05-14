@@ -49,6 +49,13 @@ export const useUserStore = defineStore('user', () => {
     uiStore.showToast('用户已彻底删除', 'success')
   }
 
+  async function changePassword(data: { old_password: string; new_password: string }) {
+    await userApi.changePassword(data)
+    uiStore.showToast('密码修改成功，请重新登录', 'success')
+    // 修改密码后所有 Token 自动失效，执行登出
+    await authStore.logout()
+  }
+
   return {
     currentUser,
     userList,
@@ -57,6 +64,7 @@ export const useUserStore = defineStore('user', () => {
     updateProfile,
     fetchUsers,
     deleteUser,
-    hardDeleteUser
+    hardDeleteUser,
+    changePassword
   }
 })

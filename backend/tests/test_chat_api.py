@@ -32,10 +32,10 @@ def _async_iter(items):
 def mock_llm_clients():
     """全局 mock LLM 和 Redis 客户端，避免 lifespan 未初始化导致的错误。"""
     main = MagicMock()
-    main.astream_chat = MagicMock(return_value=_async_iter(["Hel", "lo"]))
-    main.achat = AsyncMock(return_value="Title")
+    main.astream = MagicMock(return_value=_async_iter(["Hel", "lo"]))
+    main.ainvoke = AsyncMock(return_value="Title")
     small = MagicMock()
-    small.achat = AsyncMock(return_value="Title")
+    small.ainvoke = AsyncMock(return_value="Title")
     with patch(
         "app.services.chat_graph_service.get_llm_client", return_value=main
     ), patch(

@@ -30,24 +30,12 @@
       </div>
 
       <div class="post-list">
-        <Card
+        <ForumPostCard
           v-for="post in forumStore.posts"
           :key="post.id"
-          class="post-item"
+          :post="post"
           @click="$router.push(`/forum/post/${post.id}`)"
-        >
-          <Avatar :size="40" :src="post.user.avatar_url" :name="post.user.username" />
-          <div class="post-content">
-            <h3 class="post-title">{{ post.title }}</h3>
-            <p class="post-excerpt">{{ post.content.slice(0, 120) }}...</p>
-            <div class="post-meta">
-              <span>{{ post.user.username }}</span>
-              <span>{{ formatDate(post.created_at) }}</span>
-              <span>👁 {{ post.view_count }}</span>
-              <span>💬 {{ post.reply_count }}</span>
-            </div>
-          </div>
-        </Card>
+        />
       </div>
 
       <EmptyState v-if="forumStore.posts.length === 0" description="该分区暂无帖子" />
@@ -64,14 +52,13 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, onBeforeRouteUpdate } from 'vue-router'
 import { useForumStore } from '@/stores/forum'
-import Card from '@/components/Card.vue'
-import Avatar from '@/components/Avatar.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import PillLink from '@/components/PillLink.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Pagination from '@/components/Pagination.vue'
+import ForumPostCard from '@/components/ForumPostCard.vue'
 
 const route = useRoute()
 const forumStore = useForumStore()
@@ -86,6 +73,15 @@ onMounted(async () => {
   await loadZoneAndPosts()
 })
 
+onBeforeRouteUpdate(async (to) => {
+  const slug = to.params.zoneSlug as string
+  if (slug !== route.params.zoneSlug) {
+    currentPage.value = 1
+    currentSort.value = 'created'
+    await loadZoneAndPosts(slug)
+  }
+})
+
 watch([currentSort, currentPage], () => {
   if (currentZoneId.value) {
     forumStore.fetchPosts({
@@ -97,12 +93,12 @@ watch([currentSort, currentPage], () => {
   }
 })
 
-async function loadZoneAndPosts() {
-  const slug = route.params.zoneSlug as string
-  let zone = forumStore.zones.find((z) => z.slug === slug)
+async function loadZoneAndPosts(slug?: string) {
+  const targetSlug = slug || (route.params.zoneSlug as string)
+  let zone = forumStore.zones.find((z) => z.slug === targetSlug)
   if (!zone) {
     await forumStore.fetchZones()
-    zone = forumStore.zones.find((z) => z.slug === slug)
+    zone = forumStore.zones.find((z) => z.slug === targetSlug)
   }
   if (zone) {
     forumStore.currentZone = zone
@@ -116,9 +112,7 @@ async function loadZoneAndPosts() {
   }
 }
 
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString('zh-CN')
-}
+
 </script>
 
 <style scoped>
@@ -173,43 +167,5 @@ function formatDate(date: string) {
   gap: 12px;
   margin-bottom: 24px;
 }
-.post-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 20px;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-.post-item:hover {
-  transform: translateY(-1px);
-}
-.post-content {
-  flex: 1;
-}
-.post-title {
-  font-size: 21px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.post-excerpt {
-  font-size: 14px;
-  color: var(--text-tertiary);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-.post-meta {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
+
 </style>

@@ -12,6 +12,7 @@
     />
     <div class="input-row">
       <textarea
+        ref="textareaRef"
         v-model="content"
         class="message-input"
         rows="1"
@@ -21,10 +22,12 @@
       />
       <button
         class="send-btn"
-        :disabled="!content.trim() || chatStore.isStreaming"
-        @click="send"
+        :class="{ stop: chatStore.isStreaming }"
+        :disabled="!chatStore.isStreaming && !content.trim()"
+        @click="handleButtonClick"
       >
-        {{ chatStore.isStreaming ? '⏹' : '→' }}
+        <span v-if="chatStore.isStreaming">■</span>
+        <span v-else>→</span>
       </button>
     </div>
   </div>
@@ -38,9 +41,11 @@ const chatStore = useChatStore()
 const content = ref('')
 const systemPrompt = ref('')
 const showSystem = ref(false)
+const textareaRef = ref<HTMLTextAreaElement>()
 
 const emit = defineEmits<{
   send: [payload: { content: string; systemPrompt?: string }]
+  stop: []
 }>()
 
 function handleKeydown(e: KeyboardEvent) {
@@ -53,7 +58,15 @@ function handleKeydown(e: KeyboardEvent) {
 function autoResize(e: Event) {
   const target = e.target as HTMLTextAreaElement
   target.style.height = 'auto'
-  target.style.height = Math.min(target.scrollHeight, 120) + 'px'
+  target.style.height = Math.min(target.scrollHeight, 140) + 'px'
+}
+
+function handleButtonClick() {
+  if (chatStore.isStreaming) {
+    emit('stop')
+  } else {
+    send()
+  }
 }
 
 function send() {
@@ -63,6 +76,10 @@ function send() {
     systemPrompt: systemPrompt.value || undefined
   })
   content.value = ''
+  // Reset textarea height
+  if (textareaRef.value) {
+    textareaRef.value.style.height = 'auto'
+  }
 }
 </script>
 
@@ -105,7 +122,8 @@ function send() {
   border-radius: var(--radius-xl);
   resize: none;
   outline: none;
-  max-height: 120px;
+  min-height: 44px;
+  max-height: 140px;
 }
 .message-input::placeholder {
   color: rgba(255, 255, 255, 0.3);
@@ -127,5 +145,9 @@ function send() {
 .send-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.send-btn.stop {
+  border-radius: 8px;
+  font-size: 10px;
 }
 </style>

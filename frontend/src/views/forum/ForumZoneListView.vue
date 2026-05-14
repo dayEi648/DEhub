@@ -22,7 +22,7 @@
               <h3 class="zone-name">{{ zone.zone_name }}</h3>
               <div v-if="authStore.isAdmin" class="zone-admin">
                 <button class="action-link" @click.stop="editZone(zone)">编辑</button>
-                <button class="action-link danger" @click.stop="forumStore.deleteZone(zone.id)">删除</button>
+                <button class="action-link danger" @click.stop="openDeleteZoneModal(zone.id)">删除</button>
               </div>
             </div>
             <p class="zone-desc">{{ zone.description || '暂无描述' }}</p>
@@ -56,6 +56,14 @@
         <PillLink @click="showZoneModal = false">取消</PillLink>
       </template>
     </Modal>
+
+    <Modal v-model="showDeleteZoneModal" title="确认删除">
+      <p>确认删除该分区？此操作不可撤销。</p>
+      <template #footer>
+        <button class="action-link danger" @click="confirmDeleteZone">确认删除</button>
+        <PillLink @click="showDeleteZoneModal = false">取消</PillLink>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -75,6 +83,8 @@ const authStore = useAuthStore()
 const forumStore = useForumStore()
 
 const showZoneModal = ref(false)
+const showDeleteZoneModal = ref(false)
+const pendingZoneId = ref<number | null>(null)
 const newZone = reactive({ zone_name: '', slug: '', description: '' })
 
 onMounted(() => {
@@ -94,6 +104,19 @@ function editZone(zone: ForumZoneResponse) {
   const slug = prompt('新 Slug', zone.slug)
   if (name && slug) {
     forumStore.updateZone(zone.id, { zone_name: name, slug })
+  }
+}
+
+function openDeleteZoneModal(id: number) {
+  pendingZoneId.value = id
+  showDeleteZoneModal.value = true
+}
+
+function confirmDeleteZone() {
+  showDeleteZoneModal.value = false
+  if (pendingZoneId.value !== null) {
+    forumStore.deleteZone(pendingZoneId.value)
+    pendingZoneId.value = null
   }
 }
 </script>
@@ -167,8 +190,11 @@ function editZone(zone: ForumZoneResponse) {
   margin-bottom: 16px;
 }
 .zone-admin {
-  display: flex;
+  display: none;
   gap: 8px;
+}
+.zone-header:hover .zone-admin {
+  display: flex;
 }
 .action-link {
   font-size: 12px;

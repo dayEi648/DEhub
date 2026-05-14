@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile,
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLoginResponse, UserLogin, UserLogout, RefreshTokenRequest, UserRegister, UserListResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLoginResponse, UserLogin, UserLogout, RefreshTokenRequest, UserRegister, UserListResponse, ChangePasswordRequest
 from app.services.user_service import UserService
 from app.models.user import User
 from app.core.security import get_current_user, get_token_from_header
@@ -161,6 +161,24 @@ async def logout(
     """
     service = UserService(db)
     await service.logout_user(token, user_logout)
+
+@router.post("/me/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    password_data: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """
+    修改当前登录用户密码
+    修改成功后，该用户所有已有 Token 将自动失效，需重新登录
+    Args:
+        password_data: 密码修改请求
+        db: 数据库会话
+        current_user: 当前登录用户
+    """
+    service = UserService(db)
+    service.change_password(current_user, password_data)
+
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register(user_register: UserRegister, db: Session = Depends(get_db)) -> UserResponse:

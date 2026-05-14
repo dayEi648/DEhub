@@ -102,3 +102,16 @@ class UserListResponse(BaseModel):
 # 注册请求
 class UserRegister(UserCreate):
     pass
+
+
+# 修改密码请求
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(min_length=6, max_length=128, description="旧密码")
+    new_password: str = Field(min_length=6, max_length=128, description="新密码")
+
+    @field_validator("new_password")
+    def new_password_must_differ_from_old(cls, v: str, info) -> str:
+        old = info.data.get("old_password")
+        if old is not None and v == old:
+            raise ValueError("新密码不能与旧密码相同")
+        return v

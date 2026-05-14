@@ -1,9 +1,9 @@
 from sqlalchemy.orm import Session
 from app.crud import user as user_crud
-from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister, UserListResponse
+from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister, UserListResponse, ChangePasswordRequest
 from app.models.user import User
 from fastapi import HTTPException, status, UploadFile
-from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
+from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
 from app.core.config import settings
 from app.core.permissions import require_admin
 from app.storage.oss import delete_file_from_oss, upload_user_avatar, convert_oss_url_to_file_path
@@ -317,3 +317,38 @@ class UserService:
         user_data = user_register.model_copy(update={"permission": 0})
         user = user_crud.create_user(self.db, user_data)
         return UserResponse.model_validate(user)
+
+    def change_password(
+        self,
+        current_user: User,
+        password_data: ChangePasswordRequest,
+    ) -> None:
+        """
+        修改当前用户密码
+        Args:
+            current_user: 当前登录用户
+            password_data: 密码修改请求（旧密码 + 新密码）
+        Raises:
+            HTTPException: 旧密码错误 或 新密码与旧密码相同
+        """
+        if not verify_password(password_data.old_password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="旧密码错误"
+            )
+
+        if password_data.old_password == password_data.new_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="新密码不能与旧密码相同"
+            )
+
+        current_user.hashed_password = get_password_hash(password_data.new_password)
+        self.db.commit()
+
+        # 在 Redis 中记录撤销时间戳，使该用户所有已有 token 失效
+        from app.redis_client import get_sync_redis_client
+        import time
+        revoked_at = int(time.time())
+        redis = get_sync_redis_client()
+        redis.set(f"user_revoked:{current_user.id}", revoked_at)

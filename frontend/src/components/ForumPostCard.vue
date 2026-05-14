@@ -39,6 +39,10 @@ function formatDate(date: string) {
   gap: 16px;
   padding: 20px;
   cursor: pointer;
+  transition: transform 0.2s;
+}
+.forum-post-card:hover {
+  transform: translateY(-1px);
 }
 .post-info {
   flex: 1;
