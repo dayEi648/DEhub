@@ -13,6 +13,7 @@ from app.schemas.blog_post import (
     BlogPostListResponse,
 )
 from app.crud import blog_post as blog_post_crud
+from app.utils.slug import generate_unique_slug
 
 
 class BlogPostService:
@@ -47,7 +48,16 @@ class BlogPostService:
 
     def create_blog_post(self, post_in: BlogPostCreate, current_user: User) -> BlogPost:
         self._require_super_admin(current_user)
-        self._ensure_slug_unique(post_in.slug)
+
+        # 若未提供 slug，根据标题自动生成
+        if not post_in.slug:
+            slug = generate_unique_slug(
+                self.db, post_in.title, exists_checker=blog_post_crud.get_blog_post_by_slug
+            )
+            post_in = BlogPostCreate(**{**post_in.model_dump(), "slug": slug})
+        else:
+            self._ensure_slug_unique(post_in.slug)
+
         db_post = blog_post_crud.create_blog_post(self.db, post_in)
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)

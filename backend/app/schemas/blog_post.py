@@ -19,7 +19,7 @@ class BlogPostBase(BaseModel):
 
 class BlogPostCreate(BlogPostBase):
     """创建博客文章请求"""
-    pass
+    slug: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class BlogPostUpdate(BaseModel):

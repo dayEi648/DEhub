@@ -14,7 +14,7 @@ class ForumZoneBase(BaseModel):
 
 class ForumZoneCreate(ForumZoneBase):
     """创建论坛分区请求"""
-    pass
+    slug: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class ForumZoneUpdate(BaseModel):

@@ -7,6 +7,7 @@ from app.core.permissions import require_admin
 from app.schemas.forum_zone import ForumZoneCreate, ForumZoneUpdate, ForumZoneResponse
 from app.crud import forum_zone as forum_zone_crud
 from app.crud import forum_post as forum_post_crud
+from app.utils.slug import generate_unique_slug
 from app.core.zone_manager import (
     get_zone_manager_id,
     set_zone_manager_cache,
@@ -58,7 +59,16 @@ class ForumZoneService:
             HTTPException: 403 权限不足
         """
         self._require_admin(current_user)
-        self._ensure_slug_unique(zone_in.slug)
+
+        # 若未提供 slug，根据分区名称自动生成
+        if not zone_in.slug:
+            slug = generate_unique_slug(
+                self.db, zone_in.zone_name, exists_checker=forum_zone_crud.get_zone_by_slug
+            )
+            zone_in = ForumZoneCreate(**{**zone_in.model_dump(), "slug": slug})
+        else:
+            self._ensure_slug_unique(zone_in.slug)
+
         db_zone = forum_zone_crud.create_zone(self.db, zone_in, current_user.id)
         # 重新查询以加载 manager 关联，避免延迟加载问题
         refreshed = forum_zone_crud.get_zone_by_id(self.db, db_zone.id)
@@ -158,6 +168,23 @@ class ForumZoneService:
             HTTPException: 404 分区不存在
         """
         db_zone = forum_zone_crud.get_zone_by_id(self.db, zone_id)
+        if not db_zone:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
+            )
+        return db_zone
+
+    def get_zone_by_slug(self, slug: str) -> ForumZone:
+        """
+        根据 slug 查询分区详情
+        Args:
+            slug: 分区 slug
+        Returns:
+            ForumZone: 分区对象
+        Raises:
+            HTTPException: 404 分区不存在
+        """
+        db_zone = forum_zone_crud.get_zone_by_slug(self.db, slug)
         if not db_zone:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"

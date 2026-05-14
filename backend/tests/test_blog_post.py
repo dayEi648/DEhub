@@ -24,6 +24,17 @@ class TestBlogPostSchema:
         assert post.status == "draft"
         assert post.tags == []
 
+    def test_create_without_slug(self):
+        """未提供 slug 时应通过校验（由服务端自动生成）"""
+        post = BlogPostCreate(
+            title="测试标题",
+            slug=None,
+            content_md="# Hello",
+            category_id=1,
+        )
+        assert post.title == "测试标题"
+        assert post.slug is None
+
     def test_create_with_optional_fields(self):
         """包含可选字段的创建请求应通过校验"""
         post = BlogPostCreate(

@@ -72,11 +72,14 @@ def _format_blog_knowledge(results: list) -> list[str]:
     formatted: list[str] = []
     for result in results:
         title = result.title or ""
+        slug = result.slug or ""
         summary = result.summary or ""
+        parts = [f"{BLOG_KNOWLEDGE_LABEL} {title}"]
+        if slug:
+            parts.append(f"链接：/blog/{slug}")
         if summary:
-            formatted.append(f"{BLOG_KNOWLEDGE_LABEL} {title}\n{summary}")
-        else:
-            formatted.append(f"{BLOG_KNOWLEDGE_LABEL} {title}")
+            parts.append(summary)
+        formatted.append("\n".join(parts))
     return formatted
 
 

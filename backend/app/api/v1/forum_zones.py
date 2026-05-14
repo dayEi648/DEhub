@@ -70,6 +70,25 @@ def get_zone(
     return service.get_zone(zone_id)
 
 
+@router.get("/by-slug/{slug}", response_model=ForumZoneResponse)
+def get_zone_by_slug(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ForumZoneResponse:
+    """
+    根据 slug 查询分区详情（SEO 友好）
+    Args:
+        slug: 分区 slug
+        db: 数据库会话
+        current_user: 当前登录用户
+    Returns:
+        ForumZoneResponse: 分区详情
+    """
+    service = ForumZoneService(db)
+    return service.get_zone_by_slug(slug)
+
+
 @router.put("/{zone_id}", response_model=ForumZoneResponse)
 def update_zone(
     zone_id: int,

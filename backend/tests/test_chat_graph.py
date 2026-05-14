@@ -22,20 +22,24 @@ class TestFormatBlogKnowledge:
     def test_with_summary(self):
         result = MagicMock()
         result.title = "FastAPI 入门"
+        result.slug = "fastapi-ru-men"
         result.summary = "这是一篇关于 FastAPI 的教程"
         formatted = _format_blog_knowledge([result])
         assert len(formatted) == 1
         assert "[博客文章]" in formatted[0]
         assert "FastAPI 入门" in formatted[0]
         assert "这是一篇关于 FastAPI 的教程" in formatted[0]
+        assert "链接：/blog/fastapi-ru-men" in formatted[0]
 
     def test_without_summary(self):
         result = MagicMock()
         result.title = "Python 技巧"
+        result.slug = "python-ji-qiao"
         result.summary = None
         formatted = _format_blog_knowledge([result])
         assert len(formatted) == 1
-        assert "[博客文章] Python 技巧" == formatted[0]
+        assert "[博客文章] Python 技巧" in formatted[0]
+        assert "链接：/blog/python-ji-qiao" in formatted[0]
 
 
 class TestBuildSystemPrompt:
@@ -103,6 +107,7 @@ class TestToolsNode:
 
         mock_result = MagicMock()
         mock_result.title = "FastAPI 教程"
+        mock_result.slug = "fastapi-jiao-cheng"
         mock_result.summary = "入门指南"
 
         with patch(
@@ -113,7 +118,9 @@ class TestToolsNode:
             result = await node(state, config)
             msgs = result.get("messages", [])
             assert len(msgs) == 1
-            assert msgs[0].content == "[博客文章] FastAPI 教程\n入门指南"
+            assert "[博客文章] FastAPI 教程" in msgs[0].content
+            assert "链接：/blog/fastapi-jiao-cheng" in msgs[0].content
+            assert "入门指南" in msgs[0].content
             assert msgs[0].tool_call_id == "call_1"
 
 

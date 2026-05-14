@@ -62,7 +62,7 @@ export interface UserListResponse {
 /* ---------- Blog Post ---------- */
 export interface BlogPostBase {
   title: string
-  slug: string
+  slug?: string
   summary: string | null
   content_md: string
   cover_image_url: string | null
@@ -86,6 +86,7 @@ export interface BlogPostUpdate {
 
 export interface BlogPostResponse extends BlogPostBase {
   id: number
+  slug: string
   category: BlogCategoryBrief
   view_count: number
   is_deleted: boolean
@@ -128,7 +129,7 @@ export interface BlogCategoryBrief {
 
 export interface BlogCategoryBase {
   name: string
-  slug: string
+  slug?: string
   description?: string | null | undefined
 }
 
@@ -142,6 +143,7 @@ export interface BlogCategoryUpdate {
 
 export interface BlogCategoryResponse extends BlogCategoryBase {
   id: number
+  slug: string
 }
 
 export interface BlogCategoryWithPostCount extends BlogCategoryResponse {
@@ -150,7 +152,7 @@ export interface BlogCategoryWithPostCount extends BlogCategoryResponse {
 
 /* ---------- Forum Zone ---------- */
 export interface ForumZoneBase {
-  slug: string
+  slug?: string
   zone_name: string
   description?: string | null | undefined
 }
@@ -166,6 +168,7 @@ export interface ForumZoneUpdate {
 
 export interface ForumZoneResponse extends ForumZoneBase {
   id: number
+  slug: string
   manager_id: number
   manager: UserBriefInfo
   view_count: number
@@ -203,7 +206,9 @@ export interface ForumReplyBase {
   content: string
 }
 
-export interface ForumReplyCreate extends ForumReplyBase {}
+export interface ForumReplyCreate {
+  content: string
+}
 
 export interface ForumReplyResponse extends ForumReplyBase {
   id: number

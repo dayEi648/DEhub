@@ -42,6 +42,40 @@ class TestBlogCategoryServicePermission:
             )
         assert exc_info.value.status_code == 403
 
+    def test_create_without_slug_auto_generates(self, db, service, super_admin):
+        """未提供 slug 时应根据 name 自动生成"""
+        category_in = BlogCategoryCreate(name="Technology", slug=None)
+        with (
+            patch("app.services.blog_category_service.blog_category_crud.get_category_by_slug", return_value=None) as mock_get_slug,
+            patch("app.services.blog_category_service.blog_category_crud.create_category") as mock_create,
+        ):
+            mock_cat = MagicMock()
+            mock_create.return_value = mock_cat
+
+            result = service.create_category(category_in, super_admin)
+
+            mock_get_slug.assert_called_once_with(db, "technology")
+            created_in = mock_create.call_args[0][1]
+            assert created_in.slug == "technology"
+            assert result == mock_cat
+
+    def test_create_with_explicit_slug_uses_provided(self, db, service, super_admin):
+        """显式传入 slug 时应使用提供的值并校验唯一性"""
+        category_in = BlogCategoryCreate(name="Technology", slug="tech")
+        with (
+            patch("app.services.blog_category_service.blog_category_crud.get_category_by_slug", return_value=None) as mock_get_slug,
+            patch("app.services.blog_category_service.blog_category_crud.create_category") as mock_create,
+        ):
+            mock_cat = MagicMock()
+            mock_create.return_value = mock_cat
+
+            result = service.create_category(category_in, super_admin)
+
+            mock_get_slug.assert_called_once_with(db, "tech")
+            created_in = mock_create.call_args[0][1]
+            assert created_in.slug == "tech"
+            assert result == mock_cat
+
     def test_slug_unique(self, service, super_admin):
         existing = MagicMock()
         existing.id = 1
@@ -95,6 +129,12 @@ class TestBlogCategorySchema:
         cat = BlogCategoryCreate(name="技术", slug="tech", description="技术相关")
         assert cat.name == "技术"
         assert cat.slug == "tech"
+
+    def test_create_without_slug(self):
+        """未提供 slug 时应通过校验（由服务端自动生成）"""
+        cat = BlogCategoryCreate(name="技术", slug=None, description="技术相关")
+        assert cat.name == "技术"
+        assert cat.slug is None
 
     def test_create_name_too_long(self):
         with pytest.raises(Exception):

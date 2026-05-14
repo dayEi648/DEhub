@@ -48,6 +48,52 @@ class TestBlogPostServicePermission:
             service.create_blog_post(post_in, normal_user)
         assert exc_info.value.status_code == 403
 
+    def test_create_without_slug_auto_generates(self, db, service, super_admin):
+        """未提供 slug 时应根据 title 自动生成"""
+        post_in = BlogPostCreate(
+            title="Hello World", slug=None, content_md="# md", category_id=1
+        )
+        with (
+            patch("app.services.blog_post_service.blog_post_crud.get_blog_post_by_slug", return_value=None) as mock_get_slug,
+            patch("app.services.blog_post_service.blog_post_crud.create_blog_post") as mock_create,
+            patch("app.services.blog_post_service.blog_post_crud.get_blog_post_by_id") as mock_get_id,
+        ):
+            mock_post = MagicMock()
+            mock_post.id = 1
+            mock_create.return_value = mock_post
+            mock_get_id.return_value = mock_post
+
+            result = service.create_blog_post(post_in, super_admin)
+
+            mock_get_slug.assert_called_once_with(db, "hello-world")
+            mock_create.assert_called_once()
+            # 验证传入的 post_in 已经被替换为带 slug 的副本
+            created_in = mock_create.call_args[0][1]
+            assert created_in.slug == "hello-world"
+            assert result == mock_post
+
+    def test_create_with_explicit_slug_uses_provided(self, db, service, super_admin):
+        """显式传入 slug 时应使用提供的值并校验唯一性"""
+        post_in = BlogPostCreate(
+            title="Hello World", slug="custom-slug", content_md="# md", category_id=1
+        )
+        with (
+            patch("app.services.blog_post_service.blog_post_crud.get_blog_post_by_slug", return_value=None) as mock_get_slug,
+            patch("app.services.blog_post_service.blog_post_crud.create_blog_post") as mock_create,
+            patch("app.services.blog_post_service.blog_post_crud.get_blog_post_by_id") as mock_get_id,
+        ):
+            mock_post = MagicMock()
+            mock_post.id = 1
+            mock_create.return_value = mock_post
+            mock_get_id.return_value = mock_post
+
+            result = service.create_blog_post(post_in, super_admin)
+
+            mock_get_slug.assert_called_once_with(db, "custom-slug")
+            created_in = mock_create.call_args[0][1]
+            assert created_in.slug == "custom-slug"
+            assert result == mock_post
+
     def test_slug_unique_check(self, db, service, super_admin):
         """重复 slug 应 400"""
         existing = MagicMock()

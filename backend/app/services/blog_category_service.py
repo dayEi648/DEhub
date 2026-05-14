@@ -12,6 +12,7 @@ from app.schemas.blog_category import (
     BlogCategoryWithPostCount,
 )
 from app.crud import blog_category as blog_category_crud
+from app.utils.slug import generate_unique_slug
 
 
 class BlogCategoryService:
@@ -39,7 +40,16 @@ class BlogCategoryService:
         self, category_in: BlogCategoryCreate, current_user: User
     ) -> BlogCategory:
         self._require_super_admin(current_user)
-        self._ensure_slug_unique(category_in.slug)
+
+        # 若未提供 slug，根据名称自动生成
+        if not category_in.slug:
+            slug = generate_unique_slug(
+                self.db, category_in.name, exists_checker=blog_category_crud.get_category_by_slug
+            )
+            category_in = BlogCategoryCreate(**{**category_in.model_dump(), "slug": slug})
+        else:
+            self._ensure_slug_unique(category_in.slug)
+
         return blog_category_crud.create_category(self.db, category_in)
 
     def get_category(
