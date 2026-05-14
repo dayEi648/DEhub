@@ -10,6 +10,13 @@
             <span class="post-date">{{ formatDate(forumStore.currentPost.created_at) }}</span>
             <span>👁 {{ forumStore.currentPost.view_count }}</span>
             <span>💬 {{ forumStore.currentPost.reply_count }}</span>
+            <button
+              class="favorite-btn"
+              :class="{ favorited: isFavorited }"
+              @click="toggleFavorite"
+            >
+              {{ isFavorited ? '⭐ 已收藏' : '☆ 收藏' }}
+            </button>
           </div>
         </div>
         <div class="post-body">{{ forumStore.currentPost.content }}</div>
@@ -80,6 +87,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useForumStore } from '@/stores/forum'
+import { useFavoriteStore } from '@/stores/favorite'
 import { useUiStore } from '@/stores/ui'
 import Card from '@/components/Card.vue'
 import Avatar from '@/components/Avatar.vue'
@@ -92,6 +100,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const forumStore = useForumStore()
+const favoriteStore = useFavoriteStore()
 const uiStore = useUiStore()
 
 const replyContent = ref('')
@@ -103,6 +112,25 @@ const showDeleteReplyModal = ref(false)
 const pendingReplyId = ref<number | null>(null)
 
 const postId = computed(() => Number(route.params.postId))
+
+const isFavorited = computed(() => {
+  if (!forumStore.currentPost) return false
+  return favoriteStore.forumPostFavoriteIds.includes(forumStore.currentPost.id)
+})
+
+async function toggleFavorite() {
+  if (!forumStore.currentPost) return
+  try {
+    if (isFavorited.value) {
+      await favoriteStore.unfavoriteForumPost(forumStore.currentPost.id)
+    } else {
+      await favoriteStore.favoriteForumPost(forumStore.currentPost.id)
+    }
+  } catch (error: any) {
+    const message = error.response?.data?.message || '操作失败'
+    uiStore.showToast(message, 'error')
+  }
+}
 
 const canManage = computed(() => {
   if (!authStore.user || !forumStore.currentPost) return false
@@ -147,6 +175,8 @@ async function loadPostData(id: number) {
       await forumStore.fetchZoneById(post.zone_id)
     }
     await forumStore.fetchReplies(id, { limit: pageSize })
+    // 预拉取收藏列表，用于判断当前帖子收藏状态
+    await favoriteStore.fetchForumPostFavorites({ limit: 100 })
   } catch (error: any) {
     if (error.response?.status === 404) {
       router.push('/404')
@@ -318,5 +348,20 @@ async function confirmDeleteReply() {
 }
 .back-link {
   text-align: center;
+}
+.favorite-btn {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+.favorite-btn:hover {
+  color: var(--text-secondary);
+}
+.favorite-btn.favorited {
+  color: #f5a623;
 }
 </style>

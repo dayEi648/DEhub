@@ -31,7 +31,16 @@
               <span>{{ zone.manager.username }}</span>
               <span>浏览量 {{ zone.view_count }}</span>
             </div>
-            <PillLink :to="`/forum/${zone.slug}`">进入分区 →</PillLink>
+            <div class="zone-actions">
+              <button
+                class="follow-btn"
+                :class="{ followed: isFollowed(zone.id) }"
+                @click.stop="toggleFollow(zone.id)"
+              >
+                {{ isFollowed(zone.id) ? '👁 已关注' : '👁 关注' }}
+              </button>
+              <PillLink :to="`/forum/${zone.slug}`">进入分区 →</PillLink>
+            </div>
           </Card>
         </div>
         <EmptyState v-if="forumStore.zones.length === 0" description="暂无分区" />
@@ -71,6 +80,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useForumStore } from '@/stores/forum'
+import { useFollowStore } from '@/stores/follow'
+import { useUiStore } from '@/stores/ui'
 import Card from '@/components/Card.vue'
 import PillLink from '@/components/PillLink.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
@@ -81,6 +92,8 @@ import type { ForumZoneResponse } from '@/types'
 
 const authStore = useAuthStore()
 const forumStore = useForumStore()
+const followStore = useFollowStore()
+const uiStore = useUiStore()
 
 const showZoneModal = ref(false)
 const showDeleteZoneModal = ref(false)
@@ -89,6 +102,7 @@ const newZone = reactive({ zone_name: '', slug: '', description: '' })
 
 onMounted(() => {
   forumStore.fetchZones()
+  followStore.fetchFollowedZones({ limit: 100 })
 })
 
 function createZone() {
@@ -110,6 +124,23 @@ function editZone(zone: ForumZoneResponse) {
 function openDeleteZoneModal(id: number) {
   pendingZoneId.value = id
   showDeleteZoneModal.value = true
+}
+
+function isFollowed(zoneId: number) {
+  return followStore.followedZoneIds.includes(zoneId)
+}
+
+async function toggleFollow(zoneId: number) {
+  try {
+    if (isFollowed(zoneId)) {
+      await followStore.unfollowZone(zoneId)
+    } else {
+      await followStore.followZone(zoneId)
+    }
+  } catch (error: any) {
+    const message = error.response?.data?.message || '操作失败'
+    uiStore.showToast(message, 'error')
+  }
 }
 
 function confirmDeleteZone() {
@@ -223,5 +254,25 @@ function confirmDeleteZone() {
   border: 3px solid rgba(0, 0, 0, 0.04);
   border-radius: var(--radius-lg);
   outline: none;
+}
+.zone-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.follow-btn {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+.follow-btn:hover {
+  color: var(--text-secondary);
+}
+.follow-btn.followed {
+  color: var(--apple-blue);
 }
 </style>

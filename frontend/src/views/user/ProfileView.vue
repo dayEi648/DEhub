@@ -15,7 +15,23 @@
 
     <section class="profile-form-section">
       <div class="container">
-        <div class="profile-form">
+        <div class="profile-tabs">
+          <button class="profile-tab" :class="{ active: activeTab === 'profile' }" @click="switchTab('profile')">
+            个人资料
+          </button>
+          <button class="profile-tab" :class="{ active: activeTab === 'blog-favorites' }" @click="switchTab('blog-favorites')">
+            博客收藏 ({{ favoriteStore.totalBlogFavorites }})
+          </button>
+          <button class="profile-tab" :class="{ active: activeTab === 'forum-favorites' }" @click="switchTab('forum-favorites')">
+            论坛收藏 ({{ favoriteStore.totalForumPostFavorites }})
+          </button>
+          <button class="profile-tab" :class="{ active: activeTab === 'zone-follows' }" @click="switchTab('zone-follows')">
+            关注分区 ({{ followStore.totalFollowedZones }})
+          </button>
+        </div>
+
+        <!-- 个人资料 -->
+        <div v-if="activeTab === 'profile'" class="profile-form">
           <div class="form-group">
             <label>用户名</label>
             <FilterButton as-input v-model="form.username" placeholder="用户名" />
@@ -57,21 +73,108 @@
             </div>
           </div>
         </div>
+
+        <!-- 博客收藏 -->
+        <div v-else-if="activeTab === 'blog-favorites'" class="favorites-panel">
+          <div v-if="favoriteStore.blogFavorites.length" class="post-grid">
+            <Card
+              v-for="post in favoriteStore.blogFavorites"
+              :key="post.id"
+              class="post-card"
+              @click="$router.push(`/blog/${post.slug}`)"
+            >
+              <img v-if="post.cover_image_url" :src="post.cover_image_url" class="post-cover" />
+              <div class="post-body">
+                <h3 class="post-title">{{ post.title }}</h3>
+                <p class="post-summary">{{ post.summary || '暂无摘要' }}</p>
+                <div class="post-meta">
+                  <span class="post-date">{{ formatDate(post.created_at) }}</span>
+                  <span class="post-views">👁 {{ post.view_count }}</span>
+                </div>
+              </div>
+            </Card>
+          </div>
+          <EmptyState v-else description="暂无收藏的博客文章" />
+          <Pagination
+            v-if="favoriteStore.totalBlogFavorites > pageSize"
+            v-model:current-page="blogFavPage"
+            :total="favoriteStore.totalBlogFavorites"
+            :page-size="pageSize"
+          />
+        </div>
+
+        <!-- 论坛收藏 -->
+        <div v-else-if="activeTab === 'forum-favorites'" class="favorites-panel">
+          <div v-if="favoriteStore.forumPostFavorites.length" class="post-list">
+            <ForumPostCard
+              v-for="post in favoriteStore.forumPostFavorites"
+              :key="post.id"
+              :post="post"
+              @click="$router.push(`/forum/post/${post.id}`)"
+            />
+          </div>
+          <EmptyState v-else description="暂无收藏的论坛帖子" />
+          <Pagination
+            v-if="favoriteStore.totalForumPostFavorites > pageSize"
+            v-model:current-page="forumFavPage"
+            :total="favoriteStore.totalForumPostFavorites"
+            :page-size="pageSize"
+          />
+        </div>
+
+        <!-- 关注分区 -->
+        <div v-else-if="activeTab === 'zone-follows'" class="favorites-panel">
+          <div v-if="followStore.followedZones.length" class="zone-grid">
+            <Card
+              v-for="zone in followStore.followedZones"
+              :key="zone.id"
+              class="zone-card"
+            >
+              <div class="zone-header">
+                <h3 class="zone-name">{{ zone.zone_name }}</h3>
+              </div>
+              <p class="zone-desc">{{ zone.description || '暂无描述' }}</p>
+              <div class="zone-meta">
+                <Avatar :size="24" :src="zone.manager.avatar_url" :name="zone.manager.username" />
+                <span>{{ zone.manager.username }}</span>
+                <span>浏览量 {{ zone.view_count }}</span>
+              </div>
+              <PillLink :to="`/forum/${zone.slug}`">进入分区 →</PillLink>
+            </Card>
+          </div>
+          <EmptyState v-else description="暂无关注的分区" />
+          <Pagination
+            v-if="followStore.totalFollowedZones > pageSize"
+            v-model:current-page="zoneFollowPage"
+            :total="followStore.totalFollowedZones"
+            :page-size="pageSize"
+          />
+        </div>
       </div>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
+import { useFavoriteStore } from '@/stores/favorite'
+import { useFollowStore } from '@/stores/follow'
 import ImageUploader from '@/components/ImageUploader.vue'
 import FilterButton from '@/components/FilterButton.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
+import Card from '@/components/Card.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import Pagination from '@/components/Pagination.vue'
+import ForumPostCard from '@/components/ForumPostCard.vue'
+import Avatar from '@/components/Avatar.vue'
+import PillLink from '@/components/PillLink.vue'
 
 const authStore = useAuthStore()
 const userStore = useUserStore()
+const favoriteStore = useFavoriteStore()
+const followStore = useFollowStore()
 
 const previewAvatar = ref<string | null>(null)
 const selectedFile = ref<File | null>(null)
@@ -90,6 +193,42 @@ const passwordForm = reactive({
 })
 
 const errors = reactive<Record<string, string>>({})
+
+const activeTab = ref('profile')
+const pageSize = 20
+const blogFavPage = ref(1)
+const forumFavPage = ref(1)
+const zoneFollowPage = ref(1)
+
+async function switchTab(key: string) {
+  activeTab.value = key
+  if (key === 'blog-favorites') {
+    blogFavPage.value = 1
+    await favoriteStore.fetchBlogPostFavorites({ skip: 0, limit: pageSize })
+  } else if (key === 'forum-favorites') {
+    forumFavPage.value = 1
+    await favoriteStore.fetchForumPostFavorites({ skip: 0, limit: pageSize })
+  } else if (key === 'zone-follows') {
+    zoneFollowPage.value = 1
+    await followStore.fetchFollowedZones({ skip: 0, limit: pageSize })
+  }
+}
+
+watch(blogFavPage, () => {
+  favoriteStore.fetchBlogPostFavorites({ skip: (blogFavPage.value - 1) * pageSize, limit: pageSize })
+})
+
+watch(forumFavPage, () => {
+  favoriteStore.fetchForumPostFavorites({ skip: (forumFavPage.value - 1) * pageSize, limit: pageSize })
+})
+
+watch(zoneFollowPage, () => {
+  followStore.fetchFollowedZones({ skip: (zoneFollowPage.value - 1) * pageSize, limit: pageSize })
+})
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleDateString('zh-CN')
+}
 
 const permissionLabel = computed(() => {
   const p = authStore.user?.permission
@@ -328,5 +467,136 @@ async function handleChangePassword() {
 }
 .password-form {
   padding-top: 8px;
+}
+
+/* ---------- Tabs ---------- */
+.profile-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.profile-tab {
+  padding: 6px 14px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.profile-tab.active {
+  color: var(--apple-blue);
+  border-bottom-color: var(--apple-blue);
+}
+
+/* ---------- Favorites Panel ---------- */
+.favorites-panel {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.post-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 32px;
+}
+@media (max-width: 640px) {
+  .post-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.post-card {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.post-card:hover {
+  transform: translateY(-2px);
+}
+.post-cover {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+.post-body {
+  padding: 20px;
+}
+.post-title {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.19;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.post-summary {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.post-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* Forum favorites */
+.post-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+/* Zone follows */
+.zone-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 32px;
+}
+@media (max-width: 640px) {
+  .zone-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.zone-card {
+  padding: 32px;
+  background: var(--text-white);
+}
+.zone-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.zone-name {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.14;
+  color: var(--text-primary);
+}
+.zone-desc {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+.zone-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
 }
 </style>

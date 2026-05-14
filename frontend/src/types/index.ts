@@ -292,3 +292,27 @@ export interface ListQuery {
   skip?: number
   limit?: number
 }
+
+/* ---------- Favorite & Follow ---------- */
+export interface FavoriteStatusResponse {
+  is_favorited: boolean
+}
+
+export interface FollowStatusResponse {
+  is_followed: boolean
+}
+
+export interface BlogPostFavoriteListResponse {
+  items: BlogPostListItem[]
+  total: number
+}
+
+export interface PostFavoriteListResponse {
+  items: ForumPostResponse[]
+  total: number
+}
+
+export interface ZoneFollowListResponse {
+  items: ForumZoneResponse[]
+  total: number
+}

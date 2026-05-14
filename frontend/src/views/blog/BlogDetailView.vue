@@ -14,6 +14,13 @@
         <span>发布于 {{ formatDate(blogStore.currentPost.created_at) }}</span>
         <span>更新于 {{ formatDate(blogStore.currentPost.updated_at) }}</span>
         <span>👁 {{ blogStore.currentPost.view_count }}</span>
+        <button
+          class="favorite-btn"
+          :class="{ favorited: isFavorited }"
+          @click="toggleFavorite"
+        >
+          {{ isFavorited ? '⭐ 已收藏' : '☆ 收藏' }}
+        </button>
       </div>
       <MarkdownRenderer :content="blogStore.currentPost.content_md" />
       <div v-if="blogStore.currentPost.tags.length" class="post-tags">
@@ -71,10 +78,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBlogStore } from '@/stores/blog'
+import { useFavoriteStore } from '@/stores/favorite'
 import { useUiStore } from '@/stores/ui'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import PillLink from '@/components/PillLink.vue'
@@ -86,15 +94,37 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const blogStore = useBlogStore()
+const favoriteStore = useFavoriteStore()
 const uiStore = useUiStore()
 
 const showDeleteModal = ref(false)
+
+const isFavorited = computed(() => {
+  if (!blogStore.currentPost) return false
+  return favoriteStore.blogFavoriteIds.includes(blogStore.currentPost.id)
+})
+
+async function toggleFavorite() {
+  if (!blogStore.currentPost) return
+  try {
+    if (isFavorited.value) {
+      await favoriteStore.unfavoriteBlogPost(blogStore.currentPost.id)
+    } else {
+      await favoriteStore.favoriteBlogPost(blogStore.currentPost.id)
+    }
+  } catch (error: any) {
+    const message = error.response?.data?.message || '操作失败'
+    uiStore.showToast(message, 'error')
+  }
+}
 
 async function loadPost() {
   const slug = route.params.slug as string
   if (!slug) return
   try {
     await blogStore.fetchPostBySlug(slug)
+    // 预拉取收藏列表，用于判断当前文章收藏状态
+    await favoriteStore.fetchBlogPostFavorites({ limit: 100 })
   } catch (error: any) {
     if (error.response?.status === 404) {
       router.push('/404')
@@ -265,5 +295,20 @@ async function confirmDelete() {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+}
+.favorite-btn {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+.favorite-btn:hover {
+  color: var(--text-secondary);
+}
+.favorite-btn.favorited {
+  color: #f5a623;
 }
 </style>
