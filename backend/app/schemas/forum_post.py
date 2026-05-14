@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.user import UserBriefInfo
+
 
 class ForumPostBase(BaseModel):
     """论坛帖子基础字段"""
@@ -26,9 +28,18 @@ class ForumPostResponse(ForumPostBase):
     """论坛帖子完整响应"""
     id: int
     user_id: int
+    user: UserBriefInfo
     view_count: int
     reply_count: int
     updated_at: datetime
     created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ForumPostListResponse(BaseModel):
+    """论坛帖子分页列表响应"""
+    items: list[ForumPostResponse]
+    total: int
 
     model_config = ConfigDict(from_attributes=True)

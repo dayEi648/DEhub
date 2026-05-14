@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.user import User
 from app.models.blog_post import BlogPost
@@ -10,6 +10,7 @@ from app.schemas.blog_post import (
     BlogPostResponse,
     BlogPostDetailResponse,
     BlogPostListItem,
+    BlogPostListResponse,
 )
 from app.crud import blog_post as blog_post_crud
 
@@ -32,8 +33,12 @@ class BlogPostService:
             )
 
     def _build_visible_query(self, current_user: User):
-        """构建基于当前用户权限的可见文章查询基线"""
-        query = self.db.query(BlogPost).filter(BlogPost.is_deleted == False)
+        """构建基于当前用户权限的可见文章查询基线（自动 join 分类信息）"""
+        query = (
+            self.db.query(BlogPost)
+            .options(joinedload(BlogPost.category))
+            .filter(BlogPost.is_deleted == False)
+        )
         if current_user.permission < 2:
             query = query.filter(BlogPost.status == "published")
         return query
@@ -43,7 +48,10 @@ class BlogPostService:
     def create_blog_post(self, post_in: BlogPostCreate, current_user: User) -> BlogPost:
         self._require_super_admin(current_user)
         self._ensure_slug_unique(post_in.slug)
-        return blog_post_crud.create_blog_post(self.db, post_in)
+        db_post = blog_post_crud.create_blog_post(self.db, post_in)
+        # 重新查询以加载 category 关联，避免延迟加载问题
+        refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
+        return refreshed
 
     def publish_blog_post(self, post_id: int, current_user: User) -> BlogPost:
         self._require_super_admin(current_user)
@@ -55,7 +63,9 @@ class BlogPostService:
         db_post.status = "published"
         self.db.commit()
         self.db.refresh(db_post)
-        return db_post
+        # 重新查询以加载 category 关联，避免延迟加载问题
+        refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
+        return refreshed
 
     def unpublish_blog_post(self, post_id: int, current_user: User) -> BlogPost:
         self._require_super_admin(current_user)
@@ -67,7 +77,9 @@ class BlogPostService:
         db_post.status = "draft"
         self.db.commit()
         self.db.refresh(db_post)
-        return db_post
+        # 重新查询以加载 category 关联，避免延迟加载问题
+        refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
+        return refreshed
 
     def update_blog_post(
         self, post_id: int, post_in: BlogPostUpdate, current_user: User
@@ -81,7 +93,10 @@ class BlogPostService:
         if "slug" in update_data and update_data["slug"] != db_post.slug:
             self._ensure_slug_unique(update_data["slug"], exclude_post_id=db_post.id)
 
-        return blog_post_crud.update_blog_post(self.db, db_post, post_in)
+        updated = blog_post_crud.update_blog_post(self.db, db_post, post_in)
+        # 重新查询以加载 category 关联（可能已变更），避免延迟加载问题
+        refreshed = blog_post_crud.get_blog_post_by_id(self.db, updated.id)
+        return refreshed
 
     def soft_delete_blog_post(self, post_id: int, current_user: User) -> None:
         self._require_super_admin(current_user)
@@ -184,13 +199,13 @@ class BlogPostService:
         q: str | None,
         include_unpublished: bool,
         current_user: User,
-    ) -> list[BlogPost]:
+    ) -> BlogPostListResponse:
         if current_user.permission != 2:
             effective_status = "published"
         else:
             effective_status = status if include_unpublished else "published"
 
-        return blog_post_crud.get_blog_posts(
+        posts = blog_post_crud.get_blog_posts(
             self.db,
             skip=skip,
             limit=limit,
@@ -198,4 +213,15 @@ class BlogPostService:
             category_id=category_id,
             tag=tag,
             q=q,
+        )
+        total = blog_post_crud.get_blog_posts_count(
+            self.db,
+            status=effective_status,
+            category_id=category_id,
+            tag=tag,
+            q=q,
+        )
+        return BlogPostListResponse(
+            items=[BlogPostListItem.model_validate(post) for post in posts],
+            total=total,
         )

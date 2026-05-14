@@ -66,7 +66,9 @@ class ForumReplyService:
             self.db, reply_in, current_user.id
         )
         forum_post_crud.increment_reply_count(self.db, post_id)
-        return db_reply
+        # 重新查询以加载 user 关联，避免延迟加载问题
+        refreshed = forum_reply_crud.get_reply_by_id(self.db, db_reply.id)
+        return refreshed
 
     def delete_reply(self, reply_id: int, current_user: User) -> None:
         """

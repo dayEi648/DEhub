@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Query
 from sqlalchemy.orm import Session
-from typing import List
 
 from app.api.deps import get_db
-from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLoginResponse, UserLogin, UserLogout, RefreshTokenRequest, UserRegister
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLoginResponse, UserLogin, UserLogout, RefreshTokenRequest, UserRegister, UserListResponse
 from app.services.user_service import UserService
 from app.models.user import User
 from app.core.security import get_current_user, get_token_from_header
@@ -41,7 +40,7 @@ def get_user(
     service = UserService(db)
     return service.get_user(user_id, current_user)
 
-@router.get("/", response_model=List[UserResponse])
+@router.get("/", response_model=UserListResponse)
 def list_users(
     skip: int = 0,
     limit: int = Query(default=20, ge=1, le=100),
@@ -51,7 +50,7 @@ def list_users(
     permission: int | None = Query(default=None, ge=0, le=2, description="权限值筛选"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-) -> List[UserResponse]:
+) -> UserListResponse:
     """
     获取用户列表（支持分页与筛选）
     """

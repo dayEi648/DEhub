@@ -7,6 +7,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.forum_zone import ForumZone
     from app.models.forum_reply import ForumReply
+    from app.models.user import User
 
 
 class ForumPost(Base):
@@ -30,6 +31,7 @@ class ForumPost(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    user: Mapped["User"] = relationship("User")
     zone: Mapped["ForumZone"] = relationship("ForumZone", back_populates="posts")
     replies: Mapped[list["ForumReply"]] = relationship(
         "ForumReply", back_populates="post"

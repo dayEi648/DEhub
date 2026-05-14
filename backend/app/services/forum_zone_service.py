@@ -59,7 +59,10 @@ class ForumZoneService:
         """
         self._require_admin(current_user)
         self._ensure_slug_unique(zone_in.slug)
-        return forum_zone_crud.create_zone(self.db, zone_in, current_user.id)
+        db_zone = forum_zone_crud.create_zone(self.db, zone_in, current_user.id)
+        # 重新查询以加载 manager 关联，避免延迟加载问题
+        refreshed = forum_zone_crud.get_zone_by_id(self.db, db_zone.id)
+        return refreshed
 
     def update_zone(
         self, zone_id: int, zone_in: ForumZoneUpdate, current_user: User
@@ -111,7 +114,9 @@ class ForumZoneService:
         if manager_id_changed:
             set_zone_manager_cache(updated_zone.id, updated_zone.manager_id)
 
-        return updated_zone
+        # 重新查询以加载 manager 关联（可能已变更），避免延迟加载问题
+        refreshed = forum_zone_crud.get_zone_by_id(self.db, updated_zone.id)
+        return refreshed
 
     def delete_zone(self, zone_id: int, current_user: User) -> None:
         """

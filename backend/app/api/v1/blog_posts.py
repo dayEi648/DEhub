@@ -10,7 +10,7 @@ from app.schemas.blog_post import (
     BlogPostUpdate,
     BlogPostResponse,
     BlogPostDetailResponse,
-    BlogPostListItem,
+    BlogPostListResponse,
 )
 from app.services.blog_post_service import BlogPostService
 from app.services.vector_sync_service import (
@@ -169,7 +169,7 @@ def get_blog_post_by_slug(
     return service.get_blog_post_by_slug(slug, current_user)
 
 
-@router.get("/", response_model=List[BlogPostListItem])
+@router.get("/", response_model=BlogPostListResponse)
 def list_blog_posts(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
@@ -180,14 +180,14 @@ def list_blog_posts(
     include_unpublished: bool = Query(default=False, description="是否包含未发布文章（仅超管有效）"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> List[BlogPostListItem]:
+) -> BlogPostListResponse:
     """
     列出博客文章列表（分页查询）
     - 普通用户：只能查询已发布且未删除的文章
     - 超级管理员：可通过 include_unpublished=true 查询未发布的文章
     """
     service = BlogPostService(db)
-    posts = service.list_blog_posts(
+    return service.list_blog_posts(
         skip=skip,
         limit=limit,
         status=status,
@@ -197,4 +197,3 @@ def list_blog_posts(
         include_unpublished=include_unpublished,
         current_user=current_user,
     )
-    return posts

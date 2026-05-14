@@ -49,25 +49,32 @@ class TestBuildSystemPrompt:
     """测试 System Prompt 拼接逻辑"""
 
     def test_no_memory_no_original(self):
-        """无记忆无原始 system prompt 时应返回 None"""
-        assert _build_system_prompt(None, "") is None
+        """无记忆无原始 system prompt 时应返回默认角色设定+安全约束"""
+        result = _build_system_prompt(None, "")
+        assert "禁止" in result
+        assert "DE Hub" in result
 
     def test_no_memory_with_original(self):
-        """无记忆但有原始 system prompt 时应返回原始值"""
-        assert _build_system_prompt("原始提示", "") == "原始提示"
+        """无记忆但有原始 system prompt 时应返回原始值+安全约束"""
+        result = _build_system_prompt("原始提示", "")
+        assert "原始提示" in result
+        assert "禁止" in result
 
     def test_memory_no_original(self):
-        """有记忆但无原始 system prompt 时应只返回记忆部分"""
+        """有记忆但无原始 system prompt 时应返回默认角色设定+记忆+安全约束"""
         result = _build_system_prompt(None, ["记忆内容"])
         assert "记忆内容" in result
         assert "历史记忆" in result
+        assert "禁止" in result
+        assert "DE Hub" in result
 
     def test_memory_with_original(self):
-        """有记忆且有原始 system prompt 时应正确拼接"""
+        """有记忆且有原始 system prompt 时应正确拼接并追加安全约束"""
         result = _build_system_prompt("原始提示", ["记忆内容"])
         assert "原始提示" in result
         assert "记忆内容" in result
         assert "\n\n" in result
+        assert "禁止" in result
 
 
 class TestUserMemoryServiceSyncTurn:
@@ -152,6 +159,54 @@ class TestUserMemoryServiceSearch:
             result = await service.search_relevant_memories(1, "Python", top_k=3)
             assert len(result) == 1
             assert result[0].content_text == "用户喜欢Python"
+
+    @pytest.mark.asyncio
+    async def test_search_filters_low_similarity(self, service):
+        """相似度低于阈值的结果应被过滤"""
+        mock_embedding = MagicMock()
+        mock_embedding.aembed_single = AsyncMock(return_value=[0.1] * 1024)
+
+        mem1 = MagicMock(spec=UserMemoryEmbedding)
+        mem1.memory_type = "turn"
+        mem1.content_text = "低相关记忆"
+
+        with patch(
+            "app.services.user_memory_service.get_embedding_client",
+            return_value=mock_embedding,
+        ), patch(
+            "app.services.user_memory_service.search_user_memories",
+            return_value=[(mem1, 0.5)],  # similarity = 0.5 < 0.6
+        ):
+            result = await service.search_relevant_memories(1, "Python", top_k=3)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_search_mixed_similarity(self, service):
+        """混合相似度结果应只保留高于阈值的"""
+        mock_embedding = MagicMock()
+        mock_embedding.aembed_single = AsyncMock(return_value=[0.1] * 1024)
+
+        mem_high = MagicMock(spec=UserMemoryEmbedding)
+        mem_high.memory_type = "summary"
+        mem_high.content_text = "高相关记忆"
+
+        mem_low = MagicMock(spec=UserMemoryEmbedding)
+        mem_low.memory_type = "turn"
+        mem_low.content_text = "低相关记忆"
+
+        with patch(
+            "app.services.user_memory_service.get_embedding_client",
+            return_value=mock_embedding,
+        ), patch(
+            "app.services.user_memory_service.search_user_memories",
+            return_value=[
+                (mem_high, 0.3),  # similarity = 0.7 >= 0.6
+                (mem_low, 0.5),   # similarity = 0.5 < 0.6
+            ],
+        ):
+            result = await service.search_relevant_memories(1, "Python", top_k=3)
+            assert len(result) == 1
+            assert result[0].content_text == "高相关记忆"
 
 
 class TestUserMemoryServiceDelete:

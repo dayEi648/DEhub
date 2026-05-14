@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     LLM_MAIN_BASE_URL: str = Field(default="")
     LLM_MAIN_MODEL: str = Field(default="")
     LLM_MAIN_MAX_TOKENS: int = Field(default=200000)
+    LLM_MAIN_MAX_OUTPUT_TOKENS: int = Field(default=4096)
     LLM_MAIN_TEMPERATURE: float = Field(default=0.6)
     LLM_MAIN_TIMEOUT: int = Field(default=60)
     LLM_SMALL_API_KEY: str = Field(default="")
@@ -62,6 +63,9 @@ class Settings(BaseSettings):
     OSS_DOMAIN: str = Field(default="")
     OSS_USERS_AVATAR_DIR: str = Field(default="users/avatar")
     MAX_USER_AVATAR_SIZE: int = Field(default=2097152)
+
+    # RAG 向量检索相似度阈值（低于此值的结果不会注入 AI 上下文）
+    RAG_MIN_SIMILARITY: float = Field(default=0.6)
 
     @property
     def DATABASE_URL(self) -> str:

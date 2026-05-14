@@ -4,6 +4,16 @@ from datetime import datetime
 from typing import Optional
 from pydantic import Field, field_validator
 
+
+class UserBriefInfo(BaseModel):
+    """精简用户信息（用于嵌套展示）"""
+    id: int
+    username: str
+    avatar_url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserBase(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     email: EmailStr
@@ -82,6 +92,12 @@ class RefreshTokenRequest(BaseModel):
 # 登出请求
 class UserLogout(BaseModel):
     refresh_token: Optional[str] = None
+
+# 用户分页列表响应
+class UserListResponse(BaseModel):
+    items: list[UserResponse]
+    total: int
+
 
 # 注册请求
 class UserRegister(UserCreate):

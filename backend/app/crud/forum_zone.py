@@ -1,41 +1,51 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.forum_zone import ForumZone
 from app.schemas.forum_zone import ForumZoneCreate, ForumZoneUpdate
 
 
 def get_zone_by_id(db: Session, zone_id: int) -> ForumZone | None:
     """
-    根据分区ID获取分区
+    根据分区ID获取分区（自动 join 区主信息）
     Args:
         db: 数据库会话
         zone_id: 分区ID
     Returns:
         ForumZone | None: 分区对象或None
     """
-    return db.query(ForumZone).filter(ForumZone.id == zone_id).first()
+    return (
+        db.query(ForumZone)
+        .options(joinedload(ForumZone.manager))
+        .filter(ForumZone.id == zone_id)
+        .first()
+    )
 
 
 def get_zone_by_slug(db: Session, slug: str) -> ForumZone | None:
     """
-    根据分区 slug 获取分区
+    根据分区 slug 获取分区（自动 join 区主信息）
     Args:
         db: 数据库会话
         slug: 分区 slug
     Returns:
         ForumZone | None: 分区对象或None
     """
-    return db.query(ForumZone).filter(ForumZone.slug == slug).first()
+    return (
+        db.query(ForumZone)
+        .options(joinedload(ForumZone.manager))
+        .filter(ForumZone.slug == slug)
+        .first()
+    )
 
 
 def get_all_zones(db: Session) -> list[ForumZone]:
     """
-    获取所有分区
+    获取所有分区（自动 join 区主信息）
     Args:
         db: 数据库会话
     Returns:
         list[ForumZone]: 分区列表
     """
-    return db.query(ForumZone).all()
+    return db.query(ForumZone).options(joinedload(ForumZone.manager)).all()
 
 
 def create_zone(db: Session, zone_in: ForumZoneCreate, manager_id: int) -> ForumZone:

@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.blog_category import BlogCategoryBrief
+
 
 class BlogPostBase(BaseModel):
     """博客文章基础字段"""
@@ -39,6 +41,7 @@ class BlogPostResponse(BlogPostBase):
     is_deleted: bool
     created_at: datetime
     updated_at: datetime
+    category: BlogCategoryBrief
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -51,12 +54,21 @@ class BlogPostListItem(BaseModel):
     summary: Optional[str] = None
     cover_image_url: Optional[str] = None
     category_id: int
+    category: BlogCategoryBrief
     tags: list[str]
     status: str
     view_count: int
     is_deleted: bool
     created_at: datetime
     updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BlogPostListResponse(BaseModel):
+    """博客文章列表分页响应"""
+    items: list[BlogPostListItem]
+    total: int
 
     model_config = ConfigDict(from_attributes=True)
 

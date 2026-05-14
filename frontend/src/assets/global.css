@@ -1,0 +1,155 @@
+/* Apple Design System - DE hub Global Styles */
+
+:root {
+  /* Primary Colors */
+  --apple-blue: #0071e3;
+  --apple-blue-hover: #0077ed;
+  --link-blue: #0066cc;
+  --link-blue-dark: #2997ff;
+  --bg-black: #000000;
+  --bg-gray: #f5f5f7;
+  --text-primary: #1d1d1f;
+  --text-white: #ffffff;
+  --text-secondary: rgba(0, 0, 0, 0.8);
+  --text-tertiary: rgba(0, 0, 0, 0.48);
+
+  /* Dark Surfaces */
+  --dark-surface-1: #272729;
+  --dark-surface-2: #262628;
+  --dark-surface-3: #2a2a2d;
+  --dark-surface-4: #2a2a2d;
+  --dark-surface-5: #242426;
+
+  /* Button States */
+  --button-active: #ededf2;
+  --button-default-light: #fafafc;
+  --overlay: rgba(210, 210, 215, 0.64);
+  --white-32: rgba(255, 255, 255, 0.32);
+
+  /* Semantic */
+  --error-red: #ff3b30;
+  --success-green: #34c759;
+  --warning-orange: #ff9500;
+  --admin-purple: #af52de;
+
+  /* Shadows */
+  --shadow-card: rgba(0, 0, 0, 0.22) 3px 5px 30px 0px;
+
+  /* Radius */
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 11px;
+  --radius-xl: 12px;
+  --radius-pill: 980px;
+
+  /* Typography */
+  --font-display: "SF Pro Display", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body: "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* Global Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
+  color: var(--text-primary);
+  background-color: var(--bg-gray);
+  min-height: 100vh;
+}
+
+/* Selection */
+::selection {
+  background-color: var(--apple-blue);
+  color: var(--text-white);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+/* Links */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Images */
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Typography Utilities */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+/* Container */
+.container {
+  width: 100%;
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* Animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

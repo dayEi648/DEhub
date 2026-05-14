@@ -1,4 +1,3 @@
-from typing import List
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
@@ -9,6 +8,7 @@ from app.schemas.forum_post import (
     ForumPostCreate,
     ForumPostUpdate,
     ForumPostResponse,
+    ForumPostListResponse,
 )
 from app.services.forum_post_service import ForumPostService
 
@@ -34,7 +34,7 @@ def create_post(
     return service.create_post(post_in, current_user)
 
 
-@router.get("/", response_model=List[ForumPostResponse])
+@router.get("/", response_model=ForumPostListResponse)
 def list_posts(
     zone_id: int | None = Query(default=None, ge=1),
     sort_by: str = Query(default="created", pattern=r"^(created|view)$"),
@@ -42,7 +42,7 @@ def list_posts(
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> List[ForumPostResponse]:
+) -> ForumPostListResponse:
     """
     查询帖子列表（支持分区筛选、排序与分页）
     Args:
@@ -53,7 +53,7 @@ def list_posts(
         db: 数据库会话
         current_user: 当前登录用户
     Returns:
-        List[ForumPostResponse]: 帖子列表
+        ForumPostListResponse: 帖子分页列表
     """
     service = ForumPostService(db)
     return service.list_posts(

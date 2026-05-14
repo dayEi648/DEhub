@@ -28,6 +28,15 @@ class BlogCategoryResponse(BlogCategoryBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BlogCategoryBrief(BaseModel):
+    """分类精简信息（用于嵌套展示）"""
+    id: int
+    name: str
+    slug: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class BlogCategoryWithPostCount(BlogCategoryResponse):
     """分类响应（附带文章数量）"""
     post_count: int = 0

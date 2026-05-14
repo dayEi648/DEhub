@@ -1,6 +1,8 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.user import UserBriefInfo
+
 
 class ForumReplyBase(BaseModel):
     """论坛回复基础字段"""
@@ -17,6 +19,7 @@ class ForumReplyResponse(ForumReplyBase):
     """论坛回复完整响应"""
     id: int
     user_id: int
+    user: UserBriefInfo
     likecount: int
     created_at: datetime
 

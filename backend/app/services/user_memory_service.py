@@ -12,6 +12,7 @@ from app.crud.user_memory_embedding import (
     search_user_memories,
 )
 from app.db.session import SessionLocal
+from app.core.config import settings
 from app.infrastructure.embedding_client import get_embedding_client
 from app.infrastructure.llm_client import get_llm_small_client
 from app.models.user_memory_embedding import UserMemoryEmbedding
@@ -143,6 +144,7 @@ class UserMemoryService:
         query: str,
         top_k: int = 3,
         exclude_conversation_id: int | None = None,
+        min_similarity: float = settings.RAG_MIN_SIMILARITY,
     ) -> list[UserMemoryEmbedding]:
         """
         检索某用户半年内与当前问题最相关的长期记忆。
@@ -152,6 +154,7 @@ class UserMemoryService:
             query: 用户当前输入文本
             top_k: 返回结果数量上限
             exclude_conversation_id: 排除的对话 ID（通常为当前对话，避免自我污染）
+            min_similarity: 最小相似度阈值，低于此值的结果会被过滤
 
         Returns:
             list[UserMemoryEmbedding]: 按相似度排序的记忆记录列表
@@ -174,7 +177,12 @@ class UserMemoryService:
                 top_k,
                 exclude_conversation_id,
             )
-            return [record for record, _distance in results]
+            filtered: list[UserMemoryEmbedding] = []
+            for record, distance in results:
+                similarity = max(0.0, 1.0 - float(distance))
+                if similarity >= min_similarity:
+                    filtered.append(record)
+            return filtered
         except Exception:
             logger.exception("检索用户 %s 长期记忆失败", user_id)
             return []

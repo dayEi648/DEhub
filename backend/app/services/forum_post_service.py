@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.forum_post import ForumPost
 from app.core.permissions import require_admin
-from app.schemas.forum_post import ForumPostCreate, ForumPostUpdate, ForumPostResponse
+from app.schemas.forum_post import ForumPostCreate, ForumPostUpdate, ForumPostResponse, ForumPostListResponse
 from app.crud import forum_post as forum_post_crud
 from app.crud import forum_zone as forum_zone_crud
 from app.core.zone_manager import is_zone_manager
@@ -57,7 +57,10 @@ class ForumPostService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
             )
 
-        return forum_post_crud.create_post(self.db, post_in, current_user.id)
+        db_post = forum_post_crud.create_post(self.db, post_in, current_user.id)
+        # 重新查询以加载 user 关联，避免延迟加载问题
+        refreshed = forum_post_crud.get_post_by_id(self.db, db_post.id)
+        return refreshed
 
     def update_post(
         self, post_id: int, post_in: ForumPostUpdate, current_user: User
@@ -126,7 +129,7 @@ class ForumPostService:
         sort_by: str,
         skip: int,
         limit: int,
-    ) -> list[ForumPost]:
+    ) -> ForumPostListResponse:
         """
         获取帖子列表（支持分区筛选、排序与分页）
         Args:
@@ -135,7 +138,7 @@ class ForumPostService:
             skip: 跳过数量
             limit: 限制数量
         Returns:
-            list[ForumPost]: 帖子列表
+            ForumPostListResponse: 帖子分页列表
         Raises:
             HTTPException: 404 分区不存在
         """
@@ -146,6 +149,10 @@ class ForumPostService:
                     status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
                 )
 
-        return forum_post_crud.get_posts(
+        items, total = forum_post_crud.get_posts(
             self.db, zone_id=zone_id, sort_by=sort_by, skip=skip, limit=limit
+        )
+        return ForumPostListResponse(
+            items=[ForumPostResponse.model_validate(post) for post in items],
+            total=total,
         )

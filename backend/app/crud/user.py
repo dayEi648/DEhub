@@ -47,7 +47,7 @@ def get_users(
     username: str | None = None,
     email: str | None = None,
     permission: int | None = None,
-) -> list[User]:
+) -> tuple[list[User], int]:
     """
     获取用户列表（支持分页与筛选）
     Args:
@@ -59,7 +59,7 @@ def get_users(
         email: 邮箱模糊筛选
         permission: 权限值筛选
     Returns:
-        list[User]: 用户列表
+        tuple[list[User], int]: 用户列表与总条数
     """
     query = db.query(User)
     if not include_deleted:
@@ -70,7 +70,9 @@ def get_users(
         query = query.filter(User.email.ilike(f"%{email}%"))
     if permission is not None:
         query = query.filter(User.permission == permission)
-    return query.offset(skip).limit(limit).all()
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return items, total
 
 
 def create_user(db: Session, user_in: UserCreate) -> User:

@@ -1,19 +1,24 @@
 from sqlalchemy import desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.forum_reply import ForumReply
 from app.schemas.forum_reply import ForumReplyCreate
 
 
 def get_reply_by_id(db: Session, reply_id: int) -> ForumReply | None:
     """
-    根据回复ID获取回复
+    根据回复ID获取回复（自动 join 用户信息）
     Args:
         db: 数据库会话
         reply_id: 回复ID
     Returns:
         ForumReply | None: 回复对象或None
     """
-    return db.query(ForumReply).filter(ForumReply.id == reply_id).first()
+    return (
+        db.query(ForumReply)
+        .options(joinedload(ForumReply.user))
+        .filter(ForumReply.id == reply_id)
+        .first()
+    )
 
 
 def get_replies_by_post_id(
@@ -23,7 +28,7 @@ def get_replies_by_post_id(
     limit: int = 20,
 ) -> tuple[list[ForumReply], int]:
     """
-    分页查询某帖子下的回复列表（按时间倒序）
+    分页查询某帖子下的回复列表（按时间倒序，自动 join 用户信息）
     Args:
         db: 数据库会话
         post_id: 帖子ID
@@ -35,7 +40,8 @@ def get_replies_by_post_id(
     query = db.query(ForumReply).filter(ForumReply.post_id == post_id)
     total = query.count()
     items = (
-        query.order_by(desc(ForumReply.created_at))
+        query.options(joinedload(ForumReply.user))
+        .order_by(desc(ForumReply.created_at))
         .offset(skip)
         .limit(limit)
         .all()

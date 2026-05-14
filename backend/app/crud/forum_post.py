@@ -1,19 +1,24 @@
 from sqlalchemy import desc, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.forum_post import ForumPost
 from app.schemas.forum_post import ForumPostCreate, ForumPostUpdate
 
 
 def get_post_by_id(db: Session, post_id: int) -> ForumPost | None:
     """
-    根据帖子ID获取帖子
+    根据帖子ID获取帖子（自动 join 用户信息）
     Args:
         db: 数据库会话
         post_id: 帖子ID
     Returns:
         ForumPost | None: 帖子对象或None
     """
-    return db.query(ForumPost).filter(ForumPost.id == post_id).first()
+    return (
+        db.query(ForumPost)
+        .options(joinedload(ForumPost.user))
+        .filter(ForumPost.id == post_id)
+        .first()
+    )
 
 
 def get_posts(
@@ -22,9 +27,9 @@ def get_posts(
     sort_by: str = "created",
     skip: int = 0,
     limit: int = 20,
-) -> list[ForumPost]:
+) -> tuple[list[ForumPost], int]:
     """
-    获取帖子列表（支持分区过滤、排序与分页）
+    获取帖子列表（支持分区过滤、排序与分页，自动 join 用户信息）
     Args:
         db: 数据库会话
         zone_id: 分区ID筛选
@@ -32,9 +37,9 @@ def get_posts(
         skip: 跳过数量
         limit: 限制数量
     Returns:
-        list[ForumPost]: 帖子列表
+        tuple[list[ForumPost], int]: 帖子列表与总条数
     """
-    query = db.query(ForumPost)
+    query = db.query(ForumPost).options(joinedload(ForumPost.user))
 
     if zone_id is not None:
         query = query.filter(ForumPost.zone_id == zone_id)
@@ -44,7 +49,9 @@ def get_posts(
     else:
         query = query.order_by(desc(ForumPost.created_at))
 
-    return query.offset(skip).limit(limit).all()
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return items, total
 
 
 def create_post(db: Session, post_in: ForumPostCreate, user_id: int) -> ForumPost:

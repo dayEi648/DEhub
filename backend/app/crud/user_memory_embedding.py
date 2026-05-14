@@ -164,7 +164,7 @@ def cleanup_expired_memories(db: Session, retention_days: int = 180) -> int:
     result = (
         db.query(UserMemoryEmbedding)
         .filter(
-            text("created_at < NOW() - INTERVAL ':retention_days days'")
+            text("created_at < NOW() - INTERVAL '1 day' * :retention_days")
             .bindparams(retention_days=retention_days)
         )
         .delete(synchronize_session=False)

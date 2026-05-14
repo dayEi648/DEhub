@@ -3,22 +3,30 @@ import logging
 from typing import Any
 
 from fastapi import HTTPException, status
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.base import RunnableConfig
 from langgraph.graph import END, MessagesState, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy import func
 
+from app.core.config import settings
 from app.crud import ai_conversation as conv_crud
-from app.crud import conversation_message as msg_crud
 from app.infrastructure.langchain_adapter import CustomChatModel
 from app.models.ai_conversation import AIConversation
+from app.models.conversation_message import ConversationMessage
 from app.prompts.chat_prompts import (
+    BLOG_KNOWLEDGE_HEADER,
+    BLOG_KNOWLEDGE_LABEL,
+    DEFAULT_SYSTEM,
     MEMORY_REFERENCE_HEADER,
     MEMORY_SUMMARY_LABEL,
     MEMORY_TURN_LABEL,
+    SECURITY_CONSTRAINTS,
     TITLE_GENERATION,
 )
 from app.services.user_memory_service import UserMemoryService
+from app.services.vector_search_service import BlogVectorSearchService
+from app.tools import search_blog
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +45,7 @@ class ChatState(MessagesState):
     system_prompt: str | None
     effective_system_prompt: str | None
     long_term_memories: list[str]
+    blog_knowledge: list[str]
     conversation: Any
     title_prompt: str | None
 
@@ -56,18 +65,37 @@ def _format_memories(memories: list) -> list[str]:
     ]
 
 
+def _format_blog_knowledge(results: list) -> list[str]:
+    """将博客检索结果格式化为文本块列表。"""
+    if not results:
+        return []
+    formatted: list[str] = []
+    for result in results:
+        title = result.title or ""
+        summary = result.summary or ""
+        if summary:
+            formatted.append(f"{BLOG_KNOWLEDGE_LABEL} {title}\n{summary}")
+        else:
+            formatted.append(f"{BLOG_KNOWLEDGE_LABEL} {title}")
+    return formatted
+
+
 def _build_system_prompt(
     original_system: str | None, memory_prompts: list[str]
 ) -> str | None:
-    """将原始 System Prompt 与长期记忆拼接。"""
-    if not memory_prompts:
-        return original_system
-    memory_text = "\n---\n".join(memory_prompts)
-    memory_section = f"{MEMORY_REFERENCE_HEADER}\n{memory_text}"
-    base = original_system.strip() if original_system else ""
-    if base:
-        return f"{base}\n\n{memory_section}"
-    return memory_section
+    """将原始 System Prompt 与长期记忆拼接，并追加安全约束。"""
+    sections: list[str] = []
+
+    # 优先使用传入的 system_prompt，否则使用默认角色设定
+    base_prompt = original_system or DEFAULT_SYSTEM
+    sections.append(base_prompt.strip())
+
+    if memory_prompts:
+        memory_text = "\n---\n".join(memory_prompts)
+        sections.append(f"{MEMORY_REFERENCE_HEADER}\n{memory_text}")
+
+    base = "\n\n".join(sections)
+    return f"{base}\n\n{SECURITY_CONSTRAINTS}"
 
 
 def _require_owner(conv: AIConversation, user_id: int) -> None:
@@ -104,18 +132,19 @@ def _build_prepare_node(llm_small: CustomChatModel):
         # 新建对话：生成标题
         title_prompt = state.get("title_prompt", "")
         try:
-            title = await llm_small.ainvoke(
+            title_msg = await llm_small.ainvoke(
                 [
                     SystemMessage(content=TITLE_GENERATION),
                     HumanMessage(content=title_prompt),
                 ]
             )
-            title = title.content.strip().replace("\n", " ")
+            title = title_msg.content.strip()
+            title = " ".join(title.split())  # 规范化所有空白字符
             if len(title) > _TITLE_MAX_LENGTH:
                 title = title[:_TITLE_MAX_LENGTH]
         except Exception:
             logger.warning("Title generation failed, using fallback")
-            title = title_prompt[:_TITLE_MAX_LENGTH]
+            title = title_prompt[:_TITLE_MAX_LENGTH] if title_prompt else "New Chat"
 
         conv = await asyncio.to_thread(
             conv_crud.create_ai_conversation, db, user_id, title
@@ -140,11 +169,12 @@ def _build_retrieve_node():
         if not messages:
             return {
                 "long_term_memories": [],
+                "blog_knowledge": [],
                 "effective_system_prompt": state.get("system_prompt"),
             }
 
         last_message = messages[-1]
-        query = last_message.content or "" if isinstance(last_message, HumanMessage) else ""
+        query = (last_message.content or "") if isinstance(last_message, HumanMessage) else ""
 
         memory_service = UserMemoryService(db)
         memories = await memory_service.search_relevant_memories(
@@ -159,6 +189,7 @@ def _build_retrieve_node():
         )
         return {
             "long_term_memories": memory_texts,
+            "blog_knowledge": [],
             "effective_system_prompt": effective,
         }
 
@@ -166,7 +197,12 @@ def _build_retrieve_node():
 
 
 def _build_call_model_node(llm: CustomChatModel):
-    """构建【调用 LLM】节点。"""
+    """构建【调用 LLM】节点。
+
+    支持 Tool Calling：
+    - 首次调用（无 ToolMessage）使用 .ainvoke() 非流式检测 tool_calls。
+    - 若已存在 ToolMessage，使用 .astream() 流式输出最终回复。
+    """
 
     async def call_model_node(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         messages = list(state.get("messages", []))
@@ -175,14 +211,76 @@ def _build_call_model_node(llm: CustomChatModel):
         if effective_system:
             messages = [SystemMessage(content=effective_system), *messages]
 
-        chunks = []
-        async for chunk in llm.astream(messages):
-            chunks.append(chunk.content)
+        # 检查 messages 中是否已有 ToolMessage（表示 tool 已执行过）
+        has_tool_result = any(isinstance(m, ToolMessage) for m in messages)
 
-        full_content = "".join(chunks)
-        return {"messages": [AIMessage(content=full_content)]}
+        if has_tool_result:
+            # 最终回复阶段：流式生成
+            chunks: list[str] = []
+            total_length = 0
+            max_output = settings.LLM_MAIN_MAX_OUTPUT_TOKENS
+
+            async for chunk in llm.astream(messages):
+                token = chunk.content or ""
+                if total_length + len(token) > max_output:
+                    logger.warning("LLM 输出超过最大长度限制 %s，截断", max_output)
+                    break
+                chunks.append(token)
+                total_length += len(token)
+
+            full_content = "".join(chunks)
+            return {"messages": [AIMessage(content=full_content)]}
+        else:
+            # 决策阶段：非流式，检测 tool_calls
+            response = await llm.ainvoke(messages)
+            return {"messages": [response]}
 
     return call_model_node
+
+
+def _build_tools_node():
+    """构建【工具执行】节点。"""
+
+    async def tools_node(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+        messages = state.get("messages", [])
+        if not messages:
+            return {}
+
+        last_msg = messages[-1]
+        if not isinstance(last_msg, AIMessage) or not last_msg.tool_calls:
+            return {}
+
+        db = config["configurable"]["db"]
+        tool_results: list[ToolMessage] = []
+
+        for tc in last_msg.tool_calls:
+            if tc["name"] == "search_blog":
+                query = tc["args"].get("query", "")
+                try:
+                    blog_service = BlogVectorSearchService(db)
+                    blog_results = await blog_service.search(query, top_k=3)
+                    knowledge = _format_blog_knowledge(blog_results)
+                    content = "\n\n".join(knowledge) if knowledge else "未找到相关博客文章。"
+                except Exception:
+                    logger.exception("博客向量检索失败")
+                    content = "博客检索服务暂时不可用。"
+                tool_results.append(ToolMessage(content=content, tool_call_id=tc["id"]))
+
+        return {"messages": tool_results}
+
+    return tools_node
+
+
+def _should_continue(state: ChatState) -> str:
+    """条件边：判断 model 节点输出是否包含 tool_calls。"""
+    messages = state.get("messages", [])
+    if not messages:
+        return "persist"
+
+    last_msg = messages[-1]
+    if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
+        return "tools"
+    return "persist"
 
 
 async def _run_memory_sync(
@@ -217,42 +315,37 @@ def _build_persist_node():
         conversation_id = conv.id
         messages = state.get("messages", [])
 
-        # 找到最近的一对 user/assistant 消息写入 DB
-        # messages 是由 add_messages reducer 维护的完整列表
-        if len(messages) >= 2:
-            # 倒数第二条应为 user，倒数第一条应为 assistant
-            user_msg = messages[-2]
-            assistant_msg = messages[-1]
-            if isinstance(user_msg, HumanMessage):
-                await asyncio.to_thread(
-                    msg_crud.create_conversation_message,
-                    db,
-                    conversation_id,
-                    "user",
-                    user_msg.content or "",
-                )
-            if isinstance(assistant_msg, AIMessage):
-                await asyncio.to_thread(
-                    msg_crud.create_conversation_message,
-                    db,
-                    conversation_id,
-                    "assistant",
-                    assistant_msg.content or "",
-                )
-        elif len(messages) == 1 and isinstance(messages[0], HumanMessage):
-            # 只有 user 消息（理论上不应发生，因为 call_model 会追加 AI 消息）
-            await asyncio.to_thread(
-                msg_crud.create_conversation_message,
-                db,
-                conversation_id,
-                "user",
-                messages[0].content or "",
-            )
-
-        # 更新对话的 updated_at 时间戳
-        conv.updated_at = func.now()
+        # 找到最近的一对真正的 user/assistant 消息（跳过 tool_calls 和 ToolMessage）
+        user_msg = None
+        assistant_msg = None
+        for msg in reversed(messages):
+            if isinstance(msg, AIMessage) and not msg.tool_calls and assistant_msg is None:
+                assistant_msg = msg
+            elif isinstance(msg, HumanMessage) and user_msg is None:
+                user_msg = msg
+            if user_msg and assistant_msg:
+                break
 
         try:
+            if user_msg:
+                db.add(
+                    ConversationMessage(
+                        conversation_id=conversation_id,
+                        role="user",
+                        content=user_msg.content or "",
+                    )
+                )
+            if assistant_msg:
+                db.add(
+                    ConversationMessage(
+                        conversation_id=conversation_id,
+                        role="assistant",
+                        content=assistant_msg.content or "",
+                    )
+                )
+
+            # 更新对话的 updated_at 时间戳
+            conv.updated_at = func.now()
             await asyncio.to_thread(db.commit)
         except Exception:
             await asyncio.to_thread(db.rollback)
@@ -260,22 +353,17 @@ def _build_persist_node():
             raise
 
         # 异步触发长期记忆同步（使用独立 session）
-        if len(messages) >= 2:
-            user_msg = messages[-2]
-            assistant_msg = messages[-1]
-            if isinstance(user_msg, HumanMessage) and isinstance(
-                assistant_msg, AIMessage
-            ):
-                asyncio.create_task(
-                    _fire_and_forget(
-                        _run_memory_sync(
-                            state["user_id"],
-                            conversation_id,
-                            user_msg.content or "",
-                            assistant_msg.content or "",
-                        )
+        if user_msg and assistant_msg:
+            asyncio.create_task(
+                _fire_and_forget(
+                    _run_memory_sync(
+                        state["user_id"],
+                        conversation_id,
+                        user_msg.content or "",
+                        assistant_msg.content or "",
                     )
                 )
+            )
 
         return {}
 
@@ -294,15 +382,20 @@ async def _fire_and_forget(coro) -> None:
 # Graph 构建工厂
 # ===================================================================
 
-_graph_instance: StateGraph | None = None
+_graph_cache: dict[str, CompiledStateGraph] = {}
+
+
+def _build_graph_key(llm: CustomChatModel, llm_small: CustomChatModel) -> str:
+    """基于模型配置生成 Graph 缓存键，支持热更新时自动失效。"""
+    return f"{llm._client._model}:{llm_small._client._model}"
 
 
 def build_chat_graph(
     llm: CustomChatModel,
     llm_small: CustomChatModel,
-) -> StateGraph:
+) -> CompiledStateGraph:
     """
-    编译对话 StateGraph（单例缓存）。
+    编译对话 StateGraph（按模型配置缓存）。
 
     Args:
         llm: 主对话模型（CustomChatModel）
@@ -311,22 +404,32 @@ def build_chat_graph(
     Returns:
         编译后的 StateGraph（尚未注入 checkpointer，由调用方注入）
     """
-    global _graph_instance
-    if _graph_instance is not None:
-        return _graph_instance
+    key = _build_graph_key(llm, llm_small)
+    if key in _graph_cache:
+        return _graph_cache[key]
 
     builder = StateGraph(ChatState)
 
+    llm_with_tools = llm.bind_tools([search_blog])
+
     builder.add_node("prepare", _build_prepare_node(llm_small))
     builder.add_node("retrieve", _build_retrieve_node())
-    builder.add_node("model", _build_call_model_node(llm))
+    builder.add_node("model", _build_call_model_node(llm_with_tools))
+    builder.add_node("tools", _build_tools_node())
     builder.add_node("persist", _build_persist_node())
 
     builder.set_entry_point("prepare")
     builder.add_edge("prepare", "retrieve")
     builder.add_edge("retrieve", "model")
-    builder.add_edge("model", "persist")
+    builder.add_conditional_edges("model", _should_continue)
+    builder.add_edge("tools", "model")
     builder.add_edge("persist", END)
 
-    _graph_instance = builder.compile()
-    return _graph_instance
+    compiled = builder.compile()
+    _graph_cache[key] = compiled
+    return compiled
+
+
+def invalidate_graph_cache() -> None:
+    """清空 Graph 编译缓存。供配置热更新时调用。"""
+    _graph_cache.clear()

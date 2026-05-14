@@ -1,9 +1,10 @@
 import asyncio
 import logging
+import uuid
 from typing import AsyncGenerator
 
 from fastapi import HTTPException, status
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy.orm import Session
 
 from app.infrastructure.langchain_adapter import CustomChatModel
@@ -54,38 +55,79 @@ class ChatGraphService:
         Yields:
             str: LLM 生成的文本增量
         """
+        messages = [HumanMessage(content=content)]
+
+        if conversation_id is not None:
+            # 从数据库加载历史消息，避免 Redis checkpoint 过期导致上下文丢失
+            from app.crud import conversation_message as msg_crud
+
+            history = await asyncio.to_thread(
+                msg_crud.list_conversation_messages,
+                self.db,
+                conversation_id,
+                skip=0,
+                limit=50,
+            )
+            history_messages = []
+            for msg in history:
+                if msg.role == "user":
+                    history_messages.append(HumanMessage(content=msg.content))
+                elif msg.role == "assistant":
+                    history_messages.append(AIMessage(content=msg.content))
+            messages = history_messages + messages
+
         initial_state = {
             "user_id": user_id,
             "conversation_id": conversation_id,
             "system_prompt": system_prompt,
-            "messages": [HumanMessage(content=content)],
+            "messages": messages,
             "title_prompt": content,
         }
 
         # thread_id 用于 Checkpointer 隔离对话状态
-        # 若 conversation_id 为 None，Graph 的 prepare 节点会创建新对话并更新 state
-        thread_id = str(conversation_id) if conversation_id else "new"
+        # 已有对话直接使用 conversation_id；新对话使用临时 UUID 避免并发冲突
+        temp_thread_id = None
+        if conversation_id:
+            thread_id = str(conversation_id)
+        else:
+            temp_thread_id = f"new-{uuid.uuid4().hex}"
+            thread_id = temp_thread_id
+
         config = {"configurable": {"thread_id": thread_id, "db": self.db}}
 
         try:
+            seen_stream = False
             async for event in self._graph.astream_events(
                 initial_state, config, version="v2"
             ):
-                # 捕获 LLM token 级流式事件
+                # 捕获 LLM token 级流式事件（最终回复阶段）
                 if event["event"] == "on_chat_model_stream":
+                    seen_stream = True
                     chunk = event["data"]["chunk"]
                     if hasattr(chunk, "content") and chunk.content:
                         yield chunk.content
 
+                # 捕获 model 节点非流式输出（决策阶段直接回复，无 tool call 时）
+                if event["event"] == "on_chain_end" and event.get("name") == "model":
+                    output = event["data"].get("output", {})
+                    msgs = output.get("messages", [])
+                    if msgs and isinstance(msgs[-1], AIMessage):
+                        msg = msgs[-1]
+                        # 仅在未出现流式事件时输出，避免重复
+                        if msg.content and not msg.tool_calls and not seen_stream:
+                            yield msg.content
+                    seen_stream = False
+
                 # 捕获 Graph 节点输出，获取新创建的 conversation_id
-                # 以便前端知道新对话的 ID
+                # 以便前端知道新对话的 ID，并切换 thread_id 供后续 checkpoint 使用
                 if event["event"] == "on_chain_end" and event.get("name") == "prepare":
                     output = event["data"].get("output", {})
                     if "conversation_id" in output:
-                        # 新对话创建成功，更新 thread_id 以供后续 checkpoint 使用
-                        config["configurable"]["thread_id"] = str(
-                            output["conversation_id"]
-                        )
+                        new_id = str(output["conversation_id"])
+                        config["configurable"]["thread_id"] = new_id
+                        # 若使用过临时 thread_id，清理该 checkpoint 避免残留
+                        if temp_thread_id and temp_thread_id != new_id:
+                            await self._checkpointer.delete_checkpoint(temp_thread_id)
 
         except HTTPException:
             raise
@@ -108,7 +150,9 @@ class ChatGraphService:
         """
         from app.crud import ai_conversation as conv_crud
 
-        conv = conv_crud.get_ai_conversation_by_id(self.db, conversation_id)
+        conv = await asyncio.to_thread(
+            conv_crud.get_ai_conversation_by_id, self.db, conversation_id
+        )
         if conv is None or conv.is_deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -120,8 +164,10 @@ class ChatGraphService:
                 detail="无权访问该对话",
             )
 
-        conv_crud.soft_delete_ai_conversation(self.db, conversation_id)
-        self.db.commit()
+        await asyncio.to_thread(
+            conv_crud.soft_delete_ai_conversation, self.db, conversation_id
+        )
+        # CRUD 内部已执行 commit，无需再次调用
 
         # 清理 Redis Checkpointer
         await self._checkpointer.delete_checkpoint(str(conversation_id))
@@ -143,7 +189,9 @@ class ChatGraphService:
         from app.crud import conversation_message as msg_crud
 
         # 校验权限
-        conv = self.get_conversation_or_raise(conversation_id, user_id)
+        conv = await asyncio.to_thread(
+            self.get_conversation_or_raise, conversation_id, user_id
+        )
         if conv is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

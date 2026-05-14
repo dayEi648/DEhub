@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.crud import user as user_crud
-from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister
+from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister, UserListResponse
 from app.models.user import User
 from fastapi import HTTPException, status, UploadFile
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
@@ -115,11 +115,11 @@ class UserService:
         username: str | None = None,
         email: str | None = None,
         permission: int | None = None,
-    ) -> list[User]:
+    ) -> UserListResponse:
         """
         获取用户列表（支持分页与筛选）
         """
-        return user_crud.get_users(
+        items, total = user_crud.get_users(
             self.db,
             skip=skip,
             limit=limit,
@@ -127,6 +127,10 @@ class UserService:
             username=username,
             email=email,
             permission=permission,
+        )
+        return UserListResponse(
+            items=[UserResponse.model_validate(user) for user in items],
+            total=total,
         )
 
     async def update_user(self, user_id: int, user_in: UserUpdate, current_user: User, file: UploadFile | None = None) -> UserResponse:

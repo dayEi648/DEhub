@@ -72,6 +72,7 @@ class TestBlogPostServiceReadPermission:
     def db(self):
         mock_db = MagicMock()
         mock_db.query.return_value = mock_db
+        mock_db.options.return_value = mock_db
         mock_db.filter.return_value = mock_db
         mock_db.order_by.return_value = mock_db
         mock_db.first.return_value = None
@@ -103,6 +104,11 @@ class TestBlogPostServiceReadPermission:
         post.content_md = "# Content"
         post.cover_image_url = None
         post.category_id = 1
+        category = MagicMock()
+        category.id = 1
+        category.name = "Tech"
+        category.slug = "tech"
+        post.category = category
         post.tags = []
         post.status = "published"
         post.is_deleted = False
@@ -121,6 +127,11 @@ class TestBlogPostServiceReadPermission:
         post.content_md = "# Draft"
         post.cover_image_url = None
         post.category_id = 1
+        category = MagicMock()
+        category.id = 1
+        category.name = "Tech"
+        category.slug = "tech"
+        post.category = category
         post.tags = []
         post.status = "draft"
         post.is_deleted = False
@@ -152,25 +163,37 @@ class TestBlogPostServiceReadPermission:
 
     def test_list_posts_normal_user_forces_published(self, db, service, normal_user):
         """普通用户列表强制只看 published"""
-        with patch("app.services.blog_post_service.blog_post_crud.get_blog_posts") as mock_get:
+        with (
+            patch("app.services.blog_post_service.blog_post_crud.get_blog_posts") as mock_get,
+            patch("app.services.blog_post_service.blog_post_crud.get_blog_posts_count") as mock_count,
+        ):
             mock_get.return_value = []
-            service.list_blog_posts(
+            mock_count.return_value = 0
+            result = service.list_blog_posts(
                 skip=0, limit=20, status="draft", category_id=None,
                 tag=None, q=None, include_unpublished=True, current_user=normal_user
             )
             call_args = mock_get.call_args.kwargs
             assert call_args["status"] == "published"
+            assert result.total == 0
+            assert result.items == []
 
     def test_list_posts_super_admin_can_include_unpublished(self, db, service, super_admin):
         """超管可查询未发布"""
-        with patch("app.services.blog_post_service.blog_post_crud.get_blog_posts") as mock_get:
+        with (
+            patch("app.services.blog_post_service.blog_post_crud.get_blog_posts") as mock_get,
+            patch("app.services.blog_post_service.blog_post_crud.get_blog_posts_count") as mock_count,
+        ):
             mock_get.return_value = []
-            service.list_blog_posts(
+            mock_count.return_value = 0
+            result = service.list_blog_posts(
                 skip=0, limit=20, status="draft", category_id=None,
                 tag=None, q=None, include_unpublished=True, current_user=super_admin
             )
             call_args = mock_get.call_args.kwargs
             assert call_args["status"] == "draft"
+            assert result.total == 0
+            assert result.items == []
 
 
 class TestBlogPostServiceCleanup:

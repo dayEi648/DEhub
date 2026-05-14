@@ -1,6 +1,6 @@
 import json
 import asyncio
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -35,7 +35,7 @@ class LLMClient:
 
     async def achat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         system_prompt: str | None = None,
     ) -> str:
         """
@@ -53,18 +53,24 @@ class LLMClient:
 
     async def astream_chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         system_prompt: str | None = None,
+        tools: list[dict] | None = None,
+        tool_choice: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         流式对话，逐字 yield 文本内容。
 
         :param messages: 同 achat
         :param system_prompt: 同 achat
+        :param tools: OpenAI 格式的工具定义列表
+        :param tool_choice: 工具选择策略，如 "auto"
         :yield: 每次增量文本片段
         :raises httpx.HTTPStatusError: HTTP 状态码异常
         """
-        payload = self._build_payload(messages, system_prompt, stream=True)
+        payload = self._build_payload(
+            messages, system_prompt, stream=True, tools=tools, tool_choice=tool_choice
+        )
         async with self._client.stream(
             "POST", "/v1/chat/completions", json=payload
         ) as response:
@@ -72,20 +78,51 @@ class LLMClient:
             async for text in _parse_sse(response):
                 yield text
 
+    async def achat_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict],
+        tool_choice: str | None = None,
+        system_prompt: str | None = None,
+    ) -> tuple[str, list[dict]]:
+        """
+        非流式对话，支持 tool calling。
+
+        :param messages: 同 achat
+        :param tools: OpenAI 格式的工具定义列表
+        :param tool_choice: 工具选择策略
+        :param system_prompt: 同 achat
+        :return: (content, tool_calls) 元组
+        :raises httpx.HTTPStatusError: HTTP 状态码异常
+        """
+        payload = self._build_payload(
+            messages, system_prompt, stream=False, tools=tools, tool_choice=tool_choice
+        )
+        resp = await self._client.post("/v1/chat/completions", json=payload)
+        resp.raise_for_status()
+        return _extract_content_and_tools(resp.json())
+
     def _build_payload(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         system_prompt: str | None,
         stream: bool,
+        tools: list[dict] | None = None,
+        tool_choice: str | None = None,
     ) -> dict:
         """构造请求体。"""
-        return {
+        payload: dict = {
             "model": self._model,
             "messages": _inject_system(messages, system_prompt),
             "stream": stream,
             "max_tokens": self._max_tokens,
             "temperature": self._temperature,
         }
+        if tools:
+            payload["tools"] = tools
+        if tool_choice:
+            payload["tool_choice"] = tool_choice
+        return payload
 
     async def close(self) -> None:
         """关闭底层 HTTP 连接池。"""
@@ -93,9 +130,9 @@ class LLMClient:
 
 
 def _inject_system(
-    messages: list[dict[str, str]],
+    messages: list[dict[str, Any]],
     system_prompt: str | None,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """
     若提供了 system_prompt 且 messages 中不存在 system 角色，
     则在消息列表头部注入 system 消息。
@@ -141,6 +178,17 @@ def _extract_content(data: dict) -> str:
     if not choices:
         return ""
     return (choices[0].get("message") or {}).get("content", "")
+
+
+def _extract_content_and_tools(data: dict) -> tuple[str, list[dict]]:
+    """从非流式响应 JSON 中提取文本内容和 tool_calls。"""
+    choices = data.get("choices") or []
+    if not choices:
+        return "", []
+    message = choices[0].get("message") or {}
+    content = message.get("content", "")
+    tool_calls = message.get("tool_calls", [])
+    return content, tool_calls
 
 
 # ---------------------------------------------------------------------------

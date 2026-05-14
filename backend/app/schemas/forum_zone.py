@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.user import UserBriefInfo
+
 
 class ForumZoneBase(BaseModel):
     """论坛分区基础字段"""
@@ -27,6 +29,7 @@ class ForumZoneResponse(ForumZoneBase):
     """论坛分区完整响应"""
     id: int
     manager_id: int
+    manager: UserBriefInfo
     view_count: int
     created_at: datetime
 

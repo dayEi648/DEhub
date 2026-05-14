@@ -1,34 +1,44 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.blog_post import BlogPost
 from app.schemas.blog_post import BlogPostCreate, BlogPostUpdate
 
 def get_blog_post_by_id(db: Session, post_id: int) -> BlogPost | None:
     """
-    根据文章ID获取文章（排除已删除）
+    根据文章ID获取文章（排除已删除，自动 join 分类信息）
     Args:
         db: 数据库会话
         post_id: 文章ID
     Returns:
         BlogPost | None: 文章对象或None
     """
-    return db.query(BlogPost).filter(
-        BlogPost.id == post_id,
-        BlogPost.is_deleted == False
-    ).first()
+    return (
+        db.query(BlogPost)
+        .options(joinedload(BlogPost.category))
+        .filter(
+            BlogPost.id == post_id,
+            BlogPost.is_deleted == False
+        )
+        .first()
+    )
 
 def get_blog_post_by_slug(db: Session, slug: str) -> BlogPost | None:
     """
-    根据文章 slug 获取文章（排除已删除）
+    根据文章 slug 获取文章（排除已删除，自动 join 分类信息）
     Args:
         db: 数据库会话
         slug: 文章 slug
     Returns:
         BlogPost | None: 文章对象或None
     """
-    return db.query(BlogPost).filter(
-        BlogPost.slug == slug,
-        BlogPost.is_deleted == False
-    ).first()
+    return (
+        db.query(BlogPost)
+        .options(joinedload(BlogPost.category))
+        .filter(
+            BlogPost.slug == slug,
+            BlogPost.is_deleted == False
+        )
+        .first()
+    )
 
 def get_blog_posts(
     db: Session,
@@ -40,7 +50,7 @@ def get_blog_posts(
     q: str | None = None
 ) -> list[BlogPost]:
     """
-    获取文章列表（排除已删除，支持过滤与分页）
+    获取文章列表（排除已删除，支持过滤与分页，自动 join 分类信息）
     Args:
         db: 数据库会话
         skip: 跳过数量
@@ -50,6 +60,40 @@ def get_blog_posts(
         tag: 标签筛选（精确匹配单个标签）
     Returns:
         list[BlogPost]: 文章列表
+    """
+    query = db.query(BlogPost).options(joinedload(BlogPost.category)).filter(BlogPost.is_deleted == False)
+
+    if status:
+        query = query.filter(BlogPost.status == status)
+    if category_id is not None:
+        query = query.filter(BlogPost.category_id == category_id)
+    if tag:
+        query = query.filter(BlogPost.tags.contains([tag]))
+    if q:
+        query = query.filter(BlogPost.title.ilike(f"%{q}%"))
+
+    return query.order_by(BlogPost.created_at.desc()).offset(skip).limit(limit).all()
+
+
+def get_blog_posts_count(
+    db: Session,
+    status: str | None = None,
+    category_id: int | None = None,
+    tag: str | None = None,
+    q: str | None = None,
+) -> int:
+    """
+    获取文章列表的总数量（与 get_blog_posts 使用相同的过滤条件）。
+
+    Args:
+        db: 数据库会话
+        status: 状态筛选
+        category_id: 分类ID筛选
+        tag: 标签筛选
+        q: 标题关键词搜索
+
+    Returns:
+        int: 符合条件的文章总数
     """
     query = db.query(BlogPost).filter(BlogPost.is_deleted == False)
 
@@ -62,7 +106,8 @@ def get_blog_posts(
     if q:
         query = query.filter(BlogPost.title.ilike(f"%{q}%"))
 
-    return query.order_by(BlogPost.created_at.desc()).offset(skip).limit(limit).all()
+    return query.count()
+
 
 def create_blog_post(db: Session, post_in: BlogPostCreate) -> BlogPost:
     """
