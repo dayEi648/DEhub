@@ -77,3 +77,13 @@ class BlogPostDetailResponse(BlogPostResponse):
     """博客文章详情响应（包含相邻文章）"""
     prev_post: Optional[BlogPostListItem] = None
     next_post: Optional[BlogPostListItem] = None
+
+
+class GenerateSummaryRequest(BaseModel):
+    """AI 生成摘要请求"""
+    content_md: str = Field(min_length=100, description="Markdown 正文，至少 100 字符")
+
+
+class GenerateSummaryResponse(BaseModel):
+    """AI 生成摘要响应"""
+    summary: str

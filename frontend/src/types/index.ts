@@ -157,7 +157,9 @@ export interface ForumZoneBase {
   description?: string | null | undefined
 }
 
-export interface ForumZoneCreate extends ForumZoneBase {}
+export interface ForumZoneCreate extends ForumZoneBase {
+  manager_id?: number
+}
 
 export interface ForumZoneUpdate {
   slug?: string

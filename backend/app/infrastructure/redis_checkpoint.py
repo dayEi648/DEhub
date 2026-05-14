@@ -42,23 +42,69 @@ def _deserialize_checkpoint(raw: str | bytes) -> Checkpoint:
     从 JSON 字符串反序列化为 Checkpoint。
 
     特殊处理 channel_values["messages"]，使用 LangChain 的 messages_from_dict。
+    兼容旧格式（直接存 checkpoint 的字典）和新格式（包装为 {"checkpoint": ...}）。
     """
     if isinstance(raw, bytes):
         raw = raw.decode("utf-8")
     data = json.loads(raw)
-    channel_values = dict(data.get("channel_values", {}))
+    # 新格式包装在 "checkpoint" 中；旧格式直接就是 checkpoint 字典
+    cp_data = data.get("checkpoint", data)
+    channel_values = dict(cp_data.get("channel_values", {}))
     if "messages" in channel_values:
         channel_values["messages"] = messages_from_dict(channel_values["messages"])
-    data["channel_values"] = channel_values
     return Checkpoint(
-        v=data["v"],
-        id=data["id"],
-        ts=data["ts"],
+        v=cp_data["v"],
+        id=cp_data["id"],
+        ts=cp_data["ts"],
         channel_values=channel_values,
-        channel_versions=data.get("channel_versions", {}),
-        versions_seen=data.get("versions_seen", {}),
-        updated_channels=data.get("updated_channels"),
+        channel_versions=cp_data.get("channel_versions", {}),
+        versions_seen=cp_data.get("versions_seen", {}),
+        updated_channels=cp_data.get("updated_channels"),
     )
+
+
+def _serialize_tuple(checkpoint: Checkpoint, metadata: CheckpointMetadata) -> str:
+    """将 Checkpoint 与 Metadata 一起序列化为 JSON 字符串。"""
+    data = dict(checkpoint)
+    channel_values = dict(data.get("channel_values", {}))
+    if "messages" in channel_values:
+        channel_values["messages"] = messages_to_dict(channel_values["messages"])
+    data["channel_values"] = channel_values
+    return json.dumps(
+        {"checkpoint": data, "metadata": dict(metadata)},
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+def _deserialize_tuple(raw: str | bytes) -> tuple[Checkpoint, CheckpointMetadata]:
+    """从 JSON 字符串反序列化为 (Checkpoint, Metadata) 元组。"""
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8")
+    data = json.loads(raw)
+    # 兼容旧格式：直接存 checkpoint 字典（无 metadata）
+    if "checkpoint" in data:
+        cp_data = data["checkpoint"]
+        metadata = dict(data.get("metadata", {}))
+    else:
+        cp_data = data
+        metadata = {}
+    channel_values = dict(cp_data.get("channel_values", {}))
+    if "messages" in channel_values:
+        channel_values["messages"] = messages_from_dict(channel_values["messages"])
+    checkpoint = Checkpoint(
+        v=cp_data["v"],
+        id=cp_data["id"],
+        ts=cp_data["ts"],
+        channel_values=channel_values,
+        channel_versions=cp_data.get("channel_versions", {}),
+        versions_seen=cp_data.get("versions_seen", {}),
+        updated_channels=cp_data.get("updated_channels"),
+    )
+    # LangGraph 要求 metadata 中必须包含 "step"
+    if "step" not in metadata:
+        metadata["step"] = 0
+    return checkpoint, metadata
 
 
 class RedisCheckpointSaver(BaseCheckpointSaver):
@@ -101,7 +147,8 @@ class RedisCheckpointSaver(BaseCheckpointSaver):
             raw = await self._redis.get(key)
             if not raw:
                 return None
-            return _deserialize_checkpoint(raw)
+            checkpoint, _ = _deserialize_tuple(raw)
+            return checkpoint
         except Exception as e:
             logger.warning("RedisCheckpointSaver aget failed for %s: %s", key, e)
             return None
@@ -113,11 +160,11 @@ class RedisCheckpointSaver(BaseCheckpointSaver):
         metadata: CheckpointMetadata,
         new_versions: Any,
     ) -> RunnableConfig:
-        """保存 Checkpoint 到 Redis，覆盖该 thread 的旧版本。"""
+        """保存 Checkpoint 与 Metadata 到 Redis，覆盖该 thread 的旧版本。"""
         thread_id = self._get_thread_id(config)
         key = _build_key(thread_id)
         try:
-            payload = _serialize_checkpoint(checkpoint)
+            payload = _serialize_tuple(checkpoint, metadata)
             pipe = self._redis.pipeline()
             pipe.set(key, payload)
             pipe.expire(key, self._ttl)
@@ -136,20 +183,27 @@ class RedisCheckpointSaver(BaseCheckpointSaver):
         }
 
     async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
-        """获取 CheckpointTuple（含 parent_config）。
+        """获取 CheckpointTuple（含 parent_config 与 metadata）。
 
         Redis 实现只保留最新版本，因此 parent_config 始终为 None。
         """
-        checkpoint = await self.aget(config)
-        if checkpoint is None:
+        thread_id = self._get_thread_id(config)
+        key = _build_key(thread_id)
+        try:
+            raw = await self._redis.get(key)
+            if not raw:
+                return None
+            checkpoint, metadata = _deserialize_tuple(raw)
+            return CheckpointTuple(
+                config=config,
+                checkpoint=checkpoint,
+                metadata=metadata,
+                parent_config=None,
+                pending_writes=[],
+            )
+        except Exception as e:
+            logger.warning("RedisCheckpointSaver aget_tuple failed for %s: %s", key, e)
             return None
-        return CheckpointTuple(
-            config=config,
-            checkpoint=checkpoint,
-            metadata={},
-            parent_config=None,
-            pending_writes=[],
-        )
 
     async def alist(
         self,
@@ -165,16 +219,23 @@ class RedisCheckpointSaver(BaseCheckpointSaver):
         """
         if config is None:
             return
-        checkpoint = await self.aget(config)
-        if checkpoint is None:
+        thread_id = self._get_thread_id(config)
+        key = _build_key(thread_id)
+        try:
+            raw = await self._redis.get(key)
+            if not raw:
+                return
+            checkpoint, metadata = _deserialize_tuple(raw)
+            yield CheckpointTuple(
+                config=config,
+                checkpoint=checkpoint,
+                metadata=metadata,
+                parent_config=None,
+                pending_writes=[],
+            )
+        except Exception as e:
+            logger.warning("RedisCheckpointSaver alist failed for %s: %s", key, e)
             return
-        yield CheckpointTuple(
-            config=config,
-            checkpoint=checkpoint,
-            metadata={},
-            parent_config=None,
-            pending_writes=[],
-        )
 
     async def aput_writes(
         self,

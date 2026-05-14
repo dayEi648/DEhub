@@ -69,6 +69,21 @@ export const useChatStore = defineStore('chat', () => {
         onMessage: (chunk: string) => {
           assistantMessage.content += chunk
         },
+        onEvent: (eventType: string, data: string) => {
+          if (eventType === 'meta') {
+            try {
+              const meta = JSON.parse(data)
+              if (meta.conversation_id) {
+                const cid = Number(meta.conversation_id)
+                currentConversationId.value = cid
+                userMessage.conversation_id = cid
+                assistantMessage.conversation_id = cid
+              }
+            } catch {
+              // ignore parse error
+            }
+          }
+        },
         onError: (err: any) => {
           isStreaming.value = false
           assistantMessage.content += '\n[发生错误]'

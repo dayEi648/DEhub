@@ -7,6 +7,7 @@ from app.core.permissions import require_admin
 from app.schemas.forum_zone import ForumZoneCreate, ForumZoneUpdate, ForumZoneResponse
 from app.crud import forum_zone as forum_zone_crud
 from app.crud import forum_post as forum_post_crud
+from app.crud import user as user_crud
 from app.utils.slug import generate_unique_slug
 from app.core.zone_manager import (
     get_zone_manager_id,
@@ -26,6 +27,26 @@ class ForumZoneService:
     def _is_zone_manager(self, zone: ForumZone, current_user: User) -> bool:
         """判断当前用户是否为指定分区的区主"""
         return zone.manager_id == current_user.id
+
+    def _validate_manager_id(self, manager_id: int) -> None:
+        """
+        校验目标区主用户是否存在且未注销
+        Args:
+            manager_id: 用户ID
+        Raises:
+            HTTPException: 400 用户不存在或已注销
+        """
+        target_user = user_crud.get_user_by_id(self.db, manager_id)
+        if target_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="指定的区主用户不存在",
+            )
+        if target_user.is_deleted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="指定的区主用户已注销",
+            )
 
     def _ensure_slug_unique(
         self, slug: str, exclude_zone_id: int | None = None
@@ -50,13 +71,14 @@ class ForumZoneService:
     ) -> ForumZone:
         """
         创建分区（管理员及以上）
+        未指定 manager_id 时，默认将当前用户设为区主
         Args:
             zone_in: 分区创建请求
             current_user: 当前登录用户
         Returns:
             ForumZone: 分区对象
         Raises:
-            HTTPException: 403 权限不足
+            HTTPException: 403 权限不足 / 400 指定的区主不存在或已注销
         """
         self._require_admin(current_user)
 
@@ -69,7 +91,13 @@ class ForumZoneService:
         else:
             self._ensure_slug_unique(zone_in.slug)
 
-        db_zone = forum_zone_crud.create_zone(self.db, zone_in, current_user.id)
+        # 确定区主：显式指定 > 当前用户
+        target_manager_id = (
+            zone_in.manager_id if zone_in.manager_id is not None else current_user.id
+        )
+        self._validate_manager_id(target_manager_id)
+
+        db_zone = forum_zone_crud.create_zone(self.db, zone_in, target_manager_id)
         # 重新查询以加载 manager 关联，避免延迟加载问题
         refreshed = forum_zone_crud.get_zone_by_id(self.db, db_zone.id)
         return refreshed
@@ -87,7 +115,7 @@ class ForumZoneService:
         Returns:
             ForumZone: 分区对象
         Raises:
-            HTTPException: 404 分区不存在 / 403 无权编辑 / 400 slug 已存在
+            HTTPException: 404 分区不存在 / 403 无权编辑 / 400 slug 已存在 或 区主无权修改 manager_id 或 目标区主不存在/已注销
         """
         db_zone = forum_zone_crud.get_zone_by_id(self.db, zone_id)
         if not db_zone:
@@ -105,13 +133,18 @@ class ForumZoneService:
 
         update_data = zone_in.model_dump(exclude_unset=True)
 
-        # 仅管理员可修改 manager_id
+        # 仅管理员可修改 manager_id；区主传入则拒绝
         manager_id_changed = False
         if "manager_id" in update_data:
             if not is_admin:
-                del update_data["manager_id"]
-            else:
-                manager_id_changed = update_data["manager_id"] != db_zone.manager_id
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="区主无权修改 manager_id",
+                )
+            new_manager_id = update_data["manager_id"]
+            if new_manager_id != db_zone.manager_id:
+                self._validate_manager_id(new_manager_id)
+                manager_id_changed = True
 
         if "slug" in update_data and update_data["slug"] != db_zone.slug:
             self._ensure_slug_unique(update_data["slug"], exclude_zone_id=db_zone.id)
@@ -122,7 +155,7 @@ class ForumZoneService:
         )
 
         if manager_id_changed:
-            set_zone_manager_cache(updated_zone.id, updated_zone.manager_id)
+            set_zone_manager_cache(updated_zone.id, update_data["manager_id"])
 
         # 重新查询以加载 manager 关联（可能已变更），避免延迟加载问题
         refreshed = forum_zone_crud.get_zone_by_id(self.db, updated_zone.id)

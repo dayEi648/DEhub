@@ -30,12 +30,16 @@ export function fetchPostBySlug(slug: string) {
   return client.get<BlogPostDetailResponse>(`/blog_posts/by-slug/${slug}`)
 }
 
-export function createPost(data: BlogPostCreate) {
-  return client.post<BlogPostResponse>('/blog_posts/', data)
+export function createPost(formData: FormData) {
+  return client.post<BlogPostResponse>('/blog_posts/', formData, {
+    headers: { 'Content-Type': undefined }
+  })
 }
 
-export function updatePost(id: number, data: BlogPostUpdate) {
-  return client.put<BlogPostResponse>(`/blog_posts/${id}`, data)
+export function updatePost(id: number, formData: FormData) {
+  return client.put<BlogPostResponse>(`/blog_posts/${id}`, formData, {
+    headers: { 'Content-Type': undefined }
+  })
 }
 
 export function deletePost(id: number) {
@@ -56,6 +60,10 @@ export function unpublishPost(id: number) {
 
 export function cleanupDeletedPosts() {
   return client.delete<{ deleted_count: number }>('/blog_posts/cleanup')
+}
+
+export function generateSummary(content_md: string) {
+  return client.post<{ summary: string }>('/blog_posts/generate-summary', { content_md })
 }
 
 export function fetchCategories() {

@@ -1,6 +1,6 @@
 <template>
   <div class="blog-edit-page">
-    <div class="container">
+    <div class="editor-container">
       <h1 class="page-title">{{ isEdit ? '编辑文章' : '撰写文章' }}</h1>
       <div class="editor-layout">
         <div class="editor-form">
@@ -10,13 +10,19 @@
             <p v-if="errors.title" class="error-text">{{ errors.title }}</p>
           </div>
           <div class="form-group">
-            <label>Slug</label>
-            <input v-model="form.slug" class="form-input" placeholder="url-friendly-slug" @input="slugEdited = true" />
-            <p v-if="errors.slug" class="error-text">{{ errors.slug }}</p>
-          </div>
-          <div class="form-group">
-            <label>摘要</label>
-            <textarea v-model="form.summary" class="form-input" rows="3" placeholder="文章摘要" />
+            <div class="summary-header">
+              <label>摘要</label>
+              <button
+                type="button"
+                class="ai-generate-btn"
+                :disabled="generatingSummary || form.content_md.length < 100"
+                @click="handleGenerateSummary"
+              >
+                {{ generatingSummary ? '生成中…' : '🪄 AI 生成摘要' }}
+              </button>
+            </div>
+            <textarea v-model="form.summary" class="form-input" rows="3" placeholder="文章摘要，可手动填写或点击 AI 生成" />
+            <p v-if="form.content_md.length < 100" class="hint-text">正文至少 100 字才可使用 AI 生成摘要</p>
           </div>
           <div class="form-group">
             <label>分类</label>
@@ -31,15 +37,31 @@
             <TagInput v-model="form.tags" />
           </div>
           <div class="form-group">
-            <label>封面图 URL</label>
-            <input v-model="form.cover_image_url" class="form-input" placeholder="https://..." />
+            <label>封面图</label>
+            <div class="cover-uploader" @click="triggerCoverInput">
+              <img v-if="coverPreview || form.cover_image_url" :src="coverPreview || form.cover_image_url" class="cover-preview" />
+              <div v-else class="cover-placeholder">
+                <span class="upload-icon">📷</span>
+                <span>点击上传封面图</span>
+              </div>
+              <div class="upload-overlay">
+                <span>更换图片</span>
+              </div>
+              <input
+                ref="coverInput"
+                type="file"
+                accept="image/*"
+                hidden
+                @change="handleCoverChange"
+              />
+            </div>
           </div>
           <div class="form-group">
             <label>正文 (Markdown)</label>
             <textarea
               v-model="form.content_md"
               class="form-input editor-textarea"
-              rows="20"
+              rows="30"
               placeholder="在此输入 Markdown 内容..."
               @keydown.tab.prevent="insertTab"
             />
@@ -81,10 +103,13 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted, computed, ref, watch } from 'vue'
+import { reactive, onMounted, onUnmounted, computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBlogStore } from '@/stores/blog'
+import { useUiStore } from '@/stores/ui'
+import { compressImage } from '@/utils/imageCompress'
+import { generateSummary } from '@/api/blog'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import PillLink from '@/components/PillLink.vue'
 import Card from '@/components/Card.vue'
@@ -98,11 +123,8 @@ const blogStore = useBlogStore()
 
 const isEdit = computed(() => route.name === 'blog-edit')
 const errors = reactive<Record<string, string>>({})
-const slugEdited = ref(false)
-
 const form = reactive({
   title: '',
-  slug: '',
   summary: '',
   content_md: '',
   cover_image_url: '',
@@ -111,9 +133,41 @@ const form = reactive({
   status: 'draft' as 'draft' | 'published'
 })
 
-watch(() => form.title, (title) => {
-  if (!isEdit.value && !slugEdited.value && title) {
-    form.slug = title.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '')
+const uiStore = useUiStore()
+const coverInput = ref<HTMLInputElement>()
+const coverPreview = ref<string | null>(null)
+const selectedCoverFile = ref<File | null>(null)
+const generatingSummary = ref(false)
+
+function triggerCoverInput() {
+  coverInput.value?.click()
+}
+
+async function handleCoverChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  if (file.size > 10 * 1024 * 1024) {
+    uiStore.showToast('文件大小不能超过 10MB', 'error')
+    return
+  }
+
+  uiStore.showToast('正在压缩图片…')
+  try {
+    const compressed = await compressImage(file, 1920, 1080, 5 * 1024 * 1024)
+    selectedCoverFile.value = compressed
+    if (coverPreview.value) {
+      URL.revokeObjectURL(coverPreview.value)
+    }
+    coverPreview.value = URL.createObjectURL(compressed)
+    uiStore.showToast('图片压缩完成', 'success')
+  } catch (err: any) {
+    uiStore.showToast(err.message || '图片压缩失败', 'error')
+  }
+}
+
+onUnmounted(() => {
+  if (coverPreview.value) {
+    URL.revokeObjectURL(coverPreview.value)
   }
 })
 
@@ -125,7 +179,6 @@ onMounted(() => {
       const post = blogStore.currentPost
       if (post) {
         form.title = post.title
-        form.slug = post.slug
         form.summary = post.summary || ''
         form.content_md = post.content_md
         form.cover_image_url = post.cover_image_url || ''
@@ -152,9 +205,6 @@ function validate(): boolean {
   if (!form.title || form.title.length < 1 || form.title.length > 64) {
     errors.title = '标题必填，1-64 字符'
   }
-  if (!form.slug || form.slug.length < 1 || form.slug.length > 255) {
-    errors.slug = 'Slug 必填，1-255 字符'
-  }
   if (!form.content_md) {
     errors.content_md = '正文必填'
   }
@@ -164,15 +214,33 @@ function validate(): boolean {
   return Object.keys(errors).length === 0
 }
 
+async function handleGenerateSummary() {
+  if (form.content_md.length < 100) {
+    uiStore.showToast('正文内容不足，请至少写 100 字后再生成摘要', 'error')
+    return
+  }
+  generatingSummary.value = true
+  try {
+    const { data } = await generateSummary(form.content_md)
+    form.summary = data.summary
+    uiStore.showToast('摘要生成成功', 'success')
+  } catch (err: any) {
+    const message = err.response?.data?.detail || '摘要生成失败，请稍后重试'
+    uiStore.showToast(message, 'error')
+  } finally {
+    generatingSummary.value = false
+  }
+}
+
 async function handleSave() {
   if (!validate()) return
   const payload = { ...form }
   try {
     if (isEdit.value && blogStore.currentPost) {
-      await blogStore.updatePost(blogStore.currentPost.id, payload)
-      router.push(`/blog/${form.slug}`)
+      await blogStore.updatePost(blogStore.currentPost.id, payload, selectedCoverFile.value || undefined)
+      router.push(`/blog/${blogStore.currentPost.slug}`)
     } else {
-      const post = await blogStore.createPost(payload as any)
+      const post = await blogStore.createPost(payload as any, selectedCoverFile.value || undefined)
       router.push(`/blog/${post.slug}`)
     }
   } catch (err: any) {
@@ -191,19 +259,24 @@ async function handleSave() {
 .blog-edit-page {
   background: var(--bg-gray);
   min-height: calc(100vh - 48px);
-  padding: 40px 0;
+  padding: 24px 0;
+}
+.editor-container {
+  width: 100%;
+  padding-left: 24px;
+  padding-right: 24px;
 }
 .page-title {
   font-family: var(--font-display);
-  font-size: 40px;
+  font-size: 32px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 .editor-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 40px;
+  gap: 24px;
 }
 @media (max-width: 1024px) {
   .editor-layout {
@@ -211,7 +284,7 @@ async function handleSave() {
   }
 }
 .editor-form {
-  max-width: 600px;
+  max-width: none;
 }
 .form-group {
   margin-bottom: 20px;
@@ -236,6 +309,35 @@ async function handleSave() {
 }
 .form-input:focus {
   border-color: var(--apple-blue);
+}
+.summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.ai-generate-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--apple-blue);
+  background: rgba(0, 113, 227, 0.08);
+  border: 1px solid rgba(0, 113, 227, 0.2);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ai-generate-btn:hover:not(:disabled) {
+  background: rgba(0, 113, 227, 0.15);
+}
+.ai-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.hint-text {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
 }
 .editor-textarea {
   font-family: monospace;
@@ -265,6 +367,52 @@ async function handleSave() {
   background: var(--text-white);
   color: var(--text-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.cover-uploader {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 16 / 10;
+  background: var(--button-default-light);
+  border: 2px dashed rgba(0, 0, 0, 0.12);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cover-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cover-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+.upload-icon {
+  font-size: 28px;
+}
+.cover-uploader .upload-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--text-white);
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.cover-uploader:hover .upload-overlay {
+  opacity: 1;
 }
 .form-actions {
   display: flex;

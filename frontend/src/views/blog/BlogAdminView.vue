@@ -158,10 +158,6 @@
             <input v-model="categoryForm.name" class="form-input" placeholder="分类名称" />
           </div>
           <div class="form-group">
-            <label>Slug</label>
-            <input v-model="categoryForm.slug" class="form-input" placeholder="url-slug" />
-          </div>
-          <div class="form-group">
             <label>描述</label>
             <input v-model="categoryForm.description" class="form-input" placeholder="可选" />
           </div>
@@ -205,7 +201,7 @@ const showCategoryModal = ref(false)
 const pendingDeleteId = ref<number | null>(null)
 const pendingHardDeleteId = ref<number | null>(null)
 const editingCategory = ref<BlogCategoryWithPostCount | null>(null)
-const categoryForm = reactive({ name: '', slug: '', description: '' })
+const categoryForm = reactive({ name: '', description: '' })
 
 const statusTabs = [
   { label: '全部', value: 'all' as const },
@@ -330,7 +326,6 @@ async function confirmCleanup() {
 function openCreateCategory() {
   editingCategory.value = null
   categoryForm.name = ''
-  categoryForm.slug = ''
   categoryForm.description = ''
   showCategoryModal.value = true
 }
@@ -338,21 +333,20 @@ function openCreateCategory() {
 function openEditCategory(cat: BlogCategoryWithPostCount) {
   editingCategory.value = cat
   categoryForm.name = cat.name
-  categoryForm.slug = cat.slug
   categoryForm.description = cat.description || ''
   showCategoryModal.value = true
 }
 
 async function saveCategory() {
-  if (!categoryForm.name || !categoryForm.slug) {
-    uiStore.showToast('名称和 Slug 不能为空', 'error')
+  if (!categoryForm.name) {
+    uiStore.showToast('名称不能为空', 'error')
     return
   }
   try {
     if (editingCategory.value) {
-      await blogStore.updateCategory(editingCategory.value.id, { ...categoryForm })
+      await blogStore.updateCategory(editingCategory.value.id, { name: categoryForm.name, description: categoryForm.description || null })
     } else {
-      await blogStore.createCategory({ ...categoryForm })
+      await blogStore.createCategory({ name: categoryForm.name, description: categoryForm.description || null })
     }
     showCategoryModal.value = false
   } catch (error: any) {

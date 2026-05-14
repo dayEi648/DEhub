@@ -1,5 +1,6 @@
+import json
 from typing import List
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -11,6 +12,8 @@ from app.schemas.blog_post import (
     BlogPostResponse,
     BlogPostDetailResponse,
     BlogPostListResponse,
+    GenerateSummaryRequest,
+    GenerateSummaryResponse,
 )
 from app.services.blog_post_service import BlogPostService
 from app.services.vector_sync_service import (
@@ -21,12 +24,23 @@ from app.services.vector_sync_service import (
 router = APIRouter(prefix="/blog_posts", tags=["博客文章管理"])
 
 
+def parse_blog_post_create(post_in: str = Form(..., description="博客文章创建请求的 JSON 字符串")) -> BlogPostCreate:
+    """解析前端传来的 post_in JSON 字符串为 BlogPostCreate 模型"""
+    return BlogPostCreate.model_validate(json.loads(post_in))
+
+
+def parse_blog_post_update(post_in: str = Form(..., description="博客文章更新请求的 JSON 字符串")) -> BlogPostUpdate:
+    """解析前端传来的 post_in JSON 字符串为 BlogPostUpdate 模型"""
+    return BlogPostUpdate.model_validate(json.loads(post_in))
+
+
 # ---------- 写操作（超管专属）----------
 
 @router.post("/", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)
-def create_blog_post(
-    post_in: BlogPostCreate,
-    background_tasks: BackgroundTasks,
+async def create_blog_post(
+    post_in: BlogPostCreate = Depends(parse_blog_post_create),
+    file: UploadFile | None = File(None, description="封面图片文件，最大 5MB，支持自动压缩"),
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostResponse:
@@ -34,7 +48,7 @@ def create_blog_post(
     创建博客文章（超级管理员专属）
     """
     service = BlogPostService(db)
-    post = service.create_blog_post(post_in, current_user)
+    post = await service.create_blog_post(post_in, current_user, file)
     background_tasks.add_task(sync_blog_post_embedding, post.id)
     return post
 
@@ -72,10 +86,11 @@ def unpublish_blog_post(
 
 
 @router.put("/{post_id}", response_model=BlogPostResponse)
-def update_blog_post(
+async def update_blog_post(
     post_id: int,
-    post_in: BlogPostUpdate,
-    background_tasks: BackgroundTasks,
+    post_in: BlogPostUpdate = Depends(parse_blog_post_update),
+    file: UploadFile | None = File(None, description="封面图片文件，最大 5MB，支持自动压缩"),
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostResponse:
@@ -83,7 +98,7 @@ def update_blog_post(
     更新博客文章（超级管理员专属）
     """
     service = BlogPostService(db)
-    post = service.update_blog_post(post_id, post_in, current_user)
+    post = await service.update_blog_post(post_id, post_in, current_user, file)
     background_tasks.add_task(sync_blog_post_embedding, post.id)
     return post
 
@@ -105,7 +120,7 @@ def soft_delete_blog_post(
 
 
 @router.delete("/{post_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
-def hard_delete_blog_post(
+async def hard_delete_blog_post(
     post_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -115,7 +130,7 @@ def hard_delete_blog_post(
     物理删除博客文章（超级管理员专属）
     """
     service = BlogPostService(db)
-    service.hard_delete_blog_post(post_id, current_user)
+    await service.hard_delete_blog_post(post_id, current_user)
     background_tasks.add_task(sync_blog_post_embedding, post_id)
     return None
 
@@ -167,6 +182,21 @@ def get_blog_post_by_slug(
     """
     service = BlogPostService(db)
     return service.get_blog_post_by_slug(slug, current_user)
+
+
+@router.post("/generate-summary", response_model=GenerateSummaryResponse)
+async def generate_summary(
+    req: GenerateSummaryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GenerateSummaryResponse:
+    """
+    AI 自动生成文章摘要（超级管理员专属）
+    正文需至少 100 字符
+    """
+    service = BlogPostService(db)
+    summary = await service.generate_summary(req.content_md, current_user)
+    return GenerateSummaryResponse(summary=summary)
 
 
 @router.get("/", response_model=BlogPostListResponse)

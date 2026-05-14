@@ -156,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { useFavoriteStore } from '@/stores/favorite'
@@ -254,8 +254,17 @@ onMounted(() => {
 
 function handleFileSelect(file: File) {
   selectedFile.value = file
+  if (previewAvatar.value) {
+    URL.revokeObjectURL(previewAvatar.value)
+  }
   previewAvatar.value = URL.createObjectURL(file)
 }
+
+onUnmounted(() => {
+  if (previewAvatar.value) {
+    URL.revokeObjectURL(previewAvatar.value)
+  }
+})
 
 function togglePasswordSection() {
   showPassword.value = !showPassword.value

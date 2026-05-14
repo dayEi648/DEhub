@@ -5,6 +5,7 @@ export interface SSEOptions {
   onMessage: (data: string) => void
   onError?: (error: any) => void
   onDone?: () => void
+  onEvent?: (eventType: string, data: string) => void
 }
 
 export function fetchSSE(url: string, options: SSEOptions) {
@@ -67,6 +68,11 @@ export function fetchSSE(url: string, options: SSEOptions) {
             return
           }
 
+          if (eventType !== 'message') {
+            options.onEvent?.(eventType, data)
+            continue
+          }
+
           if (data === '[DONE]') {
             options.onDone?.()
             return
@@ -103,6 +109,11 @@ export function fetchSSE(url: string, options: SSEOptions) {
             if (data) errorMessage = data
           }
           options.onError?.(new Error(errorMessage))
+          return
+        }
+
+        if (eventType !== 'message') {
+          options.onEvent?.(eventType, data)
           return
         }
 

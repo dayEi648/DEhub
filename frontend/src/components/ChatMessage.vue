@@ -62,6 +62,12 @@ function formatTime(date: string) {
   border-radius: 4px 18px 18px 18px;
   max-width: 80%;
 }
+.chat-message.assistant .message-bubble :deep(.markdown-body) {
+  color: var(--text-white);
+}
+.chat-message.assistant .message-bubble :deep(.markdown-body) blockquote {
+  color: rgba(255, 255, 255, 0.6);
+}
 .system-text {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.48);

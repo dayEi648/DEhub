@@ -20,6 +20,7 @@ export function sendStreamMessage(
     onMessage: (data: string) => void
     onError?: (error: any) => void
     onDone?: () => void
+    onEvent?: (eventType: string, data: string) => void
   }
 ) {
   const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token') || ''
@@ -33,6 +34,7 @@ export function sendStreamMessage(
     body: JSON.stringify(params),
     onMessage: callbacks.onMessage,
     onError: callbacks.onError,
-    onDone: callbacks.onDone
+    onDone: callbacks.onDone,
+    onEvent: callbacks.onEvent
   })
 }

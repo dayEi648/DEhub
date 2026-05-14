@@ -4,7 +4,7 @@ import uuid
 from typing import AsyncGenerator
 
 from fastapi import HTTPException, status
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from sqlalchemy.orm import Session
 
 from app.infrastructure.llm_client import get_llm_client, get_llm_small_client
@@ -96,32 +96,6 @@ class ChatGraphService:
         """
         messages = [HumanMessage(content=content)]
 
-        if conversation_id is not None:
-            # 从数据库加载历史消息，避免 Redis checkpoint 过期导致上下文丢失
-            from app.crud import conversation_message as msg_crud
-
-            history = await asyncio.to_thread(
-                msg_crud.list_conversation_messages,
-                self.db,
-                conversation_id,
-                skip=0,
-                limit=50,
-            )
-            history_messages = []
-            for msg in history:
-                if msg.role == "user":
-                    history_messages.append(HumanMessage(content=msg.content))
-                elif msg.role == "assistant":
-                    history_messages.append(AIMessage(content=msg.content))
-            messages = _truncate_messages(history_messages + messages)
-
-        initial_state = {
-            "user_id": user_id,
-            "conversation_id": conversation_id,
-            "messages": messages,
-            "title_prompt": content,
-        }
-
         # thread_id 用于 Checkpointer 隔离对话状态
         # 已有对话直接使用 conversation_id；新对话使用临时 UUID 避免并发冲突
         temp_thread_id = None
@@ -131,41 +105,105 @@ class ChatGraphService:
             temp_thread_id = f"new-{uuid.uuid4().hex}"
             thread_id = temp_thread_id
 
+        # 已有对话：优先使用 Redis checkpoint，若已过期则从数据库加载历史
+        if conversation_id is not None:
+            checkpoint = await self._checkpointer.aget(
+                {"configurable": {"thread_id": thread_id}}
+            )
+            if checkpoint is None:
+                # checkpoint 过期，从数据库加载历史消息
+                from app.crud import conversation_message as msg_crud
+
+                history = await asyncio.to_thread(
+                    msg_crud.list_conversation_messages,
+                    self.db,
+                    conversation_id,
+                    skip=0,
+                    limit=50,
+                )
+                history_messages = []
+                for msg in history:
+                    if msg.role == "user":
+                        history_messages.append(HumanMessage(content=msg.content))
+                    elif msg.role == "assistant":
+                        kwargs = {"content": msg.content}
+                        if msg.meta and msg.meta.get("tool_calls"):
+                            kwargs["tool_calls"] = msg.meta["tool_calls"]
+                        history_messages.append(AIMessage(**kwargs))
+                    elif msg.role == "tool":
+                        tool_call_id = ""
+                        if msg.meta and msg.meta.get("tool_call_id"):
+                            tool_call_id = msg.meta["tool_call_id"]
+                        history_messages.append(
+                            ToolMessage(content=msg.content, tool_call_id=tool_call_id)
+                        )
+                messages = _truncate_messages(history_messages + messages)
+
+        initial_state = {
+            "user_id": user_id,
+            "conversation_id": conversation_id,
+            "messages": messages,
+            "title_prompt": content,
+        }
+
         config = {"configurable": {"thread_id": thread_id, "db": self.db}}
 
         try:
             seen_stream = False
+            total_length = 0
+            max_output = settings.LLM_MAIN_MAX_OUTPUT_CHARS
+
             async for event in self._graph.astream_events(
                 initial_state, config, version="v2"
             ):
-                # 捕获 LLM token 级流式事件（最终回复阶段）
+                # 捕获 LLM token 级流式事件
                 if event["event"] == "on_chat_model_stream":
                     seen_stream = True
                     chunk = event["data"]["chunk"]
                     if hasattr(chunk, "content") and chunk.content:
+                        if total_length + len(chunk.content) > max_output:
+                            logger.warning(
+                                "LLM 输出超过最大字符数限制 %s，截断", max_output
+                            )
+                            break
+                        total_length += len(chunk.content)
                         yield chunk.content
 
-                # 捕获 model 节点非流式输出（决策阶段直接回复，无 tool call 时）
-                if event["event"] == "on_chain_end" and event.get("name") == "model":
-                    output = event["data"].get("output", {})
-                    msgs = output.get("messages", [])
-                    if msgs and isinstance(msgs[-1], AIMessage):
-                        msg = msgs[-1]
-                        # 仅在未出现流式事件时输出，避免重复
-                        if msg.content and not msg.tool_calls and not seen_stream:
-                            yield msg.content
-                    seen_stream = False
+                # 捕获 Graph 节点结束事件
+                if event["event"] == "on_chain_end":
+                    node_name = event.get("metadata", {}).get("langgraph_node", "")
 
-                # 捕获 Graph 节点输出，获取新创建的 conversation_id
-                # 以便前端知道新对话的 ID，并切换 thread_id 供后续 checkpoint 使用
-                if event["event"] == "on_chain_end" and event.get("name") == "prepare":
-                    output = event["data"].get("output", {})
-                    if "conversation_id" in output:
-                        new_id = str(output["conversation_id"])
-                        config["configurable"]["thread_id"] = new_id
-                        # 若使用过临时 thread_id，清理该 checkpoint 避免残留
-                        if temp_thread_id and temp_thread_id != new_id:
-                            await self._checkpointer.delete_checkpoint(temp_thread_id)
+                    # model 节点：兜底输出（未触发流式事件时）
+                    # 注意：on_chain_end 会在多个层级触发（LLM 级别和节点级别），
+                    # 只有节点级别的 output 是 dict 且含 "messages" 键
+                    if node_name == "model":
+                        output = event["data"].get("output", {})
+                        if isinstance(output, dict) and "messages" in output:
+                            msgs = output["messages"]
+                            if msgs and isinstance(msgs[-1], AIMessage):
+                                msg = msgs[-1]
+                                # 仅在未出现流式事件时输出，避免重复
+                                if (
+                                    msg.content
+                                    and not msg.tool_calls
+                                    and not seen_stream
+                                ):
+                                    yield msg.content
+                            seen_stream = False
+
+                    # prepare 节点：获取新创建的 conversation_id
+                    elif node_name == "prepare":
+                        output = event["data"].get("output", {})
+                        if isinstance(output, dict) and "conversation_id" in output:
+                            new_id = str(output["conversation_id"])
+                            config["configurable"]["thread_id"] = new_id
+                            # 若使用过临时 thread_id，清理该 checkpoint 避免残留
+                            if temp_thread_id and temp_thread_id != new_id:
+                                await self._checkpointer.delete_checkpoint(
+                                    temp_thread_id
+                                )
+                            # 向前端回传新创建的 conversation_id
+                            yield f"__META__:conversation_id={new_id}"
 
         except HTTPException:
             raise

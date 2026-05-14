@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     APP_DESCRIPTION: str = Field(default="A personal platform for DE")
     DEBUG: bool = Field(default=False)
 
+    IQS_API_KEY: str = Field(default="")
+
     REDIS_HOST: str = Field(default="redis")
     REDIS_PORT: int = Field(default=6379)
     REDIS_DB: int = Field(default=0)
@@ -63,6 +65,12 @@ class Settings(BaseSettings):
     OSS_DOMAIN: str = Field(default="")
     OSS_USERS_AVATAR_DIR: str = Field(default="users/avatar")
     MAX_USER_AVATAR_SIZE: int = Field(default=2097152)
+
+    OSS_BLOG_COVER_DIR: str = Field(default="blog/covers")
+    MAX_BLOG_COVER_SIZE: int = Field(default=5242880)
+
+    OSS_UPLOADS_IMAGE_DIR: str = Field(default="uploads/images")
+    MAX_UPLOAD_IMAGE_SIZE: int = Field(default=5242880)
 
     # RAG 向量检索相似度阈值（低于此值的结果不会注入 AI 上下文）
     RAG_MIN_SIMILARITY: float = Field(default=0.6)

@@ -144,7 +144,6 @@ watch(currentSort, () => loadComments(false))
 
 <style scoped>
 .comment-section {
-  background: var(--text-white);
   padding: 40px 0;
 }
 .comment-header {

@@ -10,7 +10,7 @@
     <section class="zones-section">
       <div class="container">
         <div v-if="authStore.isAdmin" class="admin-bar">
-          <PrimaryButton @click="showZoneModal = true">新建分区</PrimaryButton>
+          <PrimaryButton @click="openCreateModal">新建分区</PrimaryButton>
         </div>
         <div class="zone-grid">
           <Card
@@ -20,9 +20,9 @@
           >
             <div class="zone-header">
               <h3 class="zone-name">{{ zone.zone_name }}</h3>
-              <div v-if="authStore.isAdmin" class="zone-admin">
-                <button class="action-link" @click.stop="editZone(zone)">编辑</button>
-                <button class="action-link danger" @click.stop="openDeleteZoneModal(zone.id)">删除</button>
+              <div v-if="canEditZone(zone)" class="zone-admin">
+                <button class="action-link" @click.stop="openEditModal(zone)">编辑</button>
+                <button v-if="authStore.isAdmin" class="action-link danger" @click.stop="openDeleteZoneModal(zone.id)">删除</button>
               </div>
             </div>
             <p class="zone-desc">{{ zone.description || '暂无描述' }}</p>
@@ -47,22 +47,52 @@
       </div>
     </section>
 
-    <Modal v-model="showZoneModal" title="新建分区">
+    <!-- 创建分区 Modal -->
+    <Modal v-model="showCreateModal" title="新建分区">
       <div class="form-group">
         <label>分区名称</label>
-        <input v-model="newZone.zone_name" class="form-input" placeholder="分区名称" />
+        <input v-model="createForm.zone_name" class="form-input" placeholder="分区名称" />
       </div>
       <div class="form-group">
         <label>Slug</label>
-        <input v-model="newZone.slug" class="form-input" placeholder="url-slug" />
+        <input v-model="createForm.slug" class="form-input" placeholder="留空则自动生成" />
       </div>
       <div class="form-group">
         <label>描述</label>
-        <textarea v-model="newZone.description" class="form-input" rows="2" placeholder="可选" />
+        <textarea v-model="createForm.description" class="form-input" rows="2" placeholder="可选" />
+      </div>
+      <div class="form-group">
+        <label>管理者</label>
+        <UserSearchSelect v-model="createForm.manager_id" />
+        <span class="field-hint">留空则默认将当前用户设为管理者</span>
       </div>
       <template #footer>
         <PrimaryButton @click="createZone">创建</PrimaryButton>
-        <PillLink @click="showZoneModal = false">取消</PillLink>
+        <PillLink @click="showCreateModal = false">取消</PillLink>
+      </template>
+    </Modal>
+
+    <!-- 编辑分区 Modal -->
+    <Modal v-model="showEditModal" title="编辑分区">
+      <div class="form-group">
+        <label>分区名称</label>
+        <input v-model="editForm.zone_name" class="form-input" placeholder="分区名称" />
+      </div>
+      <div class="form-group">
+        <label>Slug</label>
+        <input v-model="editForm.slug" class="form-input" placeholder="slug" />
+      </div>
+      <div class="form-group">
+        <label>描述</label>
+        <textarea v-model="editForm.description" class="form-input" rows="2" placeholder="可选" />
+      </div>
+      <div v-if="authStore.isAdmin" class="form-group">
+        <label>管理者</label>
+        <UserSearchSelect v-model="editForm.manager_id" />
+      </div>
+      <template #footer>
+        <PrimaryButton @click="updateZone">保存</PrimaryButton>
+        <PillLink @click="showEditModal = false">取消</PillLink>
       </template>
     </Modal>
 
@@ -88,6 +118,7 @@ import PrimaryButton from '@/components/PrimaryButton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Modal from '@/components/Modal.vue'
 import Avatar from '@/components/Avatar.vue'
+import UserSearchSelect from '@/components/UserSearchSelect.vue'
 import type { ForumZoneResponse } from '@/types'
 
 const authStore = useAuthStore()
@@ -95,29 +126,104 @@ const forumStore = useForumStore()
 const followStore = useFollowStore()
 const uiStore = useUiStore()
 
-const showZoneModal = ref(false)
+const showCreateModal = ref(false)
+const showEditModal = ref(false)
 const showDeleteZoneModal = ref(false)
 const pendingZoneId = ref<number | null>(null)
-const newZone = reactive({ zone_name: '', slug: '', description: '' })
+const editingZoneId = ref<number | null>(null)
+
+const createForm = reactive({
+  zone_name: '',
+  slug: '',
+  description: '',
+  manager_id: null as number | null
+})
+
+const editForm = reactive({
+  zone_name: '',
+  slug: '',
+  description: '',
+  manager_id: null as number | null
+})
 
 onMounted(() => {
   forumStore.fetchZones()
   followStore.fetchFollowedZones({ limit: 100 })
 })
 
-function createZone() {
-  forumStore.createZone({ ...newZone })
-  showZoneModal.value = false
-  newZone.zone_name = ''
-  newZone.slug = ''
-  newZone.description = ''
+function canEditZone(zone: ForumZoneResponse): boolean {
+  return authStore.isAdmin || zone.manager_id === authStore.user?.id
 }
 
-function editZone(zone: ForumZoneResponse) {
-  const name = prompt('新名称', zone.zone_name)
-  const slug = prompt('新 Slug', zone.slug)
-  if (name && slug) {
-    forumStore.updateZone(zone.id, { zone_name: name, slug })
+function openCreateModal() {
+  createForm.zone_name = ''
+  createForm.slug = ''
+  createForm.description = ''
+  createForm.manager_id = null
+  showCreateModal.value = true
+}
+
+function openEditModal(zone: ForumZoneResponse) {
+  editingZoneId.value = zone.id
+  editForm.zone_name = zone.zone_name
+  editForm.slug = zone.slug
+  editForm.description = zone.description || ''
+  editForm.manager_id = zone.manager_id
+  showEditModal.value = true
+}
+
+async function createZone() {
+  if (!createForm.zone_name.trim()) {
+    uiStore.showToast('请输入分区名称', 'error')
+    return
+  }
+  try {
+    const data: { zone_name: string; slug?: string; description: string | null; manager_id?: number } = {
+      zone_name: createForm.zone_name.trim(),
+      description: createForm.description.trim() || null
+    }
+    if (createForm.slug.trim()) {
+      data.slug = createForm.slug.trim()
+    }
+    if (createForm.manager_id !== null) {
+      data.manager_id = createForm.manager_id
+    }
+    await forumStore.createZone(data)
+    showCreateModal.value = false
+    createForm.zone_name = ''
+    createForm.slug = ''
+    createForm.description = ''
+    createForm.manager_id = null
+  } catch (error: any) {
+    const message = error.response?.data?.detail || '创建失败'
+    uiStore.showToast(message, 'error')
+  }
+}
+
+async function updateZone() {
+  if (!editingZoneId.value) return
+  if (!editForm.zone_name.trim()) {
+    uiStore.showToast('请输入分区名称', 'error')
+    return
+  }
+  try {
+    const data: { zone_name?: string; slug?: string; description?: string | null; manager_id?: number } = {}
+    if (editForm.zone_name.trim()) {
+      data.zone_name = editForm.zone_name.trim()
+    }
+    if (editForm.slug.trim()) {
+      data.slug = editForm.slug.trim()
+    }
+    data.description = editForm.description.trim() || null
+    if (authStore.isAdmin && editForm.manager_id !== null) {
+      data.manager_id = editForm.manager_id
+    }
+    await forumStore.updateZone(editingZoneId.value, data)
+    showEditModal.value = false
+    editingZoneId.value = null
+  } catch (error: any) {
+    const message = error.response?.data?.detail || '更新失败'
+    uiStore.showToast(message, 'error')
   }
 }
 
@@ -254,6 +360,12 @@ function confirmDeleteZone() {
   border: 3px solid rgba(0, 0, 0, 0.04);
   border-radius: var(--radius-lg);
   outline: none;
+}
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 .zone-actions {
   display: flex;

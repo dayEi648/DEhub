@@ -27,6 +27,7 @@ const md = new MarkdownIt({
     return hljs.highlightAuto(str).value
   }
 })
+md.enable('table')
 
 const renderedContent = computed(() => {
   return md.render(props.content || '')
@@ -101,5 +102,24 @@ const renderedContent = computed(() => {
   max-width: 100%;
   border-radius: var(--radius-md);
   margin-bottom: 24px;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 24px;
+  font-size: 15px;
+}
+.markdown-body th,
+.markdown-body td {
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  text-align: left;
+}
+.markdown-body th {
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.03);
+}
+.markdown-body tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.015);
 }
 </style>

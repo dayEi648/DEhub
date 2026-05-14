@@ -2,6 +2,8 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   ForumZoneResponse,
+  ForumZoneCreate,
+  ForumZoneUpdate,
   ForumPostResponse,
   ForumPostCreate,
   ForumPostUpdate,
@@ -92,14 +94,14 @@ export const useForumStore = defineStore('forum', () => {
     uiStore.showToast('回复已删除', 'success')
   }
 
-  async function createZone(data: { zone_name: string; slug: string; description?: string | null }) {
+  async function createZone(data: ForumZoneCreate) {
     const { data: zone } = await forumApi.createZone(data)
     zones.value.push(zone)
     uiStore.showToast('分区创建成功', 'success')
     return zone
   }
 
-  async function updateZone(id: number, data: { zone_name?: string; slug?: string; description?: string | null }) {
+  async function updateZone(id: number, data: ForumZoneUpdate) {
     const { data: zone } = await forumApi.updateZone(id, data)
     const idx = zones.value.findIndex((z) => z.id === id)
     if (idx !== -1) zones.value[idx] = zone

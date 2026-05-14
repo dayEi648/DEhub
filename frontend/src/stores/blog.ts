@@ -47,14 +47,20 @@ export const useBlogStore = defineStore('blog', () => {
     return data
   }
 
-  async function createPost(data: BlogPostCreate) {
-    const { data: post } = await blogApi.createPost(data)
+  async function createPost(data: BlogPostCreate, file?: File) {
+    const formData = new FormData()
+    formData.append('post_in', JSON.stringify(data))
+    if (file) formData.append('file', file)
+    const { data: post } = await blogApi.createPost(formData)
     uiStore.showToast('创建成功', 'success')
     return post
   }
 
-  async function updatePost(id: number, data: BlogPostUpdate) {
-    const { data: post } = await blogApi.updatePost(id, data)
+  async function updatePost(id: number, data: BlogPostUpdate, file?: File) {
+    const formData = new FormData()
+    formData.append('post_in', JSON.stringify(data))
+    if (file) formData.append('file', file)
+    const { data: post } = await blogApi.updatePost(id, formData)
     uiStore.showToast('更新成功', 'success')
     return post
   }

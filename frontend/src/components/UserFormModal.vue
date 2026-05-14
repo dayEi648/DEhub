@@ -64,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onUnmounted } from 'vue'
 import type { UserResponse, UserCreate, UserUpdate } from '@/types'
 import { useUiStore } from '@/stores/ui'
 import { createUser, updateUser } from '@/api/user'
@@ -118,6 +118,10 @@ function resetForm() {
 }
 
 function populateForm(user: UserResponse) {
+  if (avatarObjectUrl) {
+    URL.revokeObjectURL(avatarObjectUrl)
+    avatarObjectUrl = null
+  }
   form.value = {
     username: user.username,
     email: user.email,
@@ -152,6 +156,12 @@ function handleAvatarSelect(file: File) {
   avatarObjectUrl = URL.createObjectURL(file)
   form.value.avatar_url = avatarObjectUrl
 }
+
+onUnmounted(() => {
+  if (avatarObjectUrl) {
+    URL.revokeObjectURL(avatarObjectUrl)
+  }
+})
 
 function validate(): boolean {
   errors.value = {}

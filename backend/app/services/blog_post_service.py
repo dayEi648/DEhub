@@ -1,4 +1,4 @@
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.user import User
@@ -14,6 +14,9 @@ from app.schemas.blog_post import (
 )
 from app.crud import blog_post as blog_post_crud
 from app.utils.slug import generate_unique_slug
+from app.storage.oss import upload_blog_cover, delete_file_from_oss, convert_oss_url_to_file_path
+from app.infrastructure.llm_client import get_llm_small_client
+from langchain_core.messages import SystemMessage, HumanMessage
 
 
 class BlogPostService:
@@ -46,7 +49,9 @@ class BlogPostService:
 
     # ---------- 写操作（超管专属）----------
 
-    def create_blog_post(self, post_in: BlogPostCreate, current_user: User) -> BlogPost:
+    async def create_blog_post(
+        self, post_in: BlogPostCreate, current_user: User, file: UploadFile | None = None
+    ) -> BlogPost:
         self._require_super_admin(current_user)
 
         # 若未提供 slug，根据标题自动生成
@@ -57,6 +62,10 @@ class BlogPostService:
             post_in = BlogPostCreate(**{**post_in.model_dump(), "slug": slug})
         else:
             self._ensure_slug_unique(post_in.slug)
+
+        if file:
+            cover_url = await upload_blog_cover(file)
+            post_in = BlogPostCreate(**{**post_in.model_dump(), "cover_image_url": cover_url})
 
         db_post = blog_post_crud.create_blog_post(self.db, post_in)
         # 重新查询以加载 category 关联，避免延迟加载问题
@@ -91,8 +100,8 @@ class BlogPostService:
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
         return refreshed
 
-    def update_blog_post(
-        self, post_id: int, post_in: BlogPostUpdate, current_user: User
+    async def update_blog_post(
+        self, post_id: int, post_in: BlogPostUpdate, current_user: User, file: UploadFile | None = None
     ) -> BlogPost:
         self._require_super_admin(current_user)
         db_post = blog_post_crud.get_blog_post_by_id(self.db, post_id)
@@ -102,6 +111,13 @@ class BlogPostService:
         update_data = post_in.model_dump(exclude_unset=True)
         if "slug" in update_data and update_data["slug"] != db_post.slug:
             self._ensure_slug_unique(update_data["slug"], exclude_post_id=db_post.id)
+
+        if file:
+            # 删除旧封面
+            if db_post.cover_image_url:
+                await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
+            cover_url = await upload_blog_cover(file)
+            post_in.cover_image_url = cover_url
 
         updated = blog_post_crud.update_blog_post(self.db, db_post, post_in)
         # 重新查询以加载 category 关联（可能已变更），避免延迟加载问题
@@ -116,8 +132,12 @@ class BlogPostService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在或已被删除"
             )
 
-    def hard_delete_blog_post(self, post_id: int, current_user: User) -> None:
+    async def hard_delete_blog_post(self, post_id: int, current_user: User) -> None:
         self._require_super_admin(current_user)
+        db_post = blog_post_crud.get_blog_post_by_id(self.db, post_id)
+        if db_post and db_post.cover_image_url:
+            await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
+
         result = blog_post_crud.hard_delete_blog_post(self.db, post_id)
         if result == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
@@ -235,3 +255,37 @@ class BlogPostService:
             items=[BlogPostListItem.model_validate(post) for post in posts],
             total=total,
         )
+
+
+    # ---------- AI 辅助功能 ----------
+
+    async def generate_summary(self, content_md: str, current_user: User) -> str:
+        """
+        调用 LLM 根据文章正文生成摘要
+        Args:
+            content_md: Markdown 正文
+            current_user: 当前用户
+        Returns:
+            str: 生成的摘要
+        """
+        self._require_super_admin(current_user)
+
+        prompt = (
+            "请根据以下 Markdown 格式的文章正文，生成一段 100~200 字的中文摘要。"
+            "摘要应准确概括文章核心内容，语言简洁流畅，不要包含 Markdown 标记。"
+            "只输出摘要正文，不要添加任何前缀、标题或解释。\n\n"
+            f"{content_md}"
+        )
+
+        response = await get_llm_small_client().ainvoke([
+            SystemMessage(content="你是一位专业的技术博客编辑，擅长提炼文章要点。"),
+            HumanMessage(content=prompt),
+        ])
+
+        summary = str(response.content).strip()
+        if not summary:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="摘要生成失败，请稍后重试"
+            )
+        return summary

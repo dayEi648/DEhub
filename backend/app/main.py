@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, chat, user_favorites
+from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, chat, user_favorites, uploads
 from app.core.exceptions import (
     http_exception_handler,
     validation_exception_handler,
@@ -50,6 +50,7 @@ app.include_router(forum_replies.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(user_favorites.router_favorites, prefix="/api/v1")
 app.include_router(user_favorites.router_follows, prefix="/api/v1")
+app.include_router(uploads.router, prefix="/api/v1")
 
 @app.get("/")
 def root():

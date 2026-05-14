@@ -224,6 +224,42 @@ async def upload_user_avatar(file: UploadFile) -> str:
     )
 
 
+async def upload_blog_cover(file: UploadFile) -> str:
+    """
+    上传博客封面图（自动压缩后上传）
+    Args:
+        file: 上传文件
+    Returns:
+        str: 文件URL
+    """
+    return await upload_file_to_oss(
+        file,
+        settings.OSS_BLOG_COVER_DIR,
+        ALLOWED_IMAGE_TYPES,
+        settings.MAX_BLOG_COVER_SIZE,
+        compress=True,
+        compress_max_dimension=1920,
+    )
+
+
+async def upload_generic_image(file: UploadFile) -> str:
+    """
+    上传通用图片（自动压缩后上传）
+    Args:
+        file: 上传文件
+    Returns:
+        str: 文件URL
+    """
+    return await upload_file_to_oss(
+        file,
+        settings.OSS_UPLOADS_IMAGE_DIR,
+        ALLOWED_IMAGE_TYPES,
+        settings.MAX_UPLOAD_IMAGE_SIZE,
+        compress=True,
+        compress_max_dimension=1920,
+    )
+
+
 def convert_oss_url_to_file_path(oss_url: str) -> str:
     """
     将OSS url转为 file_path

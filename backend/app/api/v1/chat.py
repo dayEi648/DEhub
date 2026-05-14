@@ -52,6 +52,13 @@ async def stream_chat(
                 conversation_id=chat_in.conversation_id,
                 content=chat_in.content,
             ):
+                # 解析内部 meta 标记，转换为 SSE meta 事件
+                if chunk.startswith("__META__:"):
+                    _, meta = chunk.split(":", 1)
+                    key, value = meta.split("=", 1)
+                    if key == "conversation_id":
+                        yield f'event: meta\ndata: {{"conversation_id":{value}}}\n\n'
+                    continue
                 yield f"data: {chunk}\n\n"
         except Exception:
             # SSE headers 已发送，无法更改 HTTP 状态码；

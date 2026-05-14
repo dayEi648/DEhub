@@ -2,6 +2,47 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
 
+# ------------------------------------------------------------------
+# Monkey-patch: 支持 DeepSeek 等思考模型的 reasoning_content
+# ------------------------------------------------------------------
+# LangChain OpenAI 默认不提取/传递 reasoning_content，但 DeepSeek 等
+# OpenAI 兼容 API 在 thinking 模式下要求后续请求必须原样传回该字段。
+# 以下补丁在消息解析时提取 reasoning_content，在序列化时原样传回。
+# ------------------------------------------------------------------
+
+import langchain_openai.chat_models.base as _lc_openai_base
+
+_original_convert_dict_to_message = _lc_openai_base._convert_dict_to_message
+
+
+def _patched_convert_dict_to_message(_dict):
+    role = _dict.get("role")
+    if role == "assistant":
+        reasoning_content = _dict.get("reasoning_content")
+        if reasoning_content:
+            msg = _original_convert_dict_to_message(_dict)
+            msg.additional_kwargs["reasoning_content"] = reasoning_content
+            return msg
+    return _original_convert_dict_to_message(_dict)
+
+
+_lc_openai_base._convert_dict_to_message = _patched_convert_dict_to_message
+
+_original_convert_message_to_dict = _lc_openai_base._convert_message_to_dict
+
+
+def _patched_convert_message_to_dict(message, api="chat/completions"):
+    message_dict = _original_convert_message_to_dict(message, api)
+    if (
+        hasattr(message, "additional_kwargs")
+        and "reasoning_content" in message.additional_kwargs
+    ):
+        message_dict["reasoning_content"] = message.additional_kwargs["reasoning_content"]
+    return message_dict
+
+
+_lc_openai_base._convert_message_to_dict = _patched_convert_message_to_dict
+
 _llm_client: ChatOpenAI | None = None
 _llm_small_client: ChatOpenAI | None = None
 
@@ -16,6 +57,7 @@ async def init_llm_client() -> None:
         max_tokens=settings.LLM_MAIN_MAX_TOKENS,
         temperature=settings.LLM_MAIN_TEMPERATURE,
         timeout=settings.LLM_MAIN_TIMEOUT,
+        streaming=True,
     )
 
 
@@ -29,6 +71,7 @@ async def init_llm_small_client() -> None:
         max_tokens=settings.LLM_SMALL_MAX_TOKENS,
         temperature=settings.LLM_SMALL_TEMPERATURE,
         timeout=settings.LLM_SMALL_TIMEOUT,
+        streaming=True,
     )
 
 

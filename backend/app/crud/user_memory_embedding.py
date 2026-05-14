@@ -1,4 +1,5 @@
-from sqlalchemy import text
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from app.models.user_memory_embedding import UserMemoryEmbedding
@@ -122,15 +123,18 @@ def search_user_memories(
     stmt = text(
         f"""
         SELECT id, user_id, conversation_id, memory_type, content_text, embedding, created_at,
-               embedding <=> :embedding::vector AS distance
+               embedding <=> :embedding AS distance
         FROM user_memory_embeddings
         WHERE user_id = :user_id
           AND created_at > :since
           {exclude_clause}
-        ORDER BY embedding <=> :embedding::vector
+        ORDER BY embedding <=> :embedding
         LIMIT :top_k
         """
-    ).bindparams(**params)
+    ).bindparams(
+        bindparam("embedding", query_embedding, type_=Vector(1024)),
+        **{k: v for k, v in params.items() if k != "embedding"},
+    )
 
     rows = db.execute(stmt).all()
 

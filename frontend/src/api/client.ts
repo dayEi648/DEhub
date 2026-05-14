@@ -47,6 +47,11 @@ client.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    // 当 data 为 FormData 时，删除全局默认的 Content-Type，
+    // 让浏览器自动设置 multipart/form-data（包含正确的 boundary）
+    if (config.data instanceof FormData && config.headers) {
+      delete (config.headers as Record<string, unknown>)['Content-Type']
+    }
     const uiStore = useUiStore()
     uiStore.setLoading(true)
     return config

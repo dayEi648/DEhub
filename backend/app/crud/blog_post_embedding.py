@@ -1,4 +1,5 @@
-from sqlalchemy import text
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from app.models.blog_post import BlogPost  # noqa: F401  # 确保 mapper 注册
@@ -105,14 +106,17 @@ def search_similar(
     stmt = text(
         """
         SELECT e.id, e.post_id, e.embedding, e.content_hash, e.created_at, e.updated_at,
-               e.embedding <=> :embedding::vector AS distance
+               e.embedding <=> :embedding AS distance
         FROM blog_post_embeddings e
         JOIN blog_posts p ON p.id = e.post_id
         WHERE p.is_deleted = false AND p.status = 'published'
-        ORDER BY e.embedding <=> :embedding::vector
+        ORDER BY e.embedding <=> :embedding
         LIMIT :top_k
         """
-    ).bindparams(embedding=query_embedding, top_k=top_k)
+    ).bindparams(
+        bindparam("embedding", query_embedding, type_=Vector(1024)),
+        top_k=top_k,
+    )
 
     rows = db.execute(stmt).all()
 
