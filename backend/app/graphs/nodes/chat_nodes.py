@@ -2,10 +2,8 @@ from app.db.session import SessionLocal
 from app.crud import user_memory_embedding as mem_crud
 from app.infrastructure.embedding_client import get_embedding_client
 from app.infrastructure.llm_client import get_llm_client
-from app.prompts.chat_prompts import (
-    get_chat_default_system_prompt,
-    get_chat_system_prompt_with_memories,
-)
+from app.prompts.chat_prompts import get_chat_system_prompt
+from app.tools.blog_search import search_blog
 from app.graphs.states.chat_state import ChatState
 
 
@@ -60,26 +58,23 @@ def retrieve_memory_node(state: ChatState) -> dict:
         db.close()
 
 
-def chat_node(state: ChatState) -> dict:
+def agent_node(state: ChatState) -> dict:
     """
-    对话节点。
+    Agent 节点（带 Tool-Calling 的对话节点）。
 
-    根据 state 中是否包含检索到的记忆，动态选择 prompt 模板并调用 LLM。
+    根据 state 中是否包含检索到的记忆，动态选择 prompt 模板，
+    并调用绑定了 tools 的 LLM。LLM 可自主决定是否调用 search_blog。
 
     Args:
         state: 对话状态
 
     Returns:
-        dict: {"messages": [AIMessage]}
+        dict: {"messages": [AIMessage]}（可能包含 tool_calls）
     """
     memories = state.get("retrieved_memories", [])
+    prompt = get_chat_system_prompt(memories)
 
-    if memories:
-        prompt = get_chat_system_prompt_with_memories(memories)
-    else:
-        prompt = get_chat_default_system_prompt()
-
-    llm = get_llm_client()
+    llm = get_llm_client().bind_tools([search_blog])
     chain = prompt | llm
     response = chain.invoke({"messages": state["messages"]})
     return {"messages": [response]}

@@ -7,9 +7,12 @@ from langchain_core.messages import SystemMessage
 # Prompts
 # ===================================================================
 CHAT_DEFAULT_SYSTEM_PROMPT = (
-    "你是 DE Hub 网站的 AI 助手，性格热情且友好；请用中文回答用户的问题；"
-    "你的说话风格是直接明了，避免非必要的重复对话内容；"
-    "如果你与用户的交流涉及 DE hub 网站博客里的文章，并且用户表现出了对博客文章的兴趣或者他明确要求你给出文章的链接，那么你要在回答中提供该文章的跳转链接。"
+    "你是 DE Hub 网站的 AI 助手，请用中文回答用户的问题。"
+    "你性格友好、礼貌，你的说话风格是直接明了，避免非必要的重复对话内容。"
+    "DE hub 是开发者 DaiEe 的个人博客网站，用于展示个人的作品、学习笔记、开发经验等；该网站有论坛版块，支持其他用户在论坛中交流。"
+    "\n\n"
+    "你拥有以下 1 个 Tool，可按需调用：\n"
+    "1. search_blog：检索 DE Hub 博客文章。当用户与你的交流提及DEhub的博客文章，或者用户表达出了对博客文章的兴趣时，请使用该工具，需要时可以提供跳转链接。"
 )
 
 CHAT_MEMORY_BLOCK_PROMPT = (
@@ -22,7 +25,7 @@ CHAT_MEMORY_BLOCK_PROMPT = (
 
 CONVERSATION_SUMMARY_PROMPT = (
     "请根据以下对话记录，提取并总结关于用户的画像信息。"
-    "只关注用户侧信息，完全忽略 AI 助手的回复内容。"
+    "重点关注用户侧信息，少量参考 AI 助手的话语信息。"
     "\n\n"
     "关注以下方面：\n"
     "- 用户的性格特点、说话风格\n"
@@ -30,7 +33,7 @@ CONVERSATION_SUMMARY_PROMPT = (
     "- 用户做过什么、计划做什么\n"
     "- 用户的技能水平、知识背景或职业\n"
     "\n"
-    "用第三人称简洁描述，控制在 200 字以内。"
+    "用第三人称简洁描述，控制在 100 字以内。"
     "如果对话太短不足以提取有效画像，请返回空字符串。"
 )
 
@@ -51,26 +54,23 @@ def _format_memories(memories: list[str]) -> str:
     return "\n".join(f"{i + 1}. {m}" for i, m in enumerate(memories))
 
 
-def get_chat_default_system_prompt() -> ChatPromptTemplate:
+def get_chat_system_prompt(memories: list[str] | None = None) -> ChatPromptTemplate:
     """
-    对话 System Prompt（无记忆版本）
+    对话 System Prompt。
+
+    当传入记忆列表时，在 system prompt 中追加用户画像记忆区块；
+    无记忆时返回默认版本。
+
     MessagesPlaceholder 让 LangGraph 自动把历史消息列表注入到 'messages' 槽位。
     """
-    return ChatPromptTemplate.from_messages([
-        SystemMessage(content=CHAT_DEFAULT_SYSTEM_PROMPT),
-        MessagesPlaceholder(variable_name="messages"),
-    ])
+    if memories:
+        memory_block = CHAT_MEMORY_BLOCK_PROMPT.format(
+            memories=_format_memories(memories)
+        )
+        full_prompt = f"{CHAT_DEFAULT_SYSTEM_PROMPT}\n\n{memory_block}"
+    else:
+        full_prompt = CHAT_DEFAULT_SYSTEM_PROMPT
 
-
-def get_chat_system_prompt_with_memories(memories: list[str]) -> ChatPromptTemplate:
-    """
-    对话 System Prompt（带记忆版本）
-    在原 system prompt 基础上追加检索到的用户画像记忆区块。
-    """
-    memory_block = CHAT_MEMORY_BLOCK_PROMPT.format(
-        memories=_format_memories(memories)
-    )
-    full_prompt = f"{CHAT_DEFAULT_SYSTEM_PROMPT}\n\n{memory_block}"
     return ChatPromptTemplate.from_messages([
         SystemMessage(content=full_prompt),
         MessagesPlaceholder(variable_name="messages"),

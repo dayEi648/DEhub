@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import HTTPException, status, UploadFile
 from sqlalchemy.orm import Session, joinedload
 
@@ -16,6 +18,7 @@ from app.crud import blog_post as blog_post_crud
 from app.utils.slug import generate_unique_slug
 from app.storage.oss import upload_blog_cover, delete_file_from_oss, convert_oss_url_to_file_path
 from app.infrastructure.llm_client import get_llm_small_client
+from app.services.blog_post_embedding_service import BlogPostEmbeddingService
 from langchain_core.messages import SystemMessage, HumanMessage
 
 
@@ -68,6 +71,12 @@ class BlogPostService:
             post_in = BlogPostCreate(**{**post_in.model_dump(), "cover_image_url": cover_url})
 
         db_post = blog_post_crud.create_blog_post(self.db, post_in)
+
+        # 若创建即发布，异步生成向量嵌入
+        if db_post.status == "published":
+            embed_service = BlogPostEmbeddingService(self.db)
+            await asyncio.to_thread(embed_service.sync_post_embedding, db_post.id)
+
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
         return refreshed
@@ -82,6 +91,11 @@ class BlogPostService:
         db_post.status = "published"
         self.db.commit()
         self.db.refresh(db_post)
+
+        # 发布后同步生成向量嵌入
+        embed_service = BlogPostEmbeddingService(self.db)
+        embed_service.sync_post_embedding(post_id)
+
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
         return refreshed
@@ -120,6 +134,14 @@ class BlogPostService:
             post_in.cover_image_url = cover_url
 
         updated = blog_post_crud.update_blog_post(self.db, db_post, post_in)
+
+        # 根据更新后的状态同步或删除向量嵌入
+        embed_service = BlogPostEmbeddingService(self.db)
+        if updated.status == "published" and not updated.is_deleted:
+            await asyncio.to_thread(embed_service.sync_post_embedding, updated.id)
+        else:
+            await asyncio.to_thread(embed_service.delete_post_embedding, updated.id)
+
         # 重新查询以加载 category 关联（可能已变更），避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, updated.id)
         return refreshed
@@ -132,11 +154,19 @@ class BlogPostService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在或已被删除"
             )
 
+        # 软删除后同步清理向量嵌入
+        embed_service = BlogPostEmbeddingService(self.db)
+        embed_service.delete_post_embedding(post_id)
+
     async def hard_delete_blog_post(self, post_id: int, current_user: User) -> None:
         self._require_super_admin(current_user)
         db_post = blog_post_crud.get_blog_post_by_id(self.db, post_id)
         if db_post and db_post.cover_image_url:
             await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
+
+        # 硬删除前先清理向量嵌入（显式删除，不依赖数据库 CASCADE）
+        embed_service = BlogPostEmbeddingService(self.db)
+        embed_service.delete_post_embedding(post_id)
 
         result = blog_post_crud.hard_delete_blog_post(self.db, post_id)
         if result == 0:
