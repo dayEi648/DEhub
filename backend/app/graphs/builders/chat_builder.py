@@ -1,5 +1,5 @@
 from app.graphs.states.chat_state import ChatState
-from app.graphs.nodes.chat_nodes import chat_node
+from app.graphs.nodes.chat_nodes import retrieve_memory_node, chat_node
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -17,10 +17,12 @@ def build_chat_graph():
     builder = StateGraph(ChatState)
 
     # 注册节点
+    builder.add_node("retrieve_memory", retrieve_memory_node)
     builder.add_node("chat", chat_node)
 
-    # 注册边
-    builder.add_edge(START, "chat")
+    # 注册边：先检索记忆，再对话
+    builder.add_edge(START, "retrieve_memory")
+    builder.add_edge("retrieve_memory", "chat")
     builder.add_edge("chat", END)
 
     # 编译 + 挂载记忆checkpointer

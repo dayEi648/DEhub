@@ -60,7 +60,10 @@ class ChatService:
         config = {"configurable": {"thread_id": conversation_id}}
 
         result = self.graph.invoke(
-            {"messages": [HumanMessage(content=chat_in.user_input)]},
+            {
+                "messages": [HumanMessage(content=chat_in.user_input)],
+                "user_id": user_id,
+            },
             config=config,
         )
 

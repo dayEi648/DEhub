@@ -7,7 +7,17 @@ from langchain_core.messages import SystemMessage
 # Prompts
 # ===================================================================
 CHAT_DEFAULT_SYSTEM_PROMPT = (
-    "你是 DE Hub 网站的 AI 助手，性格热情且友好；请用中文回答用户的问题；你的说话风格是直接明了，避免非必要的重复对话内容；如果你与用户的交流涉及 DE hub 网站博客里的文章，并且用户表现出了对博客文章的兴趣或者他明确要求你给出文章的链接，那么你要在回答中提供该文章的跳转链接。"
+    "你是 DE Hub 网站的 AI 助手，性格热情且友好；请用中文回答用户的问题；"
+    "你的说话风格是直接明了，避免非必要的重复对话内容；"
+    "如果你与用户的交流涉及 DE hub 网站博客里的文章，并且用户表现出了对博客文章的兴趣或者他明确要求你给出文章的链接，那么你要在回答中提供该文章的跳转链接。"
+)
+
+CHAT_MEMORY_BLOCK_PROMPT = (
+    '--- 用户历史记忆 ---\n'
+    '以下是根据当前问题检索到的用户相关历史记忆，'
+    '请自然地结合这些记忆进行个性化回复，不要提及"检索记忆"这一过程：\n\n'
+    '{memories}\n'
+    '---\n'
 )
 
 CONVERSATION_SUMMARY_PROMPT = (
@@ -36,12 +46,32 @@ CONVERSATION_TITLE_PROMPT = (
 # Functions
 # ===================================================================
 
+def _format_memories(memories: list[str]) -> str:
+    """将记忆列表格式化为编号文本。"""
+    return "\n".join(f"{i + 1}. {m}" for i, m in enumerate(memories))
+
+
 def get_chat_default_system_prompt() -> ChatPromptTemplate:
     """
-    对话 System Prompt
+    对话 System Prompt（无记忆版本）
     MessagesPlaceholder 让 LangGraph 自动把历史消息列表注入到 'messages' 槽位。
     """
     return ChatPromptTemplate.from_messages([
         SystemMessage(content=CHAT_DEFAULT_SYSTEM_PROMPT),
+        MessagesPlaceholder(variable_name="messages"),
+    ])
+
+
+def get_chat_system_prompt_with_memories(memories: list[str]) -> ChatPromptTemplate:
+    """
+    对话 System Prompt（带记忆版本）
+    在原 system prompt 基础上追加检索到的用户画像记忆区块。
+    """
+    memory_block = CHAT_MEMORY_BLOCK_PROMPT.format(
+        memories=_format_memories(memories)
+    )
+    full_prompt = f"{CHAT_DEFAULT_SYSTEM_PROMPT}\n\n{memory_block}"
+    return ChatPromptTemplate.from_messages([
+        SystemMessage(content=full_prompt),
         MessagesPlaceholder(variable_name="messages"),
     ])

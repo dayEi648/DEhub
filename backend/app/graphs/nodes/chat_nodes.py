@@ -1,29 +1,85 @@
+from app.db.session import SessionLocal
+from app.crud import user_memory_embedding as mem_crud
+from app.infrastructure.embedding_client import get_embedding_client
 from app.infrastructure.llm_client import get_llm_client
-from app.prompts.chat_prompts import get_chat_default_system_prompt
+from app.prompts.chat_prompts import (
+    get_chat_default_system_prompt,
+    get_chat_system_prompt_with_memories,
+)
 from app.graphs.states.chat_state import ChatState
 
-_chat_chain = None
 
+def retrieve_memory_node(state: ChatState) -> dict:
+    """
+    检索用户记忆节点。
 
-def _get_chat_chain():
-    """延迟初始化对话链，避免在模块导入时调用未初始化的 LLM 客户端。"""
-    global _chat_chain
-    if _chat_chain is None:
-        _llm_main = get_llm_client()
-        _chat_system_prompt = get_chat_default_system_prompt()
-        _chat_chain = _chat_system_prompt | _llm_main
-    return _chat_chain
+    根据当前用户输入的 query，从向量库中检索相似度 > 0.6（余弦距离 < 0.4）
+    且创建时间在 1 年以内的最多 3 条用户画像记录。
+
+    Args:
+        state: 对话状态，需包含 user_id 和 messages
+
+    Returns:
+        dict: {"retrieved_memories": ["记忆文本1", "记忆文本2", ...]}
+        即使没有结果也返回空列表，确保覆盖 checkpoint 中的旧值。
+    """
+    user_id = state.get("user_id", 0)
+    if user_id <= 0:
+        return {"retrieved_memories": []}
+
+    messages = state.get("messages", [])
+    if not messages:
+        return {"retrieved_memories": []}
+
+    # 取最后一条消息的内容作为 query（即当前用户输入）
+    query_text = messages[-1].content
+    if not query_text or not query_text.strip():
+        return {"retrieved_memories": []}
+
+    # 向量化 query
+    try:
+        embedding = get_embedding_client().embed_query(query_text.strip())
+    except Exception:
+        return {"retrieved_memories": []}
+
+    # 检索相似记忆（相似度 > 0.6 即距离 < 0.4）
+    db = SessionLocal()
+    try:
+        results = mem_crud.search_user_memories(
+            db=db,
+            user_id=user_id,
+            query_embedding=embedding,
+            top_k=3,
+            max_distance=0.4,
+        )
+        memories = [record.content_text for record, _distance in results]
+        return {"retrieved_memories": memories}
+    except Exception:
+        return {"retrieved_memories": []}
+    finally:
+        db.close()
 
 
 def chat_node(state: ChatState) -> dict:
     """
-    对话节点
+    对话节点。
+
+    根据 state 中是否包含检索到的记忆，动态选择 prompt 模板并调用 LLM。
+
     Args:
         state: 对话状态
-    Returns:
-        dict: 对话结果
-    """
-    # state["messages"] 已经包含完整历史（由 checkpointer 自动恢复）
-    response = _get_chat_chain().invoke({"messages": state["messages"]})
-    return {"messages": [response]}
 
+    Returns:
+        dict: {"messages": [AIMessage]}
+    """
+    memories = state.get("retrieved_memories", [])
+
+    if memories:
+        prompt = get_chat_system_prompt_with_memories(memories)
+    else:
+        prompt = get_chat_default_system_prompt()
+
+    llm = get_llm_client()
+    chain = prompt | llm
+    response = chain.invoke({"messages": state["messages"]})
+    return {"messages": [response]}

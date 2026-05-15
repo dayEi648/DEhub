@@ -7,3 +7,4 @@ class ChatState(MessagesState):
     """
     user_id: int = 0
     conversation_id: int | None = None
+    retrieved_memories: list[str] = []

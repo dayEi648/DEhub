@@ -43,25 +43,41 @@ def search_user_memories(
     user_id: int,
     query_embedding: list[float],
     top_k: int = 3,
+    max_distance: float | None = None,
 ) -> list[tuple[UserMemoryEmbedding, float]]:
     """
     基于余弦距离检索某用户的相关记忆。
 
     使用 pgvector 的 `<=>`（余弦距离）算子，距离越小越相似。
+    当传入 max_distance 时，只返回距离小于该值的记录。
+    余弦相似度 = 1 - 余弦距离，因此相似度 > 0.6 等价于 max_distance = 0.4。
+
+    只检索 created_at 在 1 年以内的记录，避免过期的画像干扰当前对话。
     """
+    # 动态构建 WHERE 子句
+    distance_where = ""
+    bind_kwargs: dict = {
+        "user_id": user_id,
+        "top_k": top_k,
+    }
+    if max_distance is not None:
+        distance_where = "AND embedding <=> :embedding < :max_distance"
+        bind_kwargs["max_distance"] = max_distance
+
     stmt = text(
-        """
+        f"""
         SELECT id, user_id, conversation_id, memory_type, content_text, embedding, created_at,
                embedding <=> :embedding AS distance
         FROM user_memory_embeddings
         WHERE user_id = :user_id
+          AND created_at >= NOW() - INTERVAL '1 year'
+        {distance_where}
         ORDER BY embedding <=> :embedding
         LIMIT :top_k
         """
     ).bindparams(
         bindparam("embedding", query_embedding, type_=Vector(1024)),
-        user_id=user_id,
-        top_k=top_k,
+        **bind_kwargs,
     )
 
     rows = db.execute(stmt).all()
