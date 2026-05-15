@@ -1,6 +1,6 @@
 import json
 from typing import List
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -16,10 +16,6 @@ from app.schemas.blog_post import (
     GenerateSummaryResponse,
 )
 from app.services.blog_post_service import BlogPostService
-from app.services.vector_sync_service import (
-    sync_blog_post_embedding,
-    sync_cleanup_orphaned_embeddings,
-)
 
 router = APIRouter(prefix="/blog_posts", tags=["博客文章管理"])
 
@@ -40,7 +36,6 @@ def parse_blog_post_update(post_in: str = Form(..., description="博客文章更
 async def create_blog_post(
     post_in: BlogPostCreate = Depends(parse_blog_post_create),
     file: UploadFile | None = File(None, description="封面图片文件，最大 5MB，支持自动压缩"),
-    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostResponse:
@@ -49,14 +44,12 @@ async def create_blog_post(
     """
     service = BlogPostService(db)
     post = await service.create_blog_post(post_in, current_user, file)
-    background_tasks.add_task(sync_blog_post_embedding, post.id)
     return post
 
 
 @router.post("/{post_id}/publish", response_model=BlogPostResponse)
 def publish_blog_post(
     post_id: int,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostResponse:
@@ -65,14 +58,12 @@ def publish_blog_post(
     """
     service = BlogPostService(db)
     post = service.publish_blog_post(post_id, current_user)
-    background_tasks.add_task(sync_blog_post_embedding, post.id)
     return post
 
 
 @router.post("/{post_id}/unpublish", response_model=BlogPostResponse)
 def unpublish_blog_post(
     post_id: int,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostResponse:
@@ -81,7 +72,6 @@ def unpublish_blog_post(
     """
     service = BlogPostService(db)
     post = service.unpublish_blog_post(post_id, current_user)
-    background_tasks.add_task(sync_blog_post_embedding, post.id)
     return post
 
 
@@ -90,7 +80,6 @@ async def update_blog_post(
     post_id: int,
     post_in: BlogPostUpdate = Depends(parse_blog_post_update),
     file: UploadFile | None = File(None, description="封面图片文件，最大 5MB，支持自动压缩"),
-    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostResponse:
@@ -99,14 +88,12 @@ async def update_blog_post(
     """
     service = BlogPostService(db)
     post = await service.update_blog_post(post_id, post_in, current_user, file)
-    background_tasks.add_task(sync_blog_post_embedding, post.id)
     return post
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
 def soft_delete_blog_post(
     post_id: int,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
@@ -115,14 +102,12 @@ def soft_delete_blog_post(
     """
     service = BlogPostService(db)
     service.soft_delete_blog_post(post_id, current_user)
-    background_tasks.add_task(sync_blog_post_embedding, post_id)
     return None
 
 
 @router.delete("/{post_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 async def hard_delete_blog_post(
     post_id: int,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
@@ -131,13 +116,11 @@ async def hard_delete_blog_post(
     """
     service = BlogPostService(db)
     await service.hard_delete_blog_post(post_id, current_user)
-    background_tasks.add_task(sync_blog_post_embedding, post_id)
     return None
 
 
 @router.delete("/cleanup")
 def cleanup_deleted_posts(
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -148,7 +131,6 @@ def cleanup_deleted_posts(
     """
     service = BlogPostService(db)
     count = service.cleanup_deleted_posts(current_user)
-    background_tasks.add_task(sync_cleanup_orphaned_embeddings)
     return {"deleted_count": count}
 
 

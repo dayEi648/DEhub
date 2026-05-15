@@ -3,7 +3,6 @@ from app.models.ai_conversation import AIConversation
 from app.models.blog_category import BlogCategory
 from app.models.blog_post import BlogPost
 from app.models.blog_post_embedding import BlogPostEmbedding
-from app.models.user_memory_embedding import UserMemoryEmbedding
 from app.models.comment import Comment
 from app.models.conversation_message import ConversationMessage
 from app.models.forum_post import ForumPost

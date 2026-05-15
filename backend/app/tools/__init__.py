@@ -1,4 +1,2 @@
-from app.tools.blog_search import search_blog
-from app.tools.web_search import search_web
-
-__all__ = ["search_blog", "search_web"]
+# LangChain Tool 定义（供 LLM Tool Calling 使用）
+# 当前暂无工具，后续添加时在此导出

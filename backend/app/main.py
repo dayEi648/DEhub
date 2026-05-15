@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, chat, user_favorites, uploads
+from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, ai_chat as chat, user_favorites, uploads
 from app.core.exceptions import (
     http_exception_handler,
     validation_exception_handler,
@@ -13,7 +13,6 @@ from app.infrastructure.llm_client import (
     init_llm_client, close_llm_client,
     init_llm_small_client, close_llm_small_client,
 )
-from app.infrastructure.embedding_client import init_embedding_client, close_embedding_client
 from contextlib import asynccontextmanager
 
 
@@ -23,10 +22,8 @@ async def lifespan(app: FastAPI):
     await init_redis_client()
     await init_llm_client()
     await init_llm_small_client()
-    await init_embedding_client()
     yield
     # 关闭时
-    await close_embedding_client()
     await close_llm_small_client()
     await close_llm_client()
     await close_redis_client()
