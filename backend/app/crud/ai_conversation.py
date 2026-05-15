@@ -27,6 +27,46 @@ def soft_delete_ai_conversation(db: Session, conversation_id: int) -> int:
     return result
 
 
+def update_summary_message_count(
+    db: Session, conversation_id: int, count: int
+) -> int:
+    """更新对话的 summary_message_count 字段。"""
+    result = (
+        db.query(AIConversation)
+        .filter(AIConversation.id == conversation_id)
+        .update({"summary_message_count": count}, synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+
+def update_conversation_title(
+    db: Session, conversation_id: int, title: str
+) -> int:
+    """更新对话标题。"""
+    result = (
+        db.query(AIConversation)
+        .filter(AIConversation.id == conversation_id)
+        .update({"title": title}, synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+
+def update_last_message_at(
+    db: Session, conversation_id: int
+) -> int:
+    """更新对话的 last_message_at 为当前时间。"""
+    from sqlalchemy import func
+    result = (
+        db.query(AIConversation)
+        .filter(AIConversation.id == conversation_id)
+        .update({"last_message_at": func.now()}, synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+
 def list_ai_conversations_by_user(
     db: Session, user_id: int, skip: int = 0, limit: int = 20
 ) -> tuple[list[AIConversation], int]:

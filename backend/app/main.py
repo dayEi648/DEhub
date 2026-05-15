@@ -13,6 +13,7 @@ from app.infrastructure.llm_client import (
     init_llm_client, close_llm_client,
     init_llm_small_client, close_llm_small_client,
 )
+from app.infrastructure.embedding_client import init_embedding_client, close_embedding_client
 from contextlib import asynccontextmanager
 
 
@@ -22,8 +23,10 @@ async def lifespan(app: FastAPI):
     await init_redis_client()
     await init_llm_client()
     await init_llm_small_client()
+    await init_embedding_client()
     yield
     # 关闭时
+    await close_embedding_client()
     await close_llm_small_client()
     await close_llm_client()
     await close_redis_client()

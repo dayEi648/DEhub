@@ -7,6 +7,7 @@ class ChatRequest(BaseModel):
     """AI对话入参"""
     conversation_id: Optional[int] = Field(default=None, description="对话ID，留空则创建新对话")
     user_input: str = Field(..., min_length=1, description="用户输入")
+    is_edit: bool = Field(default=False, description="是否为编辑已有消息，编辑时不触发标题生成")
 
 
 class ChatResponse(BaseModel):

@@ -26,3 +26,4 @@ def chat_node(state: ChatState) -> dict:
     # state["messages"] 已经包含完整历史（由 checkpointer 自动恢复）
     response = _get_chat_chain().invoke({"messages": state["messages"]})
     return {"messages": [response]}
+

@@ -43,3 +43,12 @@ def get_recent_conversation_messages(
         .all()
     )
     return list(reversed(msgs))
+
+
+def count_conversation_messages(db: Session, conversation_id: int) -> int:
+    """统计某对话的消息总条数。"""
+    return (
+        db.query(ConversationMessage)
+        .filter(ConversationMessage.conversation_id == conversation_id)
+        .count()
+    )

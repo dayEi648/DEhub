@@ -33,6 +33,12 @@ class AIConversation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+    summary_message_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    last_message_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     messages: Mapped[list["ConversationMessage"]] = relationship(
         "ConversationMessage",
