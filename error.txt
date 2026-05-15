@@ -1,0 +1,71 @@
+Graph stream failed: Error code: 400 - {'error': {'message': 'The `reasoning_content` in the thinking mode must be passed back to the API.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}
+SSE 流处理异常
+Traceback (most recent call last):
+  File "E:\Study2026\PythonProject\DEhub\backend\app\services\chat_graph_service.py", line 156, in stream_chat
+    async for event in self._graph.astream_events(
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 1607, in _astream_events_v1_v2
+    async for event in event_stream:
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\tracers\event_stream.py", line 1100, in _astream_events_implementation_v2
+    await task
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\tracers\event_stream.py", line 1055, in consume_astream
+    async for _ in event_streamer.tap_output_aiter(run_id, stream):
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\tracers\event_stream.py", line 222, in tap_output_aiter
+    async for chunk in output:
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langgraph\pregel\main.py", line 3407, in astream
+    async for _ in runner.atick(
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langgraph\pregel\_runner.py", line 396, in atick
+    await arun_with_retry(
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langgraph\pregel\_retry.py", line 703, in arun_with_retry
+    async for _ in task.proc.astream(task.input, config):
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langgraph\_internal\_runnable.py", line 867, in astream
+    output = await asyncio.create_task(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langgraph\_internal\_runnable.py", line 932, in _consume_aiter
+    async for chunk in it:
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\tracers\event_stream.py", line 199, in tap_output_aiter
+    first = await anext(output, sentinel)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 1767, in atransform
+    async for ichunk in input:
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 1767, in atransform
+    async for ichunk in input:
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 5428, in atransform
+    async for output in self._atransform_stream_with_config(
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 2567, in _atransform_stream_with_config
+    final_input: Input | None = await anext(input_for_tracing, None)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\utils\aiter.py", line 137, in tee_peer
+    item = await anext(iterator)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 6237, in atransform
+    async for item in self.bound.atransform(
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\runnables\base.py", line 1785, in atransform
+    async for output in self.astream(final, config, **kwargs):
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_core\language_models\chat_models.py", line 907, in astream
+    async for chunk in self._astream(
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_openai\chat_models\base.py", line 3361, in _astream
+    async for chunk in super()._astream(*args, **kwargs):
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_openai\chat_models\base.py", line 1863, in _astream
+    _handle_openai_bad_request(e)
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\langchain_openai\chat_models\base.py", line 1834, in _astream
+    response = await self.async_client.create(**payload)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\openai\resources\chat\completions\completions.py", line 2739, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\openai\_base_client.py", line 1931, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Study2026\PythonProject\DEhub\backend\.venv\Lib\site-packages\openai\_base_client.py", line 1716, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': 'The `reasoning_content` in the thinking mode must be passed back to the API.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}
+During task with name 'model' and id '98d615a5-88b9-8436-04ff-8db641a98390'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\Study2026\PythonProject\DEhub\backend\app\api\v1\chat.py", line 50, in _generate
+    async for chunk in service.stream_chat(
+  File "E:\Study2026\PythonProject\DEhub\backend\app\services\chat_graph_service.py", line 212, in stream_chat
+    raise HTTPException(
+fastapi.exceptions.HTTPException: 503: AI 服务暂时不可用，请稍后重试

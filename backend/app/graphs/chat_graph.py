@@ -2,34 +2,27 @@ import asyncio
 import logging
 from typing import Any
 
-import httpx
 from fastapi import HTTPException, status
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.runnables import RunnableLambda
 from langgraph.checkpoint.base import RunnableConfig
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy import func
 
-from app.core.config import settings
 from app.crud import ai_conversation as conv_crud
-from langchain_core.language_models.chat_models import BaseChatModel
 from app.models.ai_conversation import AIConversation
 from app.models.conversation_message import ConversationMessage
 from app.prompts.chat_prompts import (
-    BLOG_KNOWLEDGE_HEADER,
-    BLOG_KNOWLEDGE_LABEL,
     DEFAULT_SYSTEM,
     MEMORY_REFERENCE_HEADER,
     MEMORY_SUMMARY_LABEL,
     MEMORY_TURN_LABEL,
     SECURITY_CONSTRAINTS,
     TITLE_GENERATION,
-    WEB_SEARCH_HEADER,
-    WEB_SEARCH_LABEL,
-    WEB_SEARCH_QUERY_SPLIT,
 )
 from app.services.user_memory_service import UserMemoryService
-from app.services.vector_search_service import BlogVectorSearchService
 from app.tools import search_blog, search_web
 
 logger = logging.getLogger(__name__)
@@ -69,24 +62,6 @@ def _format_memories(memories: list) -> list[str]:
     ]
 
 
-def _format_blog_knowledge(results: list) -> list[str]:
-    """将博客检索结果格式化为文本块列表。"""
-    if not results:
-        return []
-    formatted: list[str] = []
-    for result in results:
-        title = result.title or ""
-        slug = result.slug or ""
-        summary = result.summary or ""
-        parts = [f"{BLOG_KNOWLEDGE_LABEL} {title}"]
-        if slug:
-            parts.append(f"链接：/blog/{slug}")
-        if summary:
-            parts.append(summary)
-        formatted.append("\n".join(parts))
-    return formatted
-
-
 def _build_system_prompt(memory_prompts: list[str]) -> str | None:
     """将默认 System Prompt 与长期记忆拼接，并追加安全约束。"""
     sections: list[str] = []
@@ -111,75 +86,13 @@ def _require_owner(conv: AIConversation, user_id: int) -> None:
 
 
 # ===================================================================
-# 联网搜索辅助函数
+# 工具注册表
 # ===================================================================
 
-_IQS_ENDPOINT = "https://cloud-iqs.aliyuncs.com/search/unified"
-_IQS_TIMEOUT = 30
-
-
-async def _iqs_search_single(query: str, api_key: str) -> list[dict]:
-    """对单个 query 调用阿里云 IQS Search，返回 pageItems 列表。"""
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "query": query,
-        "engineType": "Generic",
-        "numResults": 10,
-        "contents": {
-            "mainText": False,
-            "markdownText": False,
-            "richMainBody": False,
-            "summary": False,
-            "rerankScore": True,
-        },
-    }
-    async with httpx.AsyncClient(timeout=_IQS_TIMEOUT) as client:
-        resp = await client.post(_IQS_ENDPOINT, headers=headers, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-        return data.get("pageItems", [])
-
-
-async def _split_search_queries(query: str, llm_small: BaseChatModel) -> list[str]:
-    """使用 small LLM 将用户 query 拆分为 1~5 个搜索片段。"""
-    try:
-        msg = await llm_small.ainvoke(
-            [
-                SystemMessage(content=WEB_SEARCH_QUERY_SPLIT),
-                HumanMessage(content=query),
-            ]
-        )
-        lines = [line.strip() for line in (msg.content or "").splitlines() if line.strip()]
-        return lines[:5] if lines else [query]
-    except Exception:
-        logger.warning("Query 拆分失败，回退到原始 query")
-        return [query]
-
-
-def _format_web_search_results(results: list[dict]) -> str:
-    """将 IQS pageItems 列表格式化为文本块。"""
-    if not results:
-        return "未找到相关网络搜索结果。"
-
-    lines: list[str] = []
-    for item in results:
-        title = item.get("title", "")
-        snippet = item.get("snippet", "")
-        link = item.get("link", "")
-        hostname = item.get("hostname", "")
-        parts = [f"{WEB_SEARCH_LABEL} {title}"]
-        if hostname:
-            parts.append(f"来源：{hostname}")
-        if snippet:
-            parts.append(snippet)
-        if link:
-            parts.append(f"链接：{link}")
-        lines.append("\n".join(parts))
-
-    return "\n\n".join(lines)
+TOOL_REGISTRY = {
+    "search_blog": search_blog,
+    "search_web": search_web,
+}
 
 
 # ===================================================================
@@ -277,24 +190,25 @@ def _build_retrieve_node():
 def _build_call_model_node(llm: BaseChatModel):
     """构建【调用 LLM】节点。
 
-    统一使用 .ainvoke() 调用 LLM，由外层 astream_events 捕获流式 token。
+    返回 Runnable 序列，使外层 astream_events 能穿透到 LLM 内部，
+    从而捕获真正的 token 级流式事件（on_chat_model_stream）。
     """
 
-    async def call_model_node(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
+    def _prepare_messages(state: ChatState) -> list:
         messages = list(state.get("messages", []))
         effective_system = state.get("effective_system_prompt")
-
         if effective_system:
             messages = [SystemMessage(content=effective_system), *messages]
+        return messages
 
-        response = await llm.ainvoke(messages)
-        return {"messages": [response]}
+    def _wrap_output(msg) -> dict[str, Any]:
+        return {"messages": [msg]}
 
-    return call_model_node
+    return RunnableLambda(_prepare_messages) | llm | RunnableLambda(_wrap_output)
 
 
-def _build_tools_node(llm_small: BaseChatModel):
-    """构建【工具执行】节点。"""
+def _build_tools_node():
+    """构建【工具执行】节点（通用 registry 调用）。"""
 
     async def tools_node(state: ChatState, config: RunnableConfig) -> dict[str, Any]:
         messages = state.get("messages", [])
@@ -305,68 +219,33 @@ def _build_tools_node(llm_small: BaseChatModel):
         if not isinstance(last_msg, AIMessage) or not last_msg.tool_calls:
             return {}
 
-        db = config["configurable"]["db"]
         tool_results: list[ToolMessage] = []
-
         retrieved_sources: list[dict] = []
 
+        # 构造带 collector 的 config，供 tool 写入来源等元数据
+        base_configurable = dict(config.get("configurable", {}))
+        base_configurable["_sources_collector"] = retrieved_sources
+        config_with_collector = {**config, "configurable": base_configurable}
+
         for tc in last_msg.tool_calls:
-            if tc["name"] == "search_blog":
-                query = tc["args"].get("query", "")
-                try:
-                    blog_service = BlogVectorSearchService(db)
-                    blog_results = await blog_service.search(query, top_k=3)
-                    knowledge = _format_blog_knowledge(blog_results)
-                    content = "\n\n".join(knowledge) if knowledge else "未找到相关博客文章。"
-                    retrieved_sources.extend(
-                        [
-                            {
-                                "post_id": r.post_id,
-                                "title": r.title,
-                                "similarity_score": r.similarity_score,
-                            }
-                            for r in blog_results
-                        ]
-                    )
-                except Exception:
-                    logger.exception("博客向量检索失败")
-                    content = "博客检索服务暂时不可用。"
-                tool_results.append(ToolMessage(content=content, tool_call_id=tc["id"]))
-            elif tc["name"] == "search_web":
-                original_query = tc["args"].get("query", "")
-                try:
-                    # 1. 拆分 query
-                    sub_queries = await _split_search_queries(original_query, llm_small)
-                    # 2. 并行搜索
-                    api_key = settings.IQS_API_KEY
-                    tasks = [_iqs_search_single(q, api_key) for q in sub_queries]
-                    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-                    # 3. 合并、去重、排序
-                    seen_links: set[str] = set()
-                    merged: list[dict] = []
-                    for items in raw_results:
-                        if isinstance(items, Exception):
-                            logger.warning("某条子查询搜索失败: %s", items)
-                            continue
-                        for item in items:
-                            link = item.get("link")
-                            if link and link not in seen_links:
-                                seen_links.add(link)
-                                merged.append(item)
-                    merged.sort(key=lambda x: x.get("rerankScore", 0), reverse=True)
-                    # 4. 格式化
-                    content = _format_web_search_results(merged)
-                except Exception:
-                    logger.exception("联网搜索执行失败")
-                    content = "联网搜索服务暂时不可用。"
-                tool_results.append(ToolMessage(content=content, tool_call_id=tc["id"]))
-            else:
+            tool_func = TOOL_REGISTRY.get(tc["name"])
+            if tool_func is None:
                 tool_results.append(
                     ToolMessage(
                         content=f"未知工具: {tc['name']}",
                         tool_call_id=tc["id"],
                     )
                 )
+                continue
+
+            try:
+                result = await tool_func.ainvoke(tc["args"], config_with_collector)
+                content = result if isinstance(result, str) else str(result)
+            except Exception:
+                logger.exception("Tool %s 执行失败", tc["name"])
+                content = f"工具 {tc['name']} 执行失败。"
+
+            tool_results.append(ToolMessage(content=content, tool_call_id=tc["id"]))
 
         return {"messages": tool_results, "retrieved_sources": retrieved_sources}
 
@@ -443,6 +322,10 @@ def _build_persist_node():
                     meta = {}
                     if getattr(msg, "tool_calls", None):
                         meta["tool_calls"] = msg.tool_calls
+                    # 保存 reasoning_content（DeepSeek 等 thinking 模型要求后续请求原样传回）
+                    reasoning_content = msg.additional_kwargs.get("reasoning_content")
+                    if reasoning_content:
+                        meta["reasoning_content"] = reasoning_content
                     # 仅在最后一条 assistant 消息上附加检索来源
                     if state.get("retrieved_sources") and msg is messages[-1]:
                         meta["retrieved_sources"] = state["retrieved_sources"]
@@ -530,7 +413,7 @@ def build_chat_graph(
 
     Args:
         llm: 主对话模型（BaseChatModel）
-        llm_small: 小模型（用于标题生成）
+        llm_small: 小模型（用于标题生成和 query 拆分）
         checkpointer: LangGraph Checkpointer 实例（如 RedisCheckpointSaver）
 
     Returns:
@@ -547,7 +430,7 @@ def build_chat_graph(
     builder.add_node("prepare", _build_prepare_node(llm_small))
     builder.add_node("retrieve", _build_retrieve_node())
     builder.add_node("model", _build_call_model_node(llm_with_tools))
-    builder.add_node("tools", _build_tools_node(llm_small))
+    builder.add_node("tools", _build_tools_node())
     builder.add_node("persist", _build_persist_node())
 
     builder.set_entry_point("prepare")

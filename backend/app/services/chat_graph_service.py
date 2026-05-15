@@ -129,6 +129,11 @@ class ChatGraphService:
                         kwargs = {"content": msg.content}
                         if msg.meta and msg.meta.get("tool_calls"):
                             kwargs["tool_calls"] = msg.meta["tool_calls"]
+                        # 恢复 reasoning_content（DeepSeek 等 thinking 模型需要）
+                        if msg.meta and msg.meta.get("reasoning_content"):
+                            kwargs["additional_kwargs"] = {
+                                "reasoning_content": msg.meta["reasoning_content"]
+                            }
                         history_messages.append(AIMessage(**kwargs))
                     elif msg.role == "tool":
                         tool_call_id = ""
@@ -146,7 +151,7 @@ class ChatGraphService:
             "title_prompt": content,
         }
 
-        config = {"configurable": {"thread_id": thread_id, "db": self.db}}
+        config = {"configurable": {"thread_id": thread_id, "db": self.db, "llm_small": self._llm_small}}
 
         try:
             seen_stream = False

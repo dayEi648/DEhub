@@ -43,6 +43,28 @@ def _patched_convert_message_to_dict(message, api="chat/completions"):
 
 _lc_openai_base._convert_message_to_dict = _patched_convert_message_to_dict
 
+# ------------------------------------------------------------------
+# 补充 patch：流式模式下 _convert_delta_to_message_chunk 同样需要
+# 提取 reasoning_content，否则 astream 产生的 AIMessageChunk 会丢失该字段。
+# merge_dicts 对字符串使用 += 累加，可将各 chunk 的 reasoning_content 增量
+# 拼接为完整内容。
+# ------------------------------------------------------------------
+
+_original_convert_delta_to_message_chunk = (
+    _lc_openai_base._convert_delta_to_message_chunk
+)
+
+
+def _patched_convert_delta_to_message_chunk(_dict, default_class):
+    msg_chunk = _original_convert_delta_to_message_chunk(_dict, default_class)
+    reasoning_content = _dict.get("reasoning_content")
+    if reasoning_content and hasattr(msg_chunk, "additional_kwargs"):
+        msg_chunk.additional_kwargs["reasoning_content"] = reasoning_content
+    return msg_chunk
+
+
+_lc_openai_base._convert_delta_to_message_chunk = _patched_convert_delta_to_message_chunk
+
 _llm_client: ChatOpenAI | None = None
 _llm_small_client: ChatOpenAI | None = None
 
