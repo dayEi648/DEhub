@@ -65,6 +65,7 @@ def search_user_memories(
     bind_kwargs: dict = {
         "user_id": user_id,
         "top_k": top_k,
+        "retention_days": settings.MEMORY_RETENTION_DAYS,
     }
     if max_distance is not None:
         distance_where = "AND embedding <=> :embedding < :max_distance"
@@ -76,7 +77,7 @@ def search_user_memories(
                embedding <=> :embedding AS distance
         FROM user_memory_embeddings
         WHERE user_id = :user_id
-          AND created_at >= NOW() - INTERVAL '1 year'
+          AND created_at >= NOW() - INTERVAL ':retention_days days'
         {distance_where}
         ORDER BY embedding <=> :embedding
         LIMIT :top_k
@@ -85,7 +86,7 @@ def search_user_memories(
         bindparam(
             "embedding",
             query_embedding,
-            type_=Vector(settings.EMBEDDING_DIMENSION or 1024),
+            type_=Vector(settings.EMBEDDING_DIMENSION_EFFECTIVE),
         ),
         **bind_kwargs,
     )

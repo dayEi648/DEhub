@@ -21,7 +21,7 @@ class UserMemoryEmbedding(Base):
     memory_type: Mapped[str] = mapped_column(String(20), nullable=False)
     content_text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(
-        Vector(settings.EMBEDDING_DIMENSION or 1024), nullable=False
+        Vector(settings.EMBEDDING_DIMENSION_EFFECTIVE), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

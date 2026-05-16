@@ -3,6 +3,11 @@ from typing import Optional
 from datetime import datetime
 
 
+class _BaseChatSchema(BaseModel):
+    """Schema 公共配置"""
+    model_config = {"from_attributes": True}
+
+
 class ChatRequest(BaseModel):
     """AI对话入参"""
     conversation_id: Optional[int] = Field(default=None, description="对话ID，留空则创建新对话")
@@ -16,14 +21,13 @@ class ChatResponse(BaseModel):
     conversation_id: int = Field(..., description="对话ID")
 
 
-class ConversationItem(BaseModel):
+class ConversationItem(_BaseChatSchema):
     """对话列表单项"""
-    model_config = {"from_attributes": True}
-
     id: int = Field(..., description="对话ID")
     title: str = Field(..., description="对话标题")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
+    last_message_at: datetime | None = Field(None, description="最后消息时间")
 
 
 class ConversationListResponse(BaseModel):
@@ -32,12 +36,11 @@ class ConversationListResponse(BaseModel):
     total: int = Field(..., description="总对话数")
 
 
-class MessageResponse(BaseModel):
+class MessageResponse(_BaseChatSchema):
     """对话消息出参"""
-    model_config = {"from_attributes": True}
-
     id: int = Field(..., description="消息ID")
     conversation_id: int = Field(..., description="对话ID")
     role: str = Field(..., description="消息角色")
     content: str = Field(..., description="消息内容")
+    meta: dict | None = Field(None, description="消息元数据（工具调用等）")
     created_at: datetime = Field(..., description="创建时间")

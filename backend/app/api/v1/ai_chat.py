@@ -63,11 +63,17 @@ async def list_messages(
     conversation_id: int,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
+    include_hidden: bool = Query(
+        default=False,
+        description="是否包含隐藏的中间消息（如 tool_calls 决策消息、ToolMessage）",
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[MessageResponse]:
     """
     获取某对话的消息列表（按时间正序）。
+    默认过滤掉 AI 流程中的中间隐藏消息，供前端展示使用。
+    设置 include_hidden=true 可查看完整消息流（供管理监控）。
     """
     service = ChatService(db)
     messages = await service.get_messages(
@@ -75,6 +81,7 @@ async def list_messages(
         user_id=current_user.id,
         skip=skip,
         limit=limit,
+        include_hidden=include_hidden,
     )
     return messages
 

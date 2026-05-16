@@ -40,6 +40,21 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = Field(default="")
     EMBEDDING_DIMENSION: int | None = Field(default=1024)
     EMBEDDING_TIMEOUT: int = Field(default=60)
+    EMBEDDING_CHUNK_SIZE: int = Field(default=25)
+
+    # AI Chat 记忆检索参数
+    MEMORY_RETRIEVAL_TOP_K: int = Field(default=3)
+    MEMORY_RETRIEVAL_MAX_DISTANCE: float = Field(default=0.4)
+    MEMORY_RETENTION_DAYS: int = Field(default=365)
+
+    # RAG 博客检索参数
+    RAG_BLOG_TOP_K: int = Field(default=3)
+
+    # 联网搜索参数
+    IQS_NUM_RESULTS: int = Field(default=10)
+
+    # 前端路由配置（供后端生成跳转链接）
+    FRONTEND_BLOG_DETAIL_PATH: str = Field(default="/blog/{slug}")
 
     APP_NAME: str = Field(default="DE Hub")
     APP_VERSION: str = Field(default="0.0.1")
@@ -80,6 +95,11 @@ class Settings(BaseSettings):
 
     # RAG 向量检索相似度阈值（低于此值的结果不会注入 AI 上下文）
     RAG_MIN_SIMILARITY: float = Field(default=0.6)
+
+    @property
+    def EMBEDDING_DIMENSION_EFFECTIVE(self) -> int:
+        """返回生效的向量维度（若未配置则使用默认值 1024）。"""
+        return self.EMBEDDING_DIMENSION or 1024
 
     @property
     def DATABASE_URL(self) -> str:

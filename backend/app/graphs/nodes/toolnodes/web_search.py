@@ -30,7 +30,7 @@ def _iqs_search_single(query: str) -> list[dict]:
     payload = {
         "query": query,
         "engineType": "Generic",
-        "numResults": 10,
+        "numResults": settings.IQS_NUM_RESULTS,
         "contents": {
             "mainText": False,
             "markdownText": False,

@@ -1,16 +1,9 @@
 from langchain_openai import OpenAIEmbeddings
 from app.core.config import settings
+from app.infrastructure._utils import normalize_openai_base_url
 
 
 _embedding_client: OpenAIEmbeddings | None = None
-
-
-def _normalize_base_url(url: str) -> str:
-    """确保 OpenAI 兼容 base_url 以 /v1 结尾。"""
-    url = url.rstrip("/")
-    if not url.endswith("/v1"):
-        url = url + "/v1"
-    return url
 
 
 async def init_embedding_client() -> None:
@@ -18,9 +11,9 @@ async def init_embedding_client() -> None:
     global _embedding_client
     kwargs = {
         "api_key": settings.EMBEDDING_API_KEY,
-        "base_url": _normalize_base_url(settings.EMBEDDING_BASE_URL),
+        "base_url": normalize_openai_base_url(settings.EMBEDDING_BASE_URL),
         "model": settings.EMBEDDING_MODEL,
-        "chunk_size": 25,  # 阿里云百炼 text-embedding-v4 单次上限
+        "chunk_size": settings.EMBEDDING_CHUNK_SIZE,
         # 阿里云百炼兼容层不支持传入 token IDs（整数列表），
         # 必须直接传原始字符串，因此关闭上下文长度检查。
         "check_embedding_ctx_length": False,

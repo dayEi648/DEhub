@@ -62,13 +62,13 @@ class BlogPostService:
             slug = generate_unique_slug(
                 self.db, post_in.title, exists_checker=blog_post_crud.get_blog_post_by_slug
             )
-            post_in = BlogPostCreate(**{**post_in.model_dump(), "slug": slug})
+            post_in = post_in.model_copy(update={"slug": slug})
         else:
             self._ensure_slug_unique(post_in.slug)
 
         if file:
             cover_url = await upload_blog_cover(file)
-            post_in = BlogPostCreate(**{**post_in.model_dump(), "cover_image_url": cover_url})
+            post_in = post_in.model_copy(update={"cover_image_url": cover_url})
 
         db_post = blog_post_crud.create_blog_post(self.db, post_in)
 
@@ -136,7 +136,7 @@ class BlogPostService:
             if db_post.cover_image_url:
                 await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
             cover_url = await upload_blog_cover(file)
-            post_in.cover_image_url = cover_url
+            post_in = post_in.model_copy(update={"cover_image_url": cover_url})
 
         updated = blog_post_crud.update_blog_post(self.db, db_post, post_in)
 

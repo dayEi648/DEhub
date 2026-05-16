@@ -23,7 +23,7 @@ class BlogPostEmbedding(Base):
         nullable=False,
     )
     embedding: Mapped[list[float]] = mapped_column(
-        Vector(settings.EMBEDDING_DIMENSION or 1024), nullable=False
+        Vector(settings.EMBEDDING_DIMENSION_EFFECTIVE), nullable=False
     )
     content_hash: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(

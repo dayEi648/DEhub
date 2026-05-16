@@ -10,6 +10,7 @@ from app.crud import ai_conversation as conv_crud
 from app.crud import conversation_message as msg_crud
 from app.db.session import SessionLocal
 from app.graphs.builders.chat_builder import get_chat_graph
+from app.infrastructure.checkpoint_client import delete_checkpoint
 from app.infrastructure.llm_client import get_llm_small_client
 from app.models.ai_conversation import AIConversation
 from app.prompts.chat_prompts import CONVERSATION_TITLE_PROMPT
@@ -37,10 +38,28 @@ class ChatService:
     # 每达到多少条消息就重新生成用户画像摘要
     _SUMMARY_INTERVAL = 6
 
+    # 标题重生成阈值（秒）：距上次消息超过此时长则重新生成标题
+    _TITLE_REGENERATE_THRESHOLD_SECONDS = 300
+
+    # 生成标题的最大长度（字符）
+    _TITLE_MAX_LENGTH = 20
+
+    @staticmethod
+    def _extract_ai_content(msg: AIMessage) -> str:
+        """从 AIMessage 中提取可展示的文本内容。"""
+        if isinstance(msg.content, str):
+            content = msg.content or ""
+        else:
+            content = ""
+        if not content:
+            content = msg.additional_kwargs.get("reasoning_content", "") or ""
+        return content
+
     def __init__(self, db: Session):
         self.db = db
         self.graph = get_chat_graph()
         self.memory_service = UserMemoryService(db)
+        self._background_tasks: set[asyncio.Task] = set()
 
     async def chat(self, chat_in: ChatRequest, user_id: int) -> ChatResponse:
         """
@@ -71,7 +90,7 @@ class ChatService:
             conversation_id = chat_in.conversation_id
 
         # 持久化用户消息
-        user_msg = await asyncio.to_thread(
+        await asyncio.to_thread(
             msg_crud.create_conversation_message,
             self.db,
             conversation_id,
@@ -80,6 +99,14 @@ class ChatService:
         )
 
         config = {"configurable": {"thread_id": conversation_id}}
+
+        # 获取调用前的 checkpoint 状态，用于计算本轮新增消息数量
+        try:
+            state_before = await self.graph.aget_state(config)
+            history_len = len(state_before.values.get("messages", [])) if state_before else 0
+        except Exception:
+            logger.exception("获取 checkpoint 状态失败，假设为新对话")
+            history_len = 0
 
         try:
             result = await self.graph.ainvoke(
@@ -93,6 +120,7 @@ class ChatService:
             logger.exception("Graph 调用失败，保留用户消息")
             raise
 
+        # 兜底检查：确保 Graph 正常结束于 AIMessage
         final_msg = result["messages"][-1]
         if not isinstance(final_msg, AIMessage):
             logger.error(
@@ -102,27 +130,38 @@ class ChatService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="AI 回复生成异常",
             )
-        ai_content = (
-            final_msg.content or ""
-            if isinstance(final_msg.content, str)
-            else ""
-        )
-        # DeepSeek 等 thinking 模型可能把内容放在 reasoning_content 中
-        if not ai_content and isinstance(final_msg, AIMessage):
-            ai_content = final_msg.additional_kwargs.get("reasoning_content", "") or ""
 
-        # 持久化 AI 回复
-        await asyncio.to_thread(
-            msg_crud.create_conversation_message,
-            self.db,
-            conversation_id,
-            "assistant",
-            ai_content,
-        )
+        # 遍历本轮严格新增的消息，分类持久化
+        for msg in result["messages"][history_len:]:
+            if isinstance(msg, HumanMessage):
+                # 用户输入已在调用 Graph 之前持久化，跳过
+                continue
 
-        # 持久化本轮产生的 ToolMessage（工具调用结果）
-        for msg in result["messages"]:
-            if isinstance(msg, ToolMessage):
+            if isinstance(msg, AIMessage):
+                content = self._extract_ai_content(msg)
+                metadata = None
+                if msg.tool_calls:
+                    metadata = {
+                        "tool_calls": [
+                            {
+                                "id": tc.get("id"),
+                                "name": tc.get("name"),
+                                "args": tc.get("args"),
+                            }
+                            for tc in msg.tool_calls
+                        ],
+                        "display": False,
+                    }
+                await asyncio.to_thread(
+                    msg_crud.create_conversation_message,
+                    self.db,
+                    conversation_id,
+                    "assistant",
+                    content,
+                    metadata=metadata,
+                )
+
+            elif isinstance(msg, ToolMessage):
                 await asyncio.to_thread(
                     msg_crud.create_conversation_message,
                     self.db,
@@ -132,24 +171,33 @@ class ChatService:
                     metadata={
                         "tool_call_id": msg.tool_call_id,
                         "name": msg.name,
+                        "display": False,
                     },
                 )
 
         # 标题生成和画像摘要改为后台异步执行，不阻塞响应
         if not chat_in.is_edit:
-            asyncio.create_task(
+            task = asyncio.create_task(
                 self._run_in_new_session(
                     self._ensure_title_async, chat_in, conversation_id
                 )
             )
-        asyncio.create_task(
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+
+        task = asyncio.create_task(
             self._run_in_new_session(
                 self._maybe_sync_summary_async, user_id, conversation_id
             )
         )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+        # 提取最终回复文本用于接口返回
+        final_content = self._extract_ai_content(final_msg)
 
         return ChatResponse(
-            response=ai_content,
+            response=final_content,
             conversation_id=conversation_id,
         )
 
@@ -189,14 +237,11 @@ class ChatService:
 
             # 判断是否需要重新生成标题
             should_regenerate = False
-            if chat_in.conversation_id is None:
-                should_regenerate = True
-            elif last_at is not None:
-                elapsed = (now - last_at).total_seconds()
-                if elapsed > 300:  # 5 分钟
-                    should_regenerate = True
-            else:
-                should_regenerate = True
+            should_regenerate = (
+                chat_in.conversation_id is None
+                or last_at is None
+                or (now - last_at).total_seconds() > self._TITLE_REGENERATE_THRESHOLD_SECONDS
+            )
 
             if should_regenerate:
                 title = await self._generate_title_async(chat_in.user_input)
@@ -226,7 +271,7 @@ class ChatService:
                 if isinstance(response.content, str)
                 else ""
             )
-            return title[:20] if title else ""
+            return title[:self._TITLE_MAX_LENGTH] if title else ""
         except Exception:
             return ""
 
@@ -311,24 +356,33 @@ class ChatService:
         )
 
     async def get_messages(
-        self, conversation_id: int, user_id: int, skip: int = 0, limit: int = 100
+        self,
+        conversation_id: int,
+        user_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        include_hidden: bool = False,
     ) -> list:
         """
-        获取对话消息列表
+        获取对话消息列表。
+
+        默认过滤掉 meta 中标记为 display=False 的中间消息（如 tool_calls 决策消息），
+        仅当 include_hidden=True 时返回完整消息流（供管理监控使用）。
+
         Args:
-            conversation_id: 对话ID
-            user_id: 用户ID
+            conversation_id: 对话 ID
+            user_id: 用户 ID
             skip: 跳过数量
             limit: 限制数量
+            include_hidden: 是否包含隐藏的中间消息
         Returns:
-            list
+            list[ConversationMessage]
         """
-        # 校验权限
         await asyncio.to_thread(
             self.get_conversation_if_owned, conversation_id, user_id
         )
 
-        return await asyncio.to_thread(
+        messages = await asyncio.to_thread(
             msg_crud.list_conversation_messages,
             self.db,
             conversation_id,
@@ -336,9 +390,17 @@ class ChatService:
             limit,
         )
 
+        if not include_hidden:
+            messages = [
+                m for m in messages
+                if not (m.meta and m.meta.get("display") is False)
+            ]
+
+        return messages
+
     async def delete_conversation(self, conversation_id: int, user_id: int) -> None:
         """
-        软删除对话，并清理 Checkpointer。
+        物理删除对话，并清理 Checkpointer。
         向量库中的画像摘要会被保留，作为长期记忆供后续检索使用。
 
         Args:
@@ -348,7 +410,7 @@ class ChatService:
         conv = await asyncio.to_thread(
             conv_crud.get_ai_conversation_by_id, self.db, conversation_id
         )
-        if conv is None or conv.is_deleted:
+        if conv is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="对话不存在",
@@ -356,8 +418,6 @@ class ChatService:
         _require_owner(conv, user_id)
 
         # 清理 Redis checkpoint，再物理删除 DB 记录（级联删除 messages）
-        from app.infrastructure.checkpoint_client import delete_checkpoint
-
         await delete_checkpoint(str(conversation_id))
         await asyncio.to_thread(
             conv_crud.delete_ai_conversation, self.db, conversation_id

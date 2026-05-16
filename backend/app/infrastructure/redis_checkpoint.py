@@ -28,17 +28,17 @@ _WRITE_PREFIX = "dehub:write"
 
 
 def _encode_typed(data: Any, serde: SerializerProtocol) -> bytes:
-    """将对象序列化为带类型标记的字节串。"""
+    """将对象序列化为带类型标记的字节串（类型标记长度使用 2 字节存储）。"""
     type_, bytes_data = serde.dumps_typed(data)
     type_bytes = type_.encode("utf-8")
-    return len(type_bytes).to_bytes(1, "big") + type_bytes + bytes_data
+    return len(type_bytes).to_bytes(2, "big") + type_bytes + bytes_data
 
 
 def _decode_typed(raw: bytes, serde: SerializerProtocol) -> Any:
-    """从字节串反序列化对象。"""
-    type_len = raw[0]
-    type_str = raw[1 : 1 + type_len].decode("utf-8")
-    bytes_data = raw[1 + type_len :]
+    """从字节串反序列化对象（类型标记长度使用 2 字节读取）。"""
+    type_len = int.from_bytes(raw[:2], "big")
+    type_str = raw[2 : 2 + type_len].decode("utf-8")
+    bytes_data = raw[2 + type_len :]
     return serde.loads_typed((type_str, bytes_data))
 
 
@@ -178,7 +178,7 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
         )
         keys: list[str] = []
         async for key in self._redis.scan_iter(match=pattern):
-            keys.append(key.decode() if isinstance(key, bytes) else key)
+            keys.append(key)
 
         if not keys:
             return []
@@ -194,7 +194,7 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
         for key, raw in zip(keys, raw_values):
             if raw is None:
                 continue
-            raw_bytes = raw if isinstance(raw, bytes) else raw.encode()
+            raw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
             write_data = cast(Dict[str, Any], _decode_typed(raw_bytes, self.serde))
             writes.append(
                 (

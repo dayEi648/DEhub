@@ -6,11 +6,28 @@ from sqlalchemy.orm import Session
 
 from app.crud import user_memory_embedding as mem_crud
 from app.crud.conversation_message import list_conversation_messages
+from app.db.session import SessionLocal
 from app.infrastructure.embedding_client import get_embedding_client
 from app.infrastructure.llm_client import get_llm_small_client
 from app.prompts.chat_prompts import CONVERSATION_SUMMARY_PROMPT
 
 logger = logging.getLogger(__name__)
+
+
+def _save_summary(db_factory, user_id: int, conversation_id: int, summary: str, embedding: list[float]) -> None:
+    """在独立 Session 中删除旧画像并写入新画像，确保完整事务在同一线程内完成。"""
+    with db_factory() as db:
+        mem_crud.delete_memories_by_conversation(db, conversation_id, commit=False)
+        mem_crud.create_memory_embedding(
+            db,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            memory_type="summary",
+            content_text=summary,
+            embedding=embedding,
+            commit=False,
+        )
+        db.commit()
 
 
 class UserMemoryService:
@@ -50,7 +67,7 @@ class UserMemoryService:
                 self.db,
                 conversation_id,
                 skip=0,
-                limit=None,
+                limit=200,
             )
             if not messages:
                 return
@@ -80,29 +97,19 @@ class UserMemoryService:
                 return
             embedding = embeddings[0]
 
-            # 在同一事务中删除旧画像并插入新画像
+            # 在同一事务中删除旧画像并插入新画像（整个事务在同一线程内完成）
             await asyncio.to_thread(
-                mem_crud.delete_memories_by_conversation,
-                self.db,
+                _save_summary,
+                SessionLocal,
+                user_id,
                 conversation_id,
-                commit=False,
+                summary,
+                embedding,
             )
-            await asyncio.to_thread(
-                mem_crud.create_memory_embedding,
-                self.db,
-                user_id=user_id,
-                conversation_id=conversation_id,
-                memory_type="summary",
-                content_text=summary,
-                embedding=embedding,
-                commit=False,
-            )
-            await asyncio.to_thread(self.db.commit)
             logger.info(
                 "已同步画像摘要: user=%s conv=%s", user_id, conversation_id
             )
         except Exception:
-            await asyncio.to_thread(self.db.rollback)
             logger.exception(
                 "同步画像摘要失败: user=%s conv=%s", user_id, conversation_id
             )

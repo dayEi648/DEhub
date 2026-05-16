@@ -1,56 +1,42 @@
+import logging
+
 import redis.asyncio as aioredis
-from redis import Redis
 from app.core.config import settings
 
-redis_client: aioredis.Redis | None = None
-_sync_redis_client: Redis | None = None
+logger = logging.getLogger(__name__)
 
-def get_sync_redis_client() -> Redis:
-    """
-    获取同步 Redis 客户端（懒加载）
-    """
-    global _sync_redis_client
-    if _sync_redis_client is None:
-        _sync_redis_client = Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            password=settings.REDIS_PASSWORD or None,
-            db=settings.REDIS_DB,
-            decode_responses=True,
-        )
-    return _sync_redis_client
+redis_client: aioredis.Redis | None = None
+
 
 async def init_redis_client() -> None:
-    """
-    初始化 Redis 异步客户端。
-    """
+    """初始化 Redis 异步客户端。"""
     global redis_client
     redis_client = aioredis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         password=settings.REDIS_PASSWORD or None,
         db=settings.REDIS_DB,
+        decode_responses=True,
     )
     try:
         await redis_client.ping()
-        print("Redis 客户端初始化成功")
-    except Exception as e:
-        print(f"Redis 客户端初始化失败: {e}")
+        logger.info("Redis 客户端初始化成功")
+    except Exception:
+        logger.exception("Redis 客户端初始化失败")
         raise
 
+
 async def close_redis_client() -> None:
-    """
-    关闭Redis客户端
-    """
+    """关闭 Redis 异步客户端。"""
     global redis_client
-    if redis_client:
+    if redis_client is not None:
         await redis_client.close()
-    print("Redis客户端关闭成功")
+        logger.info("Redis 客户端关闭成功")
+    redis_client = None
+
 
 def get_redis_client() -> aioredis.Redis:
-    """
-    获取Redis客户端
-    """
-    if not redis_client:
-        raise ValueError("Redis客户端未初始化")
+    """获取已初始化的 Redis 异步客户端。"""
+    if redis_client is None:
+        raise ValueError("Redis 客户端未初始化")
     return redis_client

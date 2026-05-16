@@ -1,6 +1,7 @@
 import logging
 import threading
 
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.crud import user_memory_embedding as mem_crud
 from app.infrastructure.embedding_client import get_embedding_client
@@ -24,8 +25,8 @@ def retrieve_memory_node(state: ChatState) -> dict:
         dict: {"retrieved_memories": ["记忆文本1", "记忆文本2", ...]}
         即使没有结果也返回空列表，确保覆盖 checkpoint 中的旧值。
     """
-    user_id = state.get("user_id", 0)
-    if user_id <= 0:
+    user_id = state.get("user_id")
+    if user_id is None:
         return {"retrieved_memories": []}
 
     messages = state.get("messages", [])
@@ -55,8 +56,8 @@ def retrieve_memory_node(state: ChatState) -> dict:
             db=db,
             user_id=user_id,
             query_embedding=embedding,
-            top_k=3,
-            max_distance=0.4,
+            top_k=settings.MEMORY_RETRIEVAL_TOP_K,
+            max_distance=settings.MEMORY_RETRIEVAL_MAX_DISTANCE,
         )
         memories = [record.content_text for record, _distance in results]
         return {"retrieved_memories": memories}

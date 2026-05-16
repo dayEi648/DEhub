@@ -8,6 +8,7 @@ import logging
 
 from langchain_core.tools import tool
 
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.blog_post_embedding_service import BlogPostEmbeddingService
 
@@ -33,7 +34,7 @@ def search_blog(query: str) -> str:
     try:
         blog_service = BlogPostEmbeddingService(db)
         blog_results = blog_service.blog_post_embedding_search(
-            query.strip(), top_k=3
+            query.strip(), top_k=settings.RAG_BLOG_TOP_K
         )
 
         if not blog_results:
@@ -43,7 +44,8 @@ def search_blog(query: str) -> str:
         for result in blog_results:
             lines = [f"【博客文章】{result.title}"]
             if result.slug:
-                lines.append(f"链接：/blog/{result.slug}")
+                path = settings.FRONTEND_BLOG_DETAIL_PATH.format(slug=result.slug)
+                lines.append(f"链接：{path}")
             if result.summary:
                 lines.append(f"摘要：{result.summary}")
             lines.append(f"相似度：{result.similarity_score:.4f}")

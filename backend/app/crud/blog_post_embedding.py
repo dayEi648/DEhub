@@ -112,7 +112,7 @@ def search_similar(
         LIMIT :top_k
         """
     ).bindparams(
-        bindparam("embedding", query_embedding, type_=Vector(settings.EMBEDDING_DIMENSION or 1024)),
+        bindparam("embedding", query_embedding, type_=Vector(settings.EMBEDDING_DIMENSION_EFFECTIVE)),
         top_k=top_k,
     )
 
