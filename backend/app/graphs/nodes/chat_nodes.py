@@ -1,3 +1,4 @@
+import logging
 import threading
 
 from app.db.session import SessionLocal
@@ -44,6 +45,7 @@ def retrieve_memory_node(state: ChatState) -> dict:
     try:
         embedding = get_embedding_client().embed_query(str(query_text).strip())
     except Exception:
+        logging.getLogger(__name__).exception("用户记忆嵌入查询失败")
         return {"retrieved_memories": []}
 
     # 检索相似记忆（相似度 > 0.6 即距离 < 0.4）
@@ -59,6 +61,7 @@ def retrieve_memory_node(state: ChatState) -> dict:
         memories = [record.content_text for record, _distance in results]
         return {"retrieved_memories": memories}
     except Exception:
+        logging.getLogger(__name__).exception("用户记忆向量检索失败")
         return {"retrieved_memories": []}
     finally:
         db.close()
