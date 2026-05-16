@@ -90,9 +90,7 @@ class ChatService:
                 config=config,
             )
         except Exception:
-            # 核心路径失败时清理已保存的用户消息，避免"有问无答"
-            await asyncio.to_thread(self.db.delete, user_msg)
-            await asyncio.to_thread(self.db.commit)
+            logger.exception("Graph 调用失败，保留用户消息")
             raise
 
         final_msg = result["messages"][-1]
@@ -104,7 +102,14 @@ class ChatService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="AI 回复生成异常",
             )
-        ai_content = final_msg.content or "" if isinstance(final_msg.content, str) else ""
+        ai_content = (
+            final_msg.content or ""
+            if isinstance(final_msg.content, str)
+            else ""
+        )
+        # DeepSeek 等 thinking 模型可能把内容放在 reasoning_content 中
+        if not ai_content and isinstance(final_msg, AIMessage):
+            ai_content = final_msg.additional_kwargs.get("reasoning_content", "") or ""
 
         # 持久化 AI 回复
         await asyncio.to_thread(

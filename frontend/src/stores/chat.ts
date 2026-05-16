@@ -66,20 +66,30 @@ export const useChatStore = defineStore('chat', () => {
         user_input: userInput
       })
 
-      assistantMessage.content = data.response
+      // 通过 reactive proxy 更新，确保 Vue 能检测到变化
+      const lastIdx = currentMessages.value.length - 1
+      if (lastIdx >= 0) {
+        currentMessages.value[lastIdx].content = data.response
+      }
 
       if (data.conversation_id) {
         const cid = data.conversation_id
         currentConversationId.value = cid
         userMessage.conversation_id = cid
-        assistantMessage.conversation_id = cid
+        const assistantIdx = currentMessages.value.length - 1
+        if (assistantIdx >= 0) {
+          currentMessages.value[assistantIdx].conversation_id = cid
+        }
       }
 
       if (!conversationId) {
         await fetchConversations()
       }
     } catch (err: any) {
-      assistantMessage.content += '\n[发生错误]'
+      const lastIdx = currentMessages.value.length - 1
+      if (lastIdx >= 0) {
+        currentMessages.value[lastIdx].content += '\n[发生错误]'
+      }
       uiStore.showToast(err.message || '对话异常', 'error')
     } finally {
       isLoading.value = false
