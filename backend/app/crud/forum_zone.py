@@ -103,18 +103,3 @@ def delete_zone(db: Session, zone_id: int) -> int:
     return result
 
 
-def increment_zone_view_count(db: Session, zone_id: int) -> int:
-    """
-    增加分区浏览量
-    Args:
-        db: 数据库会话
-        zone_id: 分区ID
-    Returns:
-        int: 更新行数
-    """
-    result = db.query(ForumZone).filter(ForumZone.id == zone_id).update(
-        {"view_count": ForumZone.view_count + 1},
-        synchronize_session=False,
-    )
-    db.commit()
-    return result

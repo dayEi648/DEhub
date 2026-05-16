@@ -38,7 +38,6 @@ class BlogPostResponse(BlogPostBase):
     """博客文章完整响应"""
     id: int
     view_count: int
-    is_deleted: bool
     created_at: datetime
     updated_at: datetime
     category: BlogCategoryBrief
@@ -58,7 +57,6 @@ class BlogPostListItem(BaseModel):
     tags: list[str]
     status: str
     view_count: int
-    is_deleted: bool
     created_at: datetime
     updated_at: datetime
 

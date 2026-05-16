@@ -154,6 +154,8 @@ class CommentService:
                 detail="已点赞该评论",
             )
         comment_crud.create_user_comment_like(self.db, comment_id, current_user.id)
+        db_comment.likecount += 1
+        self.db.commit()
 
     def unlike_comment(self, comment_id: int, current_user: User) -> None:
         """
@@ -179,3 +181,5 @@ class CommentService:
                 detail="未点赞该评论",
             )
         comment_crud.delete_user_comment_like(self.db, comment_id, current_user.id)
+        db_comment.likecount -= 1
+        self.db.commit()

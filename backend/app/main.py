@@ -8,7 +8,7 @@ from app.core.exceptions import (
     sqlalchemy_exception_handler,
     catch_all_exception_handler,
 )
-from app.redis_client import init_redis_client, close_redis_client
+from app.redis_client import init_redis_client, close_redis_client, init_sync_redis_client, close_sync_redis_client
 from app.infrastructure.llm_client import (
     init_llm_client, close_llm_client,
     init_llm_small_client, close_llm_small_client,
@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时
     await init_redis_client()
+    init_sync_redis_client()
     await init_llm_client()
     await init_llm_small_client()
     await init_embedding_client()
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
     await close_embedding_client()
     await close_llm_small_client()
     await close_llm_client()
+    close_sync_redis_client()
     await close_redis_client()
 
 app = FastAPI(title="DE个人网站", version="0.0.1", lifespan=lifespan)

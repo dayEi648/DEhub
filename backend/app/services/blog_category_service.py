@@ -81,7 +81,6 @@ class BlogCategoryService:
                 BlogPost.category_id,
                 func.count(BlogPost.id).label("count"),
             )
-            .filter(BlogPost.is_deleted == False)
             .group_by(BlogPost.category_id)
             .all()
         }

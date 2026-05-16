@@ -44,16 +44,9 @@ class UserFavoriteService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="文章不存在",
             )
-        # 普通用户只能看到已发布且未删除的文章
+        # 普通用户只能看到已发布的文章
         if current_user.permission < 2:
-            if db_post.status != "published" or db_post.is_deleted:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="文章不存在",
-                )
-        else:
-            # 超管可以看到任何未删除的文章（含草稿）
-            if db_post.is_deleted:
+            if db_post.status != "published":
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="文章不存在",

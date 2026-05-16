@@ -44,7 +44,6 @@ class BlogPostService:
         query = (
             self.db.query(BlogPost)
             .options(joinedload(BlogPost.category))
-            .filter(BlogPost.is_deleted == False)
         )
         if current_user.permission < 2:
             query = query.filter(BlogPost.status == "published")
@@ -142,7 +141,7 @@ class BlogPostService:
 
         # 根据更新后的状态同步或删除向量嵌入
         embed_service = BlogPostEmbeddingService(self.db)
-        if updated.status == "published" and not updated.is_deleted:
+        if updated.status == "published":
             await asyncio.to_thread(embed_service.sync_post_embedding, updated.id)
         else:
             await asyncio.to_thread(embed_service.delete_post_embedding, updated.id)
@@ -150,18 +149,6 @@ class BlogPostService:
         # 重新查询以加载 category 关联（可能已变更），避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, updated.id)
         return refreshed
-
-    def soft_delete_blog_post(self, post_id: int, current_user: User) -> None:
-        self._require_super_admin(current_user)
-        result = blog_post_crud.soft_delete_blog_post(self.db, post_id)
-        if result == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在或已被删除"
-            )
-
-        # 软删除后同步清理向量嵌入
-        embed_service = BlogPostEmbeddingService(self.db)
-        embed_service.delete_post_embedding(post_id)
 
     async def hard_delete_blog_post(self, post_id: int, current_user: User) -> None:
         self._require_super_admin(current_user)
@@ -177,15 +164,11 @@ class BlogPostService:
         if result == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
 
-    def cleanup_deleted_posts(self, current_user: User) -> int:
-        self._require_super_admin(current_user)
-        return blog_post_crud.cleanup_deleted_posts(self.db)
-
     # ---------- 读操作（权限区分）----------
 
     def _get_visible_post(self, current_user: User):
         """获取当前用户可见的单篇文章查询"""
-        query = self.db.query(BlogPost).filter(BlogPost.is_deleted == False)
+        query = self.db.query(BlogPost)
         if current_user.permission < 2:
             query = query.filter(BlogPost.status == "published")
         return query

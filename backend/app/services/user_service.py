@@ -242,6 +242,11 @@ class UserService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="用户不存在或密码错误"
             )
+        if user.is_deleted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户已注销"
+            )
         return UserLoginResponse(
             token_type="Bearer",
             access_token=create_access_token(user.id),
@@ -279,6 +284,19 @@ class UserService:
         jti_refresh = payload.get("jti")
         if jti_refresh and await is_token_blacklisted(jti_refresh):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌已注销")
+
+        # 检查用户是否已被注销（用户级 token 撤销）
+        redis = get_redis_client()
+        revoked_at_str = await redis.get(f"user_revoked:{user_id}")
+        if revoked_at_str:
+            iat = payload.get("iat")
+            if iat and float(iat) < float(revoked_at_str):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="用户已注销",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
         # Token Rotation：将旧 refresh token 加入黑名单，再签发新令牌
         await blacklist_token(refresh_token)
         return UserLoginResponse(

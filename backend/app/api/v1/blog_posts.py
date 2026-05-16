@@ -92,20 +92,6 @@ async def update_blog_post(
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
-def soft_delete_blog_post(
-    post_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> None:
-    """
-    逻辑删除博客文章（超级管理员专属）
-    """
-    service = BlogPostService(db)
-    service.soft_delete_blog_post(post_id, current_user)
-    return None
-
-
-@router.delete("/{post_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 async def hard_delete_blog_post(
     post_id: int,
     db: Session = Depends(get_db),
@@ -119,21 +105,6 @@ async def hard_delete_blog_post(
     return None
 
 
-@router.delete("/cleanup")
-def cleanup_deleted_posts(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """
-    一键清理所有已逻辑删除的博客文章（超级管理员专属）
-    Returns:
-        dict: 清理数量
-    """
-    service = BlogPostService(db)
-    count = service.cleanup_deleted_posts(current_user)
-    return {"deleted_count": count}
-
-
 # ---------- 读操作（权限区分）----------
 
 @router.get("/{post_id}", response_model=BlogPostDetailResponse)
@@ -144,8 +115,8 @@ def get_blog_post(
 ) -> BlogPostDetailResponse:
     """
     查看单篇博客文章详情（通过 ID）
-    - 普通用户：只能查看已发布且未删除的文章
-    - 超级管理员：可查看任何未删除的文章（含草稿）
+    - 普通用户：只能查看已发布的文章
+    - 超级管理员：可查看任何文章（含草稿）
     """
     service = BlogPostService(db)
     return service.get_blog_post(post_id, current_user)
@@ -159,8 +130,8 @@ def get_blog_post_by_slug(
 ) -> BlogPostDetailResponse:
     """
     查看单篇博客文章详情（通过 slug，SEO 友好）
-    - 普通用户：只能查看已发布且未删除的文章
-    - 超级管理员：可查看任何未删除的文章（含草稿）
+    - 普通用户：只能查看已发布的文章
+    - 超级管理员：可查看任何文章（含草稿）
     """
     service = BlogPostService(db)
     return service.get_blog_post_by_slug(slug, current_user)
@@ -195,7 +166,7 @@ def list_blog_posts(
 ) -> BlogPostListResponse:
     """
     列出博客文章列表（分页查询）
-    - 普通用户：只能查询已发布且未删除的文章
+    - 普通用户：只能查询已发布的文章
     - 超级管理员：可通过 include_unpublished=true 查询未发布的文章
     """
     service = BlogPostService(db)

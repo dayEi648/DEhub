@@ -15,8 +15,7 @@ def get_blog_post_by_id(db: Session, post_id: int) -> BlogPost | None:
         db.query(BlogPost)
         .options(joinedload(BlogPost.category))
         .filter(
-            BlogPost.id == post_id,
-            BlogPost.is_deleted == False
+            BlogPost.id == post_id
         )
         .first()
     )
@@ -34,8 +33,7 @@ def get_blog_post_by_slug(db: Session, slug: str) -> BlogPost | None:
         db.query(BlogPost)
         .options(joinedload(BlogPost.category))
         .filter(
-            BlogPost.slug == slug,
-            BlogPost.is_deleted == False
+            BlogPost.slug == slug
         )
         .first()
     )
@@ -61,7 +59,7 @@ def get_blog_posts(
     Returns:
         list[BlogPost]: 文章列表
     """
-    query = db.query(BlogPost).options(joinedload(BlogPost.category)).filter(BlogPost.is_deleted == False)
+    query = db.query(BlogPost).options(joinedload(BlogPost.category))
 
     if status:
         query = query.filter(BlogPost.status == status)
@@ -95,7 +93,7 @@ def get_blog_posts_count(
     Returns:
         int: 符合条件的文章总数
     """
-    query = db.query(BlogPost).filter(BlogPost.is_deleted == False)
+    query = db.query(BlogPost)
 
     if status:
         query = query.filter(BlogPost.status == status)
@@ -141,22 +139,6 @@ def update_blog_post(db: Session, db_post: BlogPost, post_in: BlogPostUpdate) ->
     db.refresh(db_post)
     return db_post
 
-def soft_delete_blog_post(db: Session, post_id: int) -> int:
-    """
-    软删除文章
-    Args:
-        db: 数据库会话
-        post_id: 文章ID
-    Returns:
-        int: 更新行数
-    """
-    result = db.query(BlogPost).filter(
-        BlogPost.id == post_id,
-        BlogPost.is_deleted == False
-    ).update({"is_deleted": True}, synchronize_session=False)
-    db.commit()
-    return result
-
 def hard_delete_blog_post(db: Session, post_id: int) -> int:
     """
     硬删除文章
@@ -169,18 +151,6 @@ def hard_delete_blog_post(db: Session, post_id: int) -> int:
     result = db.query(BlogPost).filter(
         BlogPost.id == post_id
     ).delete(synchronize_session=False)
-    db.commit()
-    return result
-
-def cleanup_deleted_posts(db: Session) -> int:
-    """
-    一键清理所有已逻辑删除的博客文章
-    Args:
-        db: 数据库会话
-    Returns:
-        int: 删除行数
-    """
-    result = db.query(BlogPost).filter(BlogPost.is_deleted == True).delete(synchronize_session=False)
     db.commit()
     return result
 

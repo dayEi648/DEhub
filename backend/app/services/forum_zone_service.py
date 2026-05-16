@@ -178,10 +178,10 @@ class ForumZoneService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
             )
 
-        posts = forum_post_crud.get_posts(
+        items, total = forum_post_crud.get_posts(
             self.db, zone_id=zone_id, skip=0, limit=1
         )
-        if posts:
+        if total > 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="该分区下还有帖子，无法删除",

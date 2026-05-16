@@ -77,7 +77,7 @@ def search_user_memories(
                embedding <=> :embedding AS distance
         FROM user_memory_embeddings
         WHERE user_id = :user_id
-          AND created_at >= NOW() - INTERVAL ':retention_days days'
+          AND created_at >= NOW() - INTERVAL '1 day' * :retention_days
         {distance_where}
         ORDER BY embedding <=> :embedding
         LIMIT :top_k

@@ -84,18 +84,3 @@ def delete_reply(db: Session, reply_id: int) -> int:
     return result
 
 
-def increment_like_count(db: Session, reply_id: int) -> int:
-    """
-    增加回复点赞数
-    Args:
-        db: 数据库会话
-        reply_id: 回复ID
-    Returns:
-        int: 更新行数
-    """
-    result = db.query(ForumReply).filter(ForumReply.id == reply_id).update(
-        {"likecount": ForumReply.likecount + 1},
-        synchronize_session=False,
-    )
-    db.commit()
-    return result

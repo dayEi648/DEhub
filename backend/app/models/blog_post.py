@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, func, BigInteger, Boolean, ARRAY, Integer, ForeignKey
+from sqlalchemy import String, DateTime, func, BigInteger, ARRAY, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import TEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
@@ -24,7 +24,6 @@ class BlogPost(Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(TEXT), default=list)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     view_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

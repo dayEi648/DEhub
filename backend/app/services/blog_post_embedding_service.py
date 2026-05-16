@@ -96,12 +96,11 @@ class BlogPostEmbeddingService:
                 logger.warning("向量同步跳过：文章 %s 不存在或已删除", post_id)
                 return
 
-            if post.status != "published" or post.is_deleted:
+            if post.status != "published":
                 logger.info(
-                    "向量同步跳过：文章 %s 状态=%s is_deleted=%s",
+                    "向量同步跳过：文章 %s 状态=%s",
                     post_id,
                     post.status,
-                    post.is_deleted,
                 )
                 return
 

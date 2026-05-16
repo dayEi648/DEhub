@@ -117,22 +117,3 @@ class UserMemoryService:
     # ------------------------------------------------------------------
     # 公开接口：清理
     # ------------------------------------------------------------------
-
-    def delete_conversation_memories(self, conversation_id: int) -> None:
-        """
-        删除指定对话的所有向量记忆（管理后台彻底清理时调用）。
-
-        注意：日常删除对话时不会调用此方法，因为 summary 是长期记忆，
-        应该保留在向量库中供后续检索使用。
-
-        Args:
-            conversation_id: 对话 ID
-        """
-        try:
-            deleted = mem_crud.delete_memories_by_conversation(
-                self.db, conversation_id
-            )
-            if deleted:
-                logger.info("已删除对话 %s 的 %s 条记忆", conversation_id, deleted)
-        except Exception:
-            logger.exception("删除对话 %s 记忆失败", conversation_id)
