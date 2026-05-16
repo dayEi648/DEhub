@@ -92,7 +92,7 @@ class UserService:
     def get_user(self, user_id: int, current_user: User) -> User:
         """
         根据用户ID获取用户
-        若用户已逻辑删除，仅管理员及以上可查看
+        若用户已注销，仅管理员及以上可查看
         """
         user = user_crud.get_user_by_id(self.db, user_id)
         if not user:
@@ -102,8 +102,8 @@ class UserService:
             )
         if user.is_deleted and current_user.permission < 1:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="用户不存在"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="用户已注销，仅管理员可查看"
             )
         return user
 
@@ -115,15 +115,20 @@ class UserService:
         username: str | None = None,
         email: str | None = None,
         permission: int | None = None,
+        current_user: User | None = None,
     ) -> UserListResponse:
         """
         获取用户列表（支持分页与筛选）
+        普通用户禁止查询已注销用户
         """
+        effective_include_deleted = (
+            include_deleted if (current_user and current_user.permission >= 1) else False
+        )
         items, total = user_crud.get_users(
             self.db,
             skip=skip,
             limit=limit,
-            include_deleted=include_deleted,
+            include_deleted=effective_include_deleted,
             username=username,
             email=email,
             permission=permission,
@@ -176,7 +181,7 @@ class UserService:
 
         return UserResponse.model_validate(user_crud.update_user(self.db, db_user, user_in))
 
-    def soft_delete_user(self, user_id: int, current_user: User) -> None:
+    def soft_delete_user(self, user_id: int, current_user: User, access_token: str | None = None) -> None:
         """
         逻辑删除用户（注销，管理员或本人）
         注销后会在 Redis 中标记该用户撤销时间，使其所有已签发 token 失效
@@ -190,11 +195,17 @@ class UserService:
             )
 
         # 在 Redis 中记录注销时间戳，使该用户所有已有 token 失效
+        from app.core.security import blacklist_token_sync
         from app.redis_client import get_sync_redis_client
         import time
         revoked_at = int(time.time())
         redis = get_sync_redis_client()
-        redis.set(f"user_revoked:{user_id}", revoked_at)
+        ttl = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
+        redis.setex(f"user_revoked:{user_id}", ttl, revoked_at)
+
+        # 用户自己注销自己时，顺手拉黑当前 token（管理员注销他人不拉黑管理员 token）
+        if access_token and current_user.id == user_id:
+            blacklist_token_sync(access_token)
 
     def hard_delete_user(self, user_id: int, current_user: User) -> None:
         """
@@ -340,12 +351,14 @@ class UserService:
         self,
         current_user: User,
         password_data: ChangePasswordRequest,
+        access_token: str | None = None,
     ) -> None:
         """
         修改当前用户密码
         Args:
             current_user: 当前登录用户
             password_data: 密码修改请求（旧密码 + 新密码）
+            access_token: 当前访问令牌（如有则顺手拉黑）
         Raises:
             HTTPException: 旧密码错误 或 新密码与旧密码相同
         """
@@ -365,8 +378,14 @@ class UserService:
         self.db.commit()
 
         # 在 Redis 中记录撤销时间戳，使该用户所有已有 token 失效
+        from app.core.security import blacklist_token_sync
         from app.redis_client import get_sync_redis_client
         import time
         revoked_at = int(time.time())
         redis = get_sync_redis_client()
-        redis.set(f"user_revoked:{current_user.id}", revoked_at)
+        ttl = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
+        redis.setex(f"user_revoked:{current_user.id}", ttl, revoked_at)
+
+        # 顺手拉黑当前 token
+        if access_token:
+            blacklist_token_sync(access_token)

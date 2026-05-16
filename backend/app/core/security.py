@@ -7,7 +7,7 @@ from app.models.user import User
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.api.deps import get_db
 from sqlalchemy.orm import Session
-from app.redis_client import get_redis_client
+from app.redis_client import get_redis_client, get_sync_redis_client
 from typing import Optional
 import uuid
 from starlette.concurrency import run_in_threadpool
@@ -182,6 +182,29 @@ async def blacklist_token(access_token: str, refresh_token: Optional[str] = None
         if ttl > 0:
             redis = get_redis_client()
             await redis.setex(f"jwt_blacklist:{jti_access}", ttl, "revoked")
+
+def blacklist_token_sync(access_token: str, refresh_token: Optional[str] = None) -> None:
+    """
+    同步版本：将令牌加入黑名单
+    TTL 设为该 token 的剩余存活时间
+    """
+    payload_access_token = decode_token(access_token)
+    payload_refresh_token = decode_token(refresh_token) if refresh_token else None
+    jti_access = payload_access_token.get("jti") if payload_access_token else None
+    exp_access = payload_access_token.get("exp") if payload_access_token else None
+    jti_refresh = payload_refresh_token.get("jti") if payload_refresh_token else None
+    exp_refresh = payload_refresh_token.get("exp") if payload_refresh_token else None
+
+    redis = get_sync_redis_client()
+    if jti_refresh and exp_refresh:
+        ttl = int(exp_refresh) - int(datetime.now(timezone.utc).timestamp())
+        if ttl > 0:
+            redis.setex(f"jwt_blacklist:{jti_refresh}", ttl, "revoked")
+    if jti_access and exp_access:
+        ttl = int(exp_access) - int(datetime.now(timezone.utc).timestamp())
+        if ttl > 0:
+            redis.setex(f"jwt_blacklist:{jti_access}", ttl, "revoked")
+
 
 async def is_token_blacklisted(jti: str) -> bool:
     """

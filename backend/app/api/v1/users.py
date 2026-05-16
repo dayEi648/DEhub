@@ -63,6 +63,7 @@ def list_users(
         username=username,
         email=email,
         permission=permission,
+        current_user=current_user,
     )
 
 def parse_user_update(user_in: str = Form(..., description="用户更新请求的 JSON 字符串")) -> UserUpdate:
@@ -96,14 +97,15 @@ async def update_user(
 def soft_delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    token: str = Depends(get_token_from_header),
 ) -> None:
     """
     注销用户（逻辑删除，管理员或本人）
     注销后该用户所有已签发的 token 将自动失效
     """
     service = UserService(db)
-    service.soft_delete_user(user_id, current_user)
+    service.soft_delete_user(user_id, current_user, access_token=token)
     return None
 
 
@@ -173,6 +175,7 @@ async def change_password(
     password_data: ChangePasswordRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token: str = Depends(get_token_from_header),
 ) -> None:
     """
     修改当前登录用户密码
@@ -181,9 +184,10 @@ async def change_password(
         password_data: 密码修改请求
         db: 数据库会话
         current_user: 当前登录用户
+        token: 访问令牌（来自 Authorization Header）
     """
     service = UserService(db)
-    service.change_password(current_user, password_data)
+    service.change_password(current_user, password_data, access_token=token)
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
