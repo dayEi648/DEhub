@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     LLM_MAIN_BASE_URL: str = Field(default="")
     LLM_MAIN_MODEL: str = Field(default="")
     LLM_MAIN_MAX_TOKENS: int = Field(default=200000)
-    LLM_MAIN_MAX_OUTPUT_CHARS: int = Field(default=4096)
     LLM_MAIN_TEMPERATURE: float = Field(default=0.6)
     LLM_MAIN_TIMEOUT: int = Field(default=60)
     LLM_SMALL_API_KEY: str = Field(default="")
