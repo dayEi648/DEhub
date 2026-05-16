@@ -53,12 +53,16 @@ client.interceptors.request.use(
       delete (config.headers as Record<string, unknown>)['Content-Type']
     }
     const uiStore = useUiStore()
-    uiStore.setLoading(true)
+    if (!(config as any).skipGlobalLoading) {
+      uiStore.setLoading(true)
+    }
     return config
   },
   (error) => {
     const uiStore = useUiStore()
-    uiStore.setLoading(false)
+    if (!(error.config as any)?.skipGlobalLoading) {
+      uiStore.setLoading(false)
+    }
     return Promise.reject(error)
   }
 )
@@ -67,12 +71,16 @@ client.interceptors.request.use(
 client.interceptors.response.use(
   (response) => {
     const uiStore = useUiStore()
-    uiStore.setLoading(false)
+    if (!(response.config as any)?.skipGlobalLoading) {
+      uiStore.setLoading(false)
+    }
     return response
   },
   async (error: AxiosError<import('@/types').ApiError>) => {
     const uiStore = useUiStore()
-    uiStore.setLoading(false)
+    if (!(error.config as any)?.skipGlobalLoading) {
+      uiStore.setLoading(false)
+    }
 
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
