@@ -6,8 +6,8 @@ pydantic
 pydantic-settings
 bcrypt
 python-jose[cryptography]
-oss2 
-python-multipart 
+oss2
+python-multipart
 aiofiles
 filetype
 redis
@@ -26,3 +26,4 @@ pypdf
 beautifulsoup4
 lxml
 Pillow
+httpx

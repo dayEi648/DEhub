@@ -1,5 +1,8 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from urllib.parse import quote_plus
+
 from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     """
@@ -7,12 +10,13 @@ class Settings(BaseSettings):
 
     提供数据库连接字符串等便捷属性，所有字段均可在环境变量中覆盖。
     """
+
     model_config = SettingsConfigDict(
-        env_file=".env", 
+        env_file=".env",
         env_file_encoding="utf-8",
-        extra = "ignore",
+        extra="ignore",
     )
-    
+
     SECRET_KEY: str = Field(default="")
     ALGORITHM: str = Field(default="HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 24)
@@ -79,8 +83,13 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL(self) -> str:
-        """拼接 PostgreSQL 连接字符串。"""
-        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        """拼接 PostgreSQL 连接字符串，密码经过 URL 编码。"""
+        password = quote_plus(self.POSTGRES_PASSWORD)
+        return (
+            f"postgresql://{self.POSTGRES_USER}:{password}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
 
 settings = Settings()
 

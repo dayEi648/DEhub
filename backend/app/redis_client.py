@@ -22,21 +22,21 @@ def get_sync_redis_client() -> Redis:
 
 async def init_redis_client() -> None:
     """
-    初始化Redis客户端
+    初始化 Redis 异步客户端。
     """
     global redis_client
     redis_client = aioredis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
-        password=settings.REDIS_PASSWORD,
+        password=settings.REDIS_PASSWORD or None,
         db=settings.REDIS_DB,
     )
     try:
         await redis_client.ping()
-        print("Redis客户端初始化成功")
+        print("Redis 客户端初始化成功")
     except Exception as e:
-        print(f"Redis客户端初始化失败: {e}")
-        raise e
+        print(f"Redis 客户端初始化失败: {e}")
+        raise
 
 async def close_redis_client() -> None:
     """

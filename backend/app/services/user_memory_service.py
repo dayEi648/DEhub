@@ -1,6 +1,8 @@
+import asyncio
 import logging
-from sqlalchemy.orm import Session
+
 from langchain_core.messages import HumanMessage, SystemMessage
+from sqlalchemy.orm import Session
 
 from app.crud import user_memory_embedding as mem_crud
 from app.crud.conversation_message import list_conversation_messages
@@ -26,7 +28,9 @@ class UserMemoryService:
     # 公开接口：摘要同步
     # ------------------------------------------------------------------
 
-    def sync_conversation_summary(self, user_id: int, conversation_id: int) -> None:
+    async def sync_conversation_summary_async(
+        self, user_id: int, conversation_id: int
+    ) -> None:
         """
         读取当前对话的全部消息，用 small LLM 生成用户画像摘要，
         向量化后写入长期记忆（memory_type='summary'）。
@@ -34,13 +38,19 @@ class UserMemoryService:
         生成成功后会先清空该对话的旧 summary，再写入新摘要，
         确保向量库中每对话只保留一条画像记录。
 
+        所有数据库操作在同一事务中完成，失败时回滚。
+
         Args:
             user_id: 用户 ID
             conversation_id: 对话 ID
         """
         try:
-            messages = list_conversation_messages(
-                self.db, conversation_id, skip=0, limit=9999
+            messages = await asyncio.to_thread(
+                list_conversation_messages,
+                self.db,
+                conversation_id,
+                skip=0,
+                limit=None,
             )
             if not messages:
                 return
@@ -49,33 +59,50 @@ class UserMemoryService:
                 f"{msg.role}: {msg.content}" for msg in messages
             )
 
-            response = get_llm_small_client().invoke([
+            response = await get_llm_small_client().ainvoke([
                 SystemMessage(content=CONVERSATION_SUMMARY_PROMPT),
                 HumanMessage(content=transcript),
             ])
-            summary = response.content.strip()
+            summary = (
+                response.content.strip()
+                if isinstance(response.content, str)
+                else ""
+            )
             if not summary:
                 logger.warning(
                     "画像摘要为空: user=%s conv=%s", user_id, conversation_id
                 )
                 return
 
-            embedding = get_embedding_client().embed_documents([summary])[0]
+            embeddings = await get_embedding_client().aembed_documents([summary])
+            if not embeddings:
+                logger.warning("Embedding API 返回空结果")
+                return
+            embedding = embeddings[0]
 
-            # 清空该对话旧画像，插入新画像
-            mem_crud.delete_memories_by_conversation(self.db, conversation_id)
-            mem_crud.create_memory_embedding(
+            # 在同一事务中删除旧画像并插入新画像
+            await asyncio.to_thread(
+                mem_crud.delete_memories_by_conversation,
+                self.db,
+                conversation_id,
+                commit=False,
+            )
+            await asyncio.to_thread(
+                mem_crud.create_memory_embedding,
                 self.db,
                 user_id=user_id,
                 conversation_id=conversation_id,
                 memory_type="summary",
                 content_text=summary,
                 embedding=embedding,
+                commit=False,
             )
+            await asyncio.to_thread(self.db.commit)
             logger.info(
                 "已同步画像摘要: user=%s conv=%s", user_id, conversation_id
             )
         except Exception:
+            await asyncio.to_thread(self.db.rollback)
             logger.exception(
                 "同步画像摘要失败: user=%s conv=%s", user_id, conversation_id
             )

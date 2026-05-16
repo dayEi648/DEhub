@@ -2,7 +2,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
-from app.models.blog_post import BlogPost  # noqa: F401  # 确保 mapper 注册
+from app.core.config import settings
 from app.models.blog_post_embedding import BlogPostEmbedding
 
 
@@ -114,7 +114,7 @@ def search_similar(
         LIMIT :top_k
         """
     ).bindparams(
-        bindparam("embedding", query_embedding, type_=Vector(1024)),
+        bindparam("embedding", query_embedding, type_=Vector(settings.EMBEDDING_DIMENSION or 1024)),
         top_k=top_k,
     )
 

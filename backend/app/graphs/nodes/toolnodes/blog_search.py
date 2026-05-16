@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-async def search_blog(query: str) -> str:
+def search_blog(query: str) -> str:
     """检索 DE Hub 网站博客中与用户问题语义最相似的文章。
 
     当用户讨论的内容与 DE Hub 博客中的技术文章、学习笔记、教程高度相关时，
@@ -32,7 +32,7 @@ async def search_blog(query: str) -> str:
     db = SessionLocal()
     try:
         blog_service = BlogPostEmbeddingService(db)
-        blog_results = await blog_service.blog_post_embedding_search(
+        blog_results = blog_service.blog_post_embedding_search(
             query.strip(), top_k=3
         )
 
@@ -46,7 +46,7 @@ async def search_blog(query: str) -> str:
                 lines.append(f"链接：/blog/{result.slug}")
             if result.summary:
                 lines.append(f"摘要：{result.summary}")
-            lines.append(f"相似度：{result.similarity_score}")
+            lines.append(f"相似度：{result.similarity_score:.4f}")
             parts.append("\n".join(lines))
 
         return "\n\n".join(parts)

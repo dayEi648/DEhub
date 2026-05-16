@@ -1,51 +1,36 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.services.chat_service import ChatService
-from app.schemas.chat import ChatRequest, ChatResponse
 from sqlalchemy.orm import Session
+
 from app.api.deps import get_db
-from app.models.user import User
 from app.core.security import get_current_user
-import asyncio
+from app.models.user import User
+from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.chat import ConversationListResponse, MessageResponse
+from app.services.chat_service import ChatService
 
 
 router = APIRouter(prefix="/ai_chat", tags=["AI 对话"])
 
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
-    chat_in: ChatRequest, 
-    db: Session = Depends(get_db), 
+    chat_in: ChatRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> ChatResponse:
     """
-    AI 对话
-    传入 conversation_id 继续已有对话，留空则自动创建新对话
+    AI 对话。
     Args:
-        chat_request: ChatRequest
+        chat_in: ChatRequest
         db: Session
         current_user: User
+
     Returns:
         ChatResponse
     """
     service = ChatService(db)
+    return await service.chat(chat_in, current_user.id)
 
-    # 若指定了已有对话，先校验存在性与权限
-    if chat_in.conversation_id is not None:
-        conv = await asyncio.to_thread(
-            service.get_conversation_or_raise,
-            chat_in.conversation_id,
-            current_user.id,
-        )
-        if conv is None:
-            raise HTTPException(status_code=404, detail="对话不存在或已删除")
-
-    try:
-        return await asyncio.to_thread(
-            service.chat, 
-            chat_in, 
-            current_user.id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/conversations", response_model=ConversationListResponse)
 async def list_conversations(
@@ -72,6 +57,7 @@ async def list_conversations(
     )
     return ConversationListResponse(items=items, total=total)
 
+
 @router.get("/conversations/{conversation_id}/messages", response_model=list[MessageResponse])
 async def list_messages(
     conversation_id: int,
@@ -91,6 +77,7 @@ async def list_messages(
         limit=limit,
     )
     return messages
+
 
 @router.delete(
     "/conversations/{conversation_id}",

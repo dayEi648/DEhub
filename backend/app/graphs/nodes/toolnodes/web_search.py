@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 _LABEL = "【搜索结果】"
 
 
-async def _iqs_search_single(query: str) -> list[dict]:
+def _iqs_search_single(query: str) -> list[dict]:
     """对单个 query 调用阿里云 IQS Search，返回 pageItems 列表。"""
     api_key = settings.IQS_API_KEY
     if not api_key:
@@ -41,8 +41,8 @@ async def _iqs_search_single(query: str) -> list[dict]:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=settings.IQS_TIMEOUT) as client:
-            resp = await client.post(
+        with httpx.Client(timeout=settings.IQS_TIMEOUT) as client:
+            resp = client.post(
                 settings.IQS_ENDPOINT, headers=headers, json=payload
             )
         resp.raise_for_status()
@@ -78,7 +78,7 @@ def _format_web_search_results(results: list[dict]) -> str:
 
 
 @tool
-async def search_web(query: str) -> str:
+def search_web(query: str) -> str:
     """
     使用联网搜索获取实时、时效性或超出内置知识范围的最新信息。
 
@@ -99,7 +99,7 @@ async def search_web(query: str) -> str:
         return "联网搜索服务暂时不可用。"
 
     try:
-        results = await _iqs_search_single(query.strip())
+        results = _iqs_search_single(query.strip())
         return _format_web_search_results(results)
     except Exception:
         logger.exception("联网搜索执行失败")

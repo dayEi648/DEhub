@@ -2,6 +2,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.user_memory_embedding import UserMemoryEmbedding
 
 
@@ -12,6 +13,7 @@ def create_memory_embedding(
     memory_type: str,
     content_text: str,
     embedding: list[float],
+    commit: bool = True,
 ) -> UserMemoryEmbedding:
     """插入单条用户记忆向量。"""
     record = UserMemoryEmbedding(
@@ -22,19 +24,23 @@ def create_memory_embedding(
         embedding=embedding,
     )
     db.add(record)
-    db.commit()
-    db.refresh(record)
+    if commit:
+        db.commit()
+        db.refresh(record)
     return record
 
 
-def delete_memories_by_conversation(db: Session, conversation_id: int) -> int:
+def delete_memories_by_conversation(
+    db: Session, conversation_id: int, commit: bool = True
+) -> int:
     """按对话 ID 删除所有相关记忆。"""
     result = (
         db.query(UserMemoryEmbedding)
         .filter(UserMemoryEmbedding.conversation_id == conversation_id)
         .delete(synchronize_session=False)
     )
-    db.commit()
+    if commit:
+        db.commit()
     return result
 
 
@@ -76,7 +82,11 @@ def search_user_memories(
         LIMIT :top_k
         """
     ).bindparams(
-        bindparam("embedding", query_embedding, type_=Vector(1024)),
+        bindparam(
+            "embedding",
+            query_embedding,
+            type_=Vector(settings.EMBEDDING_DIMENSION or 1024),
+        ),
         **bind_kwargs,
     )
 

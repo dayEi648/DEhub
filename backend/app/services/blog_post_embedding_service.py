@@ -37,7 +37,7 @@ class BlogPostEmbeddingService:
         将文章各字段拼接为待嵌入的单一文本。
 
         优先级：标题 > 摘要 > 标签 > 正文。
-        超长时从正文尾部截断，确保标题和摘要一定保留。
+        超长时截断到最近的句子边界，确保标题和摘要一定保留。
         """
         parts = [f"标题：{post.title}"]
 
@@ -52,7 +52,18 @@ class BlogPostEmbeddingService:
 
         text = "\n\n".join(parts)
         if len(text) > _MAX_EMBEDDING_TEXT_LENGTH:
-            text = text[:_MAX_EMBEDDING_TEXT_LENGTH]
+            # 截断到最近的句子边界，避免语义断裂
+            truncated = text[:_MAX_EMBEDDING_TEXT_LENGTH]
+            # 从末尾向前查找句子结束符
+            last_break = max(
+                truncated.rfind("。"),
+                truncated.rfind("."),
+                truncated.rfind("\n"),
+            )
+            if last_break > 0:
+                text = truncated[: last_break + 1]
+            else:
+                text = truncated
         return text
 
     @staticmethod
@@ -106,7 +117,11 @@ class BlogPostEmbeddingService:
                 return
 
             # 调用 embedding API
-            embedding = get_embedding_client().embed_documents([text])[0]
+            embeddings = get_embedding_client().embed_documents([text])
+            if not embeddings:
+                logger.warning("Embedding API 返回空结果: post_id=%s", post_id)
+                return
+            embedding = embeddings[0]
 
             # 入库（插入或更新）
             embed_crud.upsert_embedding(
@@ -123,11 +138,11 @@ class BlogPostEmbeddingService:
         except Exception:
             logger.exception("向量同步失败：文章 %s", post_id)
 
-    async def blog_post_embedding_search(
+    def blog_post_embedding_search(
         self,
         query: str,
         top_k: int = 5,
-        min_similarity: float | None = None, 
+        min_similarity: float | None = None,
     ) -> list[BlogPostSearchResult]:
         """
         根据用户查询语句，检索语义最相似的博客文章。
@@ -142,10 +157,15 @@ class BlogPostEmbeddingService:
         """
         if not query or not query.strip():
             return []
-        
+
         threshold = min_similarity if min_similarity is not None else settings.RAG_MIN_SIMILARITY
 
-        query_embedding = await get_embedding_client().aembed_query(query)
+        try:
+            query_embedding = get_embedding_client().embed_query(query)
+        except Exception:
+            logger.exception("Embedding query 失败")
+            return []
+
         raw_results = embed_crud.search_similar(self.db, query_embedding, top_k=top_k)
 
         # 批量预加载博客文章，消除 N+1 查询
@@ -157,7 +177,7 @@ class BlogPostEmbeddingService:
             .all()
         ) if post_ids else []
         post_map = {p.id: p for p in posts}
-        
+
         results: list[BlogPostSearchResult] = []
         for embedding_record, distance in raw_results:
             post = post_map.get(embedding_record.post_id)
