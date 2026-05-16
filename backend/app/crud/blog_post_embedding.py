@@ -105,12 +105,10 @@ def search_similar(
     """
     stmt = text(
         """
-        SELECT e.id, e.post_id, e.embedding, e.content_hash, e.created_at, e.updated_at,
-               e.embedding <=> :embedding AS distance
-        FROM blog_post_embeddings e
-        JOIN blog_posts p ON p.id = e.post_id
-        WHERE p.is_deleted = false AND p.status = 'published'
-        ORDER BY e.embedding <=> :embedding
+        SELECT id, post_id, embedding, content_hash, created_at, updated_at,
+               embedding <=> :embedding AS distance
+        FROM blog_post_embeddings
+        ORDER BY embedding <=> :embedding
         LIMIT :top_k
         """
     ).bindparams(

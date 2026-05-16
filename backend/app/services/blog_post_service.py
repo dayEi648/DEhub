@@ -110,6 +110,11 @@ class BlogPostService:
         db_post.status = "draft"
         self.db.commit()
         self.db.refresh(db_post)
+
+        # 下架后同步清理向量嵌入
+        embed_service = BlogPostEmbeddingService(self.db)
+        embed_service.delete_post_embedding(post_id)
+
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
         return refreshed
