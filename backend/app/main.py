@@ -14,6 +14,7 @@ from app.infrastructure.llm_client import (
     init_llm_small_client, close_llm_small_client,
 )
 from app.infrastructure.embedding_client import init_embedding_client, close_embedding_client
+from app.infrastructure.checkpoint_client import init_checkpoint_client, close_checkpoint_client
 from contextlib import asynccontextmanager
 
 
@@ -24,8 +25,10 @@ async def lifespan(app: FastAPI):
     await init_llm_client()
     await init_llm_small_client()
     await init_embedding_client()
+    await init_checkpoint_client()
     yield
     # 关闭时
+    await close_checkpoint_client()
     await close_embedding_client()
     await close_llm_small_client()
     await close_llm_client()

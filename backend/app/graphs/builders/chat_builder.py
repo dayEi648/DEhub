@@ -3,7 +3,7 @@ from app.graphs.nodes.chat_nodes import retrieve_memory_node, agent_node
 from app.graphs.nodes.toolnodes import search_blog, search_web
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
-from langgraph.checkpoint.memory import MemorySaver
+from app.infrastructure.checkpoint_client import get_checkpointer
 
 _compiled_graph = None
 
@@ -33,7 +33,7 @@ def build_chat_graph():
     # tool 执行完成后，结果回写 messages，再次进入 agent 生成最终回复
     builder.add_edge("tools", "agent")
 
-    # 编译 + 挂载记忆 checkpointer
-    memory = MemorySaver()
-    _compiled_graph = builder.compile(checkpointer=memory)
+    # 编译 + 挂载 PostgreSQL checkpointer
+    checkpointer = get_checkpointer()
+    _compiled_graph = builder.compile(checkpointer=checkpointer)
     return _compiled_graph

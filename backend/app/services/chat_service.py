@@ -260,10 +260,9 @@ class ChatService:
             )
         _require_owner(conv, user_id)
 
-        # 清理内存 checkpoint，再软删除 DB 记录
-        await asyncio.to_thread(
-            self.graph.checkpointer.delete_thread, str(conversation_id)
-        )
+        # 清理 PostgreSQL checkpoint，再软删除 DB 记录
+        from app.infrastructure.checkpoint_client import delete_checkpoint
+        await delete_checkpoint(str(conversation_id))
         await asyncio.to_thread(
             conv_crud.soft_delete_ai_conversation, self.db, conversation_id
         )
