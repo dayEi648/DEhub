@@ -15,7 +15,6 @@ pytest
 pytest-asyncio
 langchain
 langgraph
-langgraph-checkpoint-postgres
 psycopg
 langchain-openai
 langchain-postgres

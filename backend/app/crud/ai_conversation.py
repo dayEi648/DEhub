@@ -16,15 +16,14 @@ def create_ai_conversation(db: Session, user_id: int, title: str) -> AIConversat
     return conv
 
 
-def soft_delete_ai_conversation(db: Session, conversation_id: int) -> int:
-    """软删除对话，返回更新行数。"""
-    result = (
-        db.query(AIConversation)
-        .filter(AIConversation.id == conversation_id)
-        .update({"is_deleted": True}, synchronize_session=False)
-    )
+def delete_ai_conversation(db: Session, conversation_id: int) -> int:
+    """物理删除对话及其级联消息，返回删除行数。"""
+    conv = db.query(AIConversation).filter(AIConversation.id == conversation_id).first()
+    if conv is None:
+        return 0
+    db.delete(conv)
     db.commit()
-    return result
+    return 1
 
 
 def update_summary_message_count(
@@ -73,7 +72,6 @@ def list_ai_conversations_by_user(
     """查询某用户的未删除对话列表，返回 (items, total)。"""
     query = db.query(AIConversation).filter(
         AIConversation.user_id == user_id,
-        AIConversation.is_deleted == False,
     )
     total = query.count()
     items = query.order_by(AIConversation.created_at.desc()).offset(skip).limit(limit).all()

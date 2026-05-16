@@ -1,61 +1,52 @@
 """LangGraph Checkpoint 客户端。
 
-管理 PostgreSQL 连接池与 AsyncPostgresSaver 生命周期。
+基于标准 Redis 的 AsyncRedisCheckpointSaver，无需 PostgreSQL。
 """
 
 import logging
 
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from psycopg_pool import AsyncConnectionPool
-
 from app.core.config import settings
+from app.redis_client import get_redis_client
+
+from .redis_checkpoint import AsyncRedisCheckpointSaver
 
 logger = logging.getLogger(__name__)
 
-_pool: AsyncConnectionPool | None = None
-_checkpointer: AsyncPostgresSaver | None = None
+_checkpointer: AsyncRedisCheckpointSaver | None = None
 
 
 async def init_checkpoint_client() -> None:
-    """初始化 Checkpoint 连接池与数据库表结构。
+    """初始化 Redis Checkpointer。
 
-    在应用启动时调用一次，创建连接池并执行 setup() 建表。
+    在应用启动时调用一次，复用已有的 Redis 异步连接。
     """
-    global _pool, _checkpointer
+    global _checkpointer
 
-    conninfo = settings.DATABASE_URL
-    _pool = AsyncConnectionPool(
-        conninfo=conninfo,
-        kwargs={
-            "autocommit": True,
-            "prepare_threshold": 0,
-        },
-        open=False,
+    redis = get_redis_client()
+    _checkpointer = AsyncRedisCheckpointSaver(
+        redis_client=redis,
+        ttl_seconds=settings.REDIS_CHECKPOINT_TTL,
     )
-    await _pool.open()
+    logger.info(
+        "Checkpoint client initialized (Redis, TTL=%ds)",
+        settings.REDIS_CHECKPOINT_TTL,
+    )
 
-    _checkpointer = AsyncPostgresSaver(conn=_pool)
-    await _checkpointer.setup()
-    logger.info("Checkpoint client initialized")
 
-
-def get_checkpointer() -> AsyncPostgresSaver:
-    """获取已初始化的 AsyncPostgresSaver 实例。"""
+def get_checkpointer() -> AsyncRedisCheckpointSaver:
+    """获取已初始化的 Checkpointer 实例。"""
     if _checkpointer is None:
         raise ValueError("Checkpoint client 未初始化")
     return _checkpointer
 
 
 async def close_checkpoint_client() -> None:
-    """关闭 Checkpoint 连接池。
+    """关闭 Checkpointer 引用。
 
-    在应用关闭时调用。
+    Redis 连接本身由 redis_client.py 统一管理生命周期。
     """
-    global _pool, _checkpointer
+    global _checkpointer
     _checkpointer = None
-    if _pool is not None:
-        await _pool.close()
-        _pool = None
     logger.info("Checkpoint client closed")
 
 

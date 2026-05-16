@@ -39,7 +39,7 @@ def get_chat_graph():
         # tool 执行完成后，结果回写 messages，再次进入 agent 生成最终回复
         builder.add_edge("tools", "agent")
 
-        # 编译 + 挂载 PostgreSQL checkpointer
+        # 编译 + 挂载 Redis checkpointer
         checkpointer = get_checkpointer()
         _compiled_graph = builder.compile(checkpointer=checkpointer)
         return _compiled_graph

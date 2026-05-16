@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str = Field(default="")
     REDIS_SESSION_TTL: int = Field(default=1800)
     REDIS_CHAT_HISTORY_TTL: int = Field(default=1800)
+    REDIS_CHECKPOINT_TTL: int = Field(default=600)
 
     POSTGRES_HOST: str = Field(default="localhost")
     POSTGRES_PORT: int = Field(default=5432)

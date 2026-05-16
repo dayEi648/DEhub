@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from sqlalchemy.orm import Session
 
 from app.crud import ai_conversation as conv_crud
@@ -119,6 +119,21 @@ class ChatService:
             "assistant",
             ai_content,
         )
+
+        # 持久化本轮产生的 ToolMessage（工具调用结果）
+        for msg in result["messages"]:
+            if isinstance(msg, ToolMessage):
+                await asyncio.to_thread(
+                    msg_crud.create_conversation_message,
+                    self.db,
+                    conversation_id,
+                    "tool",
+                    msg.content or "",
+                    metadata={
+                        "tool_call_id": msg.tool_call_id,
+                        "name": msg.name,
+                    },
+                )
 
         # 标题生成和画像摘要改为后台异步执行，不阻塞响应
         if not chat_in.is_edit:
@@ -267,10 +282,10 @@ class ChatService:
             AIConversation
         """
         conv = conv_crud.get_ai_conversation_by_id(self.db, conversation_id)
-        if conv is None or conv.is_deleted:
+        if conv is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="对话不存在或已删除",
+                detail="对话不存在",
             )
         _require_owner(conv, user_id)
         return conv
@@ -340,10 +355,10 @@ class ChatService:
             )
         _require_owner(conv, user_id)
 
-        # 清理 PostgreSQL checkpoint，再软删除 DB 记录
+        # 清理 Redis checkpoint，再物理删除 DB 记录（级联删除 messages）
         from app.infrastructure.checkpoint_client import delete_checkpoint
 
         await delete_checkpoint(str(conversation_id))
         await asyncio.to_thread(
-            conv_crud.soft_delete_ai_conversation, self.db, conversation_id
+            conv_crud.delete_ai_conversation, self.db, conversation_id
         )

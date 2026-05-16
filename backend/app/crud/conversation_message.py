@@ -3,13 +3,18 @@ from app.models.conversation_message import ConversationMessage
 
 
 def create_conversation_message(
-    db: Session, conversation_id: int, role: str, content: str
+    db: Session,
+    conversation_id: int,
+    role: str,
+    content: str,
+    metadata: dict | None = None,
 ) -> ConversationMessage:
     """创建单条对话消息。"""
     msg = ConversationMessage(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        meta=metadata,
     )
     db.add(msg)
     db.commit()

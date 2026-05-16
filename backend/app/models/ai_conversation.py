@@ -12,7 +12,7 @@ class AIConversation(Base):
     """
     AI 对话元数据表。
 
-    记录用户与 AI 的每一次对话会话，支持软删除。
+    记录用户与 AI 的每一次对话会话，物理删除。
     """
 
     __tablename__ = "ai_conversations"
@@ -23,9 +23,6 @@ class AIConversation(Base):
     )
     title: Mapped[str] = mapped_column(
         String(255), nullable=False, default="New Chat"
-    )
-    is_deleted: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
