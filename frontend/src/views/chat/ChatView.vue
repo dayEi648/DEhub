@@ -21,7 +21,6 @@
           v-for="(msg, index) in chatStore.currentMessages"
           :key="msg.id + '-' + index"
           :message="msg"
-          :is-streaming="chatStore.isStreaming && index === chatStore.currentMessages.length - 1 && msg.role === 'assistant'"
         />
       </div>
       <div
@@ -31,7 +30,7 @@
       >
         新消息 ↓
       </div>
-      <ChatInput @send="handleSend" @stop="handleStop" />
+      <ChatInput @send="handleSend" />
     </div>
   </div>
 </template>
@@ -49,7 +48,6 @@ const uiStore = useUiStore()
 const messageListRef = ref<HTMLElement>()
 const showScrollToBottom = ref(false)
 const isUserScrolledUp = ref(false)
-let currentAbort: (() => void) | null = null
 
 function isNearBottom(el: HTMLElement) {
   return el.scrollTop + el.clientHeight >= el.scrollHeight - 50
@@ -75,22 +73,14 @@ function handleScroll() {
   }
 }
 
-function handleSend(payload: { content: string }) {
-  const result = chatStore.sendMessage(
+async function handleSend(payload: { content: string }) {
+  await chatStore.sendMessage(
     payload.content,
     chatStore.currentConversationId || undefined
   )
-  currentAbort = result.abort
   // Auto-scroll on send
   isUserScrolledUp.value = false
   showScrollToBottom.value = false
-}
-
-function handleStop() {
-  if (currentAbort) {
-    currentAbort()
-    currentAbort = null
-  }
 }
 
 // Auto-scroll when new messages arrive, unless user has scrolled up
@@ -106,21 +96,6 @@ watch(
   }
 )
 
-// Auto-scroll during streaming (content changes on the last message)
-watch(
-  () => {
-    const lastMsg = chatStore.currentMessages[chatStore.currentMessages.length - 1]
-    return lastMsg?.content
-  },
-  async () => {
-    await nextTick()
-    if (!isUserScrolledUp.value) {
-      scrollToBottom(false)
-    } else {
-      showScrollToBottom.value = true
-    }
-  }
-)
 </script>
 
 <style scoped>

@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { useRoute, onBeforeRouteUpdate } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { useForumStore } from '@/stores/forum'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import PillLink from '@/components/PillLink.vue'
@@ -61,6 +61,7 @@ import Pagination from '@/components/Pagination.vue'
 import ForumPostCard from '@/components/ForumPostCard.vue'
 
 const route = useRoute()
+const router = useRouter()
 const forumStore = useForumStore()
 
 const currentSort = ref<'created' | 'view'>('created')
@@ -109,6 +110,8 @@ async function loadZoneAndPosts(slug?: string) {
       skip: (currentPage.value - 1) * pageSize,
       limit: pageSize
     })
+  } else {
+    router.push('/404')
   }
 }
 

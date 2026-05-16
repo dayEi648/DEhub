@@ -19,7 +19,7 @@
         @click="selectConversation(conv.id)"
       >
         <span class="conv-title">{{ conv.title }}</span>
-        <span class="conv-time">{{ formatDate(conv.created_at) }}</span>
+        <span class="conv-time">{{ formatDate(conv.updated_at) }}</span>
         <button class="delete-btn" @click.stop="confirmDelete(conv.id)">🗑</button>
       </div>
       <div v-if="chatStore.conversations.length === 0" class="empty-conversations">

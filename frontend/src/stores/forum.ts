@@ -78,7 +78,7 @@ export const useForumStore = defineStore('forum', () => {
   }
 
   async function createReply(postId: number, content: string) {
-    const { data } = await forumApi.createReply(postId, content)
+    const { data } = await forumApi.createReply(postId, { content })
     replies.value.push(data)
     totalReplies.value++
     if (currentPost.value) currentPost.value.reply_count++

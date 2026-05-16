@@ -264,14 +264,15 @@ export interface CommentListResponse {
 /* ---------- Chat / AI ---------- */
 export interface ChatCreate {
   conversation_id?: number
-  content: string
+  user_input: string
+  is_edit?: boolean
 }
 
 export interface ConversationResponse {
   id: number
-  user_id: number
   title: string
   created_at: string
+  updated_at: string
 }
 
 export interface MessageResponse {

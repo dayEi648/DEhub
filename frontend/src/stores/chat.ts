@@ -10,7 +10,7 @@ export const useChatStore = defineStore('chat', () => {
   const conversations = ref<ConversationResponse[]>([])
   const currentMessages = ref<MessageResponse[]>([])
   const currentConversationId = ref<number | null>(null)
-  const isStreaming = ref(false)
+  const isLoading = ref(false)
   const totalConversations = ref(0)
 
   async function fetchConversations(params?: { skip?: number; limit?: number }) {
@@ -37,13 +37,13 @@ export const useChatStore = defineStore('chat', () => {
     uiStore.showToast('对话已删除', 'success')
   }
 
-  function sendMessage(content: string, conversationId?: number) {
+  async function sendMessage(userInput: string, conversationId?: number) {
     // Optimistic user message
     const userMessage: MessageResponse = {
       id: Date.now(),
       conversation_id: conversationId || 0,
       role: 'user',
-      content,
+      content: userInput,
       created_at: new Date().toISOString()
     }
     currentMessages.value.push(userMessage)
@@ -58,54 +58,39 @@ export const useChatStore = defineStore('chat', () => {
     }
     currentMessages.value.push(assistantMessage)
 
-    isStreaming.value = true
+    isLoading.value = true
 
-    const { abort } = chatApi.sendStreamMessage(
-      {
+    try {
+      const { data } = await chatApi.sendMessage({
         conversation_id: conversationId,
-        content
-      },
-      {
-        onMessage: (chunk: string) => {
-          assistantMessage.content += chunk
-        },
-        onEvent: (eventType: string, data: string) => {
-          if (eventType === 'meta') {
-            try {
-              const meta = JSON.parse(data)
-              if (meta.conversation_id) {
-                const cid = Number(meta.conversation_id)
-                currentConversationId.value = cid
-                userMessage.conversation_id = cid
-                assistantMessage.conversation_id = cid
-              }
-            } catch {
-              // ignore parse error
-            }
-          }
-        },
-        onError: (err: any) => {
-          isStreaming.value = false
-          assistantMessage.content += '\n[发生错误]'
-          uiStore.showToast(err.message || '对话异常', 'error')
-        },
-        onDone: () => {
-          isStreaming.value = false
-          if (!conversationId) {
-            fetchConversations()
-          }
-        }
-      }
-    )
+        user_input: userInput
+      })
 
-    return { abort }
+      assistantMessage.content = data.response
+
+      if (data.conversation_id) {
+        const cid = data.conversation_id
+        currentConversationId.value = cid
+        userMessage.conversation_id = cid
+        assistantMessage.conversation_id = cid
+      }
+
+      if (!conversationId) {
+        await fetchConversations()
+      }
+    } catch (err: any) {
+      assistantMessage.content += '\n[发生错误]'
+      uiStore.showToast(err.message || '对话异常', 'error')
+    } finally {
+      isLoading.value = false
+    }
   }
 
   return {
     conversations,
     currentMessages,
     currentConversationId,
-    isStreaming,
+    isLoading,
     totalConversations,
     fetchConversations,
     fetchMessages,

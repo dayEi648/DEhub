@@ -12,11 +12,10 @@
       />
       <button
         class="send-btn"
-        :class="{ stop: chatStore.isStreaming }"
-        :disabled="!chatStore.isStreaming && !content.trim()"
-        @click="handleButtonClick"
+        :disabled="chatStore.isLoading || !content.trim()"
+        @click="send"
       >
-        <span v-if="chatStore.isStreaming">■</span>
+        <span v-if="chatStore.isLoading">⋯</span>
         <span v-else>→</span>
       </button>
     </div>
@@ -33,7 +32,6 @@ const textareaRef = ref<HTMLTextAreaElement>()
 
 const emit = defineEmits<{
   send: [payload: { content: string }]
-  stop: []
 }>()
 
 function handleKeydown(e: KeyboardEvent) {
@@ -49,16 +47,8 @@ function autoResize(e: Event) {
   target.style.height = Math.min(target.scrollHeight, 140) + 'px'
 }
 
-function handleButtonClick() {
-  if (chatStore.isStreaming) {
-    emit('stop')
-  } else {
-    send()
-  }
-}
-
 function send() {
-  if (!content.value.trim() || chatStore.isStreaming) return
+  if (!content.value.trim() || chatStore.isLoading) return
   emit('send', { content: content.value.trim() })
   content.value = ''
   // Reset textarea height
@@ -112,9 +102,5 @@ function send() {
 .send-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-.send-btn.stop {
-  border-radius: 8px;
-  font-size: 10px;
 }
 </style>

@@ -7,6 +7,7 @@ import type {
   ForumPostUpdate,
   ForumPostResponse,
   ForumPostListResponse,
+  ForumReplyCreate,
   ForumReplyResponse,
   ForumReplyListResponse
 } from '@/types'
@@ -60,8 +61,8 @@ export function fetchReplies(postId: number, params?: { skip?: number; limit?: n
   return client.get<ForumReplyListResponse>(`/forum_posts/${postId}/replies`, { params })
 }
 
-export function createReply(postId: number, content: string) {
-  return client.post<ForumReplyResponse>(`/forum_posts/${postId}/replies`, { content })
+export function createReply(postId: number, data: ForumReplyCreate) {
+  return client.post<ForumReplyResponse>(`/forum_posts/${postId}/replies`, data)
 }
 
 export function deleteReply(replyId: number) {

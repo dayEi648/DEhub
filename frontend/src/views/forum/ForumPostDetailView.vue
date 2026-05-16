@@ -20,9 +20,9 @@
           </div>
         </div>
         <div class="post-body">{{ forumStore.currentPost.content }}</div>
-        <div v-if="canManage" class="post-actions">
-          <PillLink :to="`/forum/post/edit/${forumStore.currentPost.id}`">编辑</PillLink>
-          <button class="action-link danger" @click="showDeletePostModal = true">删除</button>
+        <div v-if="canEditPost || canDeletePost" class="post-actions">
+          <PillLink v-if="canEditPost" :to="`/forum/post/edit/${forumStore.currentPost.id}`">编辑</PillLink>
+          <button v-if="canDeletePost" class="action-link danger" @click="showDeletePostModal = true">删除</button>
         </div>
       </Card>
 
@@ -58,7 +58,7 @@
       </Card>
 
       <div class="back-link">
-        <PillLink :to="`/forum/${forumStore.currentZone?.slug || ''}`">← 返回帖子列表</PillLink>
+        <PillLink :to="forumStore.currentZone ? `/forum/${forumStore.currentZone.slug}` : '/forum'">← 返回帖子列表</PillLink>
       </div>
     </div>
 
@@ -132,7 +132,14 @@ async function toggleFavorite() {
   }
 }
 
-const canManage = computed(() => {
+const canEditPost = computed(() => {
+  if (!authStore.user || !forumStore.currentPost) return false
+  const isAuthor = authStore.user.id === forumStore.currentPost.user_id
+  const isAdmin = authStore.isAdmin
+  return isAuthor || isAdmin
+})
+
+const canDeletePost = computed(() => {
   if (!authStore.user || !forumStore.currentPost) return false
   const isAuthor = authStore.user.id === forumStore.currentPost.user_id
   const isAdmin = authStore.isAdmin
@@ -203,7 +210,7 @@ async function confirmDeletePost() {
   showDeletePostModal.value = false
   try {
     await forumStore.deletePost(postId.value)
-    router.push(`/forum/${forumStore.currentZone?.slug || ''}`)
+    router.push(forumStore.currentZone ? `/forum/${forumStore.currentZone.slug}` : '/forum')
   } catch (error: any) {
     const message = error.response?.data?.message || '删除失败'
     uiStore.showToast(message, 'error')

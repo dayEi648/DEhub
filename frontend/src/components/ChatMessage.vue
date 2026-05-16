@@ -7,7 +7,6 @@
       <div class="message-bubble">
         <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" />
         <template v-else>{{ message.content }}</template>
-        <span v-if="isStreaming" class="cursor">|</span>
       </div>
       <span class="message-time">{{ formatTime(message.created_at) }}</span>
     </template>
@@ -20,7 +19,6 @@ import MarkdownRenderer from './MarkdownRenderer.vue'
 
 interface Props {
   message: MessageResponse
-  isStreaming?: boolean
 }
 defineProps<Props>()
 
@@ -82,11 +80,5 @@ function formatTime(date: string) {
 }
 .chat-message.assistant .message-time {
   text-align: left;
-}
-.cursor {
-  display: inline-block;
-  color: var(--apple-blue);
-  animation: blink 1s infinite;
-  margin-left: 2px;
 }
 </style>
