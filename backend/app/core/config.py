@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     APP_DESCRIPTION: str = Field(default="A personal platform for DE")
     DEBUG: bool = Field(default=False)
 
+    IQS_ENDPOINT: str = Field(default="")
+    IQS_TIMEOUT: int = Field(default=45)
     IQS_API_KEY: str = Field(default="")
 
     REDIS_HOST: str = Field(default="redis")

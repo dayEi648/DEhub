@@ -1,6 +1,6 @@
 from app.graphs.states.chat_state import ChatState
 from app.graphs.nodes.chat_nodes import retrieve_memory_node, agent_node
-from app.tools.blog_search import search_blog
+from app.graphs.nodes.toolnodes import search_blog, search_web
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
@@ -21,7 +21,7 @@ def build_chat_graph():
     # 注册节点
     builder.add_node("retrieve_memory", retrieve_memory_node)
     builder.add_node("agent", agent_node)
-    builder.add_node("tools", ToolNode([search_blog]))
+    builder.add_node("tools", ToolNode([search_blog, search_web]))
 
     # 注册边：先检索记忆，再进入 agent
     builder.add_edge(START, "retrieve_memory")
