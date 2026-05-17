@@ -49,6 +49,7 @@
               <span class="post-category">{{ post.category?.name || '未分类' }}</span>
               <span class="post-date">{{ formatDate(post.created_at) }}</span>
               <span class="post-views">👁 {{ post.view_count }}</span>
+              <span class="post-comments">💬 {{ post.comment_count }}</span>
             </div>
             <div v-if="post.tags.length" class="post-tags">
               <span

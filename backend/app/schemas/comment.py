@@ -33,6 +33,7 @@ class CommentResponse(BaseModel):
     is_nested: bool
     nested_parent_id: Optional[int] = None
     likecount: int
+    is_liked: bool = False
     created_at: datetime
     user: CommentUserInfo
 

@@ -14,6 +14,7 @@
         <span>发布于 {{ formatDate(blogStore.currentPost.created_at) }}</span>
         <span>更新于 {{ formatDate(blogStore.currentPost.updated_at) }}</span>
         <span>👁 {{ blogStore.currentPost.view_count }}</span>
+        <span>💬 {{ blogStore.currentPost.comment_count }}</span>
         <button
           class="favorite-btn"
           :class="{ favorited: isFavorited }"
@@ -63,6 +64,7 @@
       <CommentSection
         target-type="blog_post"
         :target-id="blogStore.currentPost.id"
+        :total-count="blogStore.currentPost.comment_count"
       />
     </div>
   </div>

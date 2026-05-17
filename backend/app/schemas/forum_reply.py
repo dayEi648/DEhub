@@ -21,6 +21,7 @@ class ForumReplyResponse(ForumReplyBase):
     user_id: int
     user: UserBriefInfo
     likecount: int
+    comment_count: int
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

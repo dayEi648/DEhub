@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.core.security import get_current_user
 from app.models.user import User
+from app.models.user_comment_like import UserCommentLike
 from app.schemas.comment import CommentCreate, CommentResponse, CommentListResponse
 from app.services.comment_service import CommentService
 
@@ -95,7 +96,28 @@ def list_comments(
         skip=skip,
         limit=limit,
     )
-    return CommentListResponse(items=items, total=total)
+
+    # 批量查询当前用户对这些评论的点赞状态
+    response_items: list[CommentResponse] = []
+    if items and current_user:
+        comment_ids = [c.id for c in items]
+        liked_rows = (
+            db.query(UserCommentLike.comment_id)
+            .filter(
+                UserCommentLike.user_id == current_user.id,
+                UserCommentLike.comment_id.in_(comment_ids),
+            )
+            .all()
+        )
+        liked_ids = {row[0] for row in liked_rows}
+        for item in items:
+            resp = CommentResponse.model_validate(item)
+            resp.is_liked = item.id in liked_ids
+            response_items.append(resp)
+    else:
+        response_items = [CommentResponse.model_validate(item) for item in items]
+
+    return CommentListResponse(items=response_items, total=total)
 
 
 @router.post("/{comment_id}/like", status_code=status.HTTP_204_NO_CONTENT)

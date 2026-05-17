@@ -89,6 +89,7 @@ export interface BlogPostResponse extends BlogPostBase {
   slug: string
   category: BlogCategoryBrief
   view_count: number
+  comment_count: number
   created_at: string
   updated_at: string
 }
@@ -104,6 +105,7 @@ export interface BlogPostListItem {
   tags: string[]
   status: string
   view_count: number
+  comment_count: number
   created_at: string
   updated_at: string
 }
@@ -215,6 +217,7 @@ export interface ForumReplyResponse extends ForumReplyBase {
   user_id: number
   user: UserBriefInfo
   likecount: number
+  comment_count: number
   created_at: string
 }
 
@@ -239,6 +242,8 @@ export interface CommentCreate {
   target_type: string
   target_id: number
   parent_id?: number | null
+  is_nested?: boolean
+  nested_parent_id?: number | null
   content: string
 }
 
@@ -249,7 +254,10 @@ export interface CommentResponse {
   parent_id: number | null
   user_id: number
   content: string
+  is_nested: boolean
+  nested_parent_id: number | null
   likecount: number
+  is_liked: boolean
   created_at: string
   user: CommentUserInfo
 }

@@ -22,15 +22,18 @@
         </div>
       </div>
 
-      <!-- 查看所有回复按钮（仅表层评论显示且尚未展开时） -->
-      <div v-if="depth === 0 && !repliesLoaded && childComments.length > 0" class="load-replies-btn">
-        <button class="action-btn" @click="emitLoadReplies">
-          查看所有回复
+      <!-- 查看/收起回复按钮（仅表层评论显示） -->
+      <div v-if="depth === 0" class="load-replies-btn">
+        <button v-if="!repliesLoaded" class="action-btn" @click="emitLoadReplies">
+          查看更多回复
+        </button>
+        <button v-else class="action-btn" @click="emitCollapseReplies">
+          收起回复
         </button>
       </div>
 
-      <!-- 嵌套子评论 -->
-      <div v-if="childComments.length > 0 && (depth > 0 || repliesLoaded)" class="replies-list">
+      <!-- 子评论（里层回复 + 嵌套回复同级展示） -->
+      <div v-if="depth === 0 && repliesLoaded && childComments.length > 0" class="replies-list">
         <CommentItem
           v-for="reply in childComments"
           :key="reply.id"
@@ -38,10 +41,15 @@
           :target-type="targetType"
           :target-id="targetId"
           :root-id="rootId"
-          :depth="depth + 1"
-          :replies="[]"
+          :depth="1"
+          :replies-loaded="true"
           :all-comments="allComments"
         />
+      </div>
+
+      <!-- 展开后无回复的提示 -->
+      <div v-else-if="depth === 0 && repliesLoaded && childComments.length === 0" class="no-replies-hint">
+        暂无回复
       </div>
     </div>
   </div>
@@ -61,19 +69,18 @@ interface Props {
   targetId: number
   rootId: number
   depth?: number
-  replies?: CommentResponse[]
   repliesLoaded?: boolean
   allComments?: CommentResponse[]
 }
 const props = withDefaults(defineProps<Props>(), {
   depth: 0,
-  replies: () => [],
   repliesLoaded: false,
   allComments: () => []
 })
 
 const emit = defineEmits<{
   loadReplies: [rootId: number]
+  collapseReplies: [rootId: number]
 }>()
 
 const replyPlaceholder = computed(() => {
@@ -91,16 +98,15 @@ const indentStyle = computed(() => ({
 
 const childComments = computed(() => {
   if (props.depth === 0) {
-    // 表层评论的子评论：parent_id 等于当前评论 id（第一层回复）
+    // 表层评论的子评论：parent_id 等于当前评论 id（包含里层回复和嵌套回复）
+    // 里层回复与嵌套回复同级展示，不再递归嵌套
     return props.allComments.filter((c) => c.parent_id === props.comment.id)
   }
-  // 非表层评论的子评论（嵌套回复）：target_type 为 'comment' 且 target_id 等于当前评论 id
-  return props.allComments.filter(
-    (c) => c.target_type === 'comment' && c.target_id === props.comment.id
-  )
+  // 里层回复及以下不再展示子评论（嵌套回复已在表层下同层级展示）
+  return []
 })
 
-const isLiked = computed(() => commentStore.likedCommentIds.has(props.comment.id))
+const isLiked = computed(() => props.comment.is_liked)
 
 const canDelete = computed(() => {
   return authStore.user?.id === props.comment.user_id || authStore.isAdmin
@@ -120,22 +126,43 @@ async function deleteComment() {
 
 async function submitReply() {
   if (!replyContent.value.trim()) return
-  const isReplyToInner = props.depth === 1
+
+  const isReplyToInner = props.depth >= 1
   const content = isReplyToInner
     ? `@${props.comment.user.username} ${replyContent.value.trim()}`
     : replyContent.value.trim()
-  await commentStore.createComment({
-    target_type: isReplyToInner ? 'comment' : props.targetType,
-    target_id: isReplyToInner ? props.comment.id : props.targetId,
-    parent_id: props.rootId,
-    content
-  })
+
+  if (props.depth === 0) {
+    // 回复表层评论 → 创建里层回复
+    await commentStore.createComment({
+      target_type: props.targetType,
+      target_id: props.targetId,
+      parent_id: props.comment.id,
+      is_nested: false,
+      content
+    })
+  } else {
+    // 回复里层评论 → 创建嵌套回复
+    await commentStore.createComment({
+      target_type: props.targetType,
+      target_id: props.targetId,
+      parent_id: props.rootId,
+      is_nested: true,
+      nested_parent_id: props.comment.id,
+      content
+    })
+  }
+
   replyContent.value = ''
   showReply.value = false
 }
 
 function emitLoadReplies() {
   emit('loadReplies', props.comment.id)
+}
+
+function emitCollapseReplies() {
+  emit('collapseReplies', props.comment.id)
 }
 </script>
 
@@ -228,5 +255,10 @@ function emitLoadReplies() {
 }
 .load-replies-btn {
   margin-top: 8px;
+}
+.no-replies-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-tertiary);
 }
 </style>

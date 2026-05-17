@@ -5,6 +5,8 @@ export function fetchComments(params: {
   target_type: string
   target_id: number
   parent_id?: number | null
+  is_nested?: boolean
+  nested_parent_id?: number
   sort_by?: 'time' | 'hot'
   skip?: number
   limit?: number

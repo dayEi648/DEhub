@@ -45,7 +45,7 @@
               <p class="reply-content">{{ reply.content }}</p>
               <div class="reply-actions-bar">
               <button class="action-link" @click="toggleReplyComments(reply.id)">
-                {{ expandedReplyComments.has(reply.id) ? '收起回复' : '查看更多回复' }}
+                {{ expandedReplyComments.has(reply.id) ? '收起回复' : `查看更多回复 (${reply.comment_count})` }}
               </button>
               <button v-if="canManageReply(reply.user_id)" class="action-link danger" @click="openDeleteReplyModal(reply.id)">删除</button>
             </div>

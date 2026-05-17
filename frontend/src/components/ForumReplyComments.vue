@@ -32,15 +32,18 @@
               </div>
             </div>
 
-            <!-- 第三层评论 -->
+            <!-- 第三层：嵌套回复 -->
             <div v-if="thirdLayer[comment.id]?.length > 0" class="third-layer-list">
               <div
                 v-for="reply in thirdLayer[comment.id]"
                 :key="reply.id"
                 class="third-layer-item"
               >
-                <span class="comment-author-small">{{ reply.user.username }}</span>
-                <span class="comment-content-small">{{ reply.content }}</span>
+                <Avatar :size="20" :src="reply.user.avatar_url" :name="reply.user.username" />
+                <div class="third-layer-body">
+                  <span class="comment-author-small">{{ reply.user.username }}</span>
+                  <span class="comment-content-small">{{ reply.content }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -91,26 +94,35 @@ onMounted(() => {
 
 async function loadAll() {
   try {
-    // 加载第二层（直接回复 ForumReply）
+    // 加载第二层：里层回复（直接回复 ForumReply，is_nested=false）
     const { data: secondData } = await commentApi.fetchComments({
       target_type: 'forum_reply',
       target_id: props.replyId,
+      parent_id: props.replyId,
+      is_nested: false,
       sort_by: 'time',
       skip: 0,
       limit: 100
     })
     secondLayer.value = secondData.items
 
-    // 为每个第二层加载第三层（回复第二层）
-    for (const comment of secondLayer.value) {
+    // 为每个第二层加载第三层：嵌套回复（is_nested=true，nested_parent_id=该评论id）
+    if (secondLayer.value.length > 0) {
       const { data: thirdData } = await commentApi.fetchComments({
-        target_type: 'comment',
-        target_id: comment.id,
+        target_type: 'forum_reply',
+        target_id: props.replyId,
+        parent_id: props.replyId,
+        is_nested: true,
         sort_by: 'time',
         skip: 0,
         limit: 100
       })
-      thirdLayer[comment.id] = thirdData.items
+      // 按 nested_parent_id 分组
+      for (const comment of secondLayer.value) {
+        thirdLayer[comment.id] = thirdData.items.filter(
+          (c) => c.nested_parent_id === comment.id
+        )
+      }
     }
 
     loaded.value = true
@@ -126,6 +138,7 @@ async function submitNew() {
     const { data: comment } = await commentApi.createComment({
       target_type: 'forum_reply',
       target_id: props.replyId,
+      parent_id: props.replyId,
       content: newContent.value.trim()
     })
     secondLayer.value.push(comment)
@@ -145,9 +158,11 @@ async function submitReply(parentComment: CommentResponse) {
   if (!content) return
   try {
     const { data: comment } = await commentApi.createComment({
-      target_type: 'comment',
-      target_id: parentComment.id,
-      parent_id: parentComment.id,
+      target_type: 'forum_reply',
+      target_id: props.replyId,
+      parent_id: props.replyId,
+      is_nested: true,
+      nested_parent_id: parentComment.id,
       content: `@${parentComment.user.username} ${content}`
     })
     if (!thirdLayer[parentComment.id]) {
@@ -237,10 +252,16 @@ function formatTime(time: string) {
 }
 .third-layer-item {
   display: flex;
-  gap: 4px;
-  align-items: baseline;
+  gap: 6px;
+  align-items: flex-start;
   padding: 4px 0;
   font-size: 12px;
+}
+.third-layer-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: baseline;
 }
 .comment-input-area-small {
   display: flex;
