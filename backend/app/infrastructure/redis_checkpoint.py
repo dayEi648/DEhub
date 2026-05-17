@@ -176,7 +176,7 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
             f"{_WRITE_PREFIX}:{thread_id}:{checkpoint_ns}:"
             f"{checkpoint_id}:*"
         )
-        keys: list[str] = []
+        keys: list[str | bytes] = []
         async for key in self._redis.scan_iter(match=pattern):
             keys.append(key)
 

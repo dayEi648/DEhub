@@ -17,7 +17,6 @@ langchain
 langgraph
 psycopg
 langchain-openai
-langchain-postgres
 pgvector
 langchain-community
 mcp

@@ -13,9 +13,9 @@ from app.graphs.builders.chat_builder import get_chat_graph
 from app.infrastructure.checkpoint_client import delete_checkpoint
 from app.infrastructure.llm_client import get_llm_small_client
 from app.models.ai_conversation import AIConversation
-from app.prompts.chat_prompts import CONVERSATION_TITLE_PROMPT
+from app.prompts.chat_prompts import CHAT_DEFAULT_SYSTEM_PROMPT, CONVERSATION_TITLE_PROMPT
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.user_memory_service import UserMemoryService
+from app.services.user_profile_service import UserProfileService
 
 logger = logging.getLogger(__name__)
 
@@ -32,17 +32,17 @@ def _require_owner(conv: AIConversation, user_id: int) -> None:
 class ChatService:
     """AI 对话服务。
 
-    负责对话消息持久化、LangGraph 工作流编排、标题生成和画像摘要触发。
+    负责对话消息持久化、LangGraph 工作流编排、标题生成和用户画像更新触发。
     """
-
-    # 每达到多少条消息就重新生成用户画像摘要
-    _SUMMARY_INTERVAL = 6
 
     # 标题重生成阈值（秒）：距上次消息超过此时长则重新生成标题
     _TITLE_REGENERATE_THRESHOLD_SECONDS = 300
 
     # 生成标题的最大长度（字符）
     _TITLE_MAX_LENGTH = 20
+
+    # 用户画像更新触发间隔：每 N 条用户消息触发一次判断
+    _PROFILE_UPDATE_INTERVAL = 3
 
     @staticmethod
     def _extract_ai_content(msg: AIMessage) -> str:
@@ -58,8 +58,73 @@ class ChatService:
     def __init__(self, db: Session):
         self.db = db
         self.graph = get_chat_graph()
-        self.memory_service = UserMemoryService(db)
+        self.profile_service = UserProfileService(db)
         self._background_tasks: set[asyncio.Task] = set()
+
+    @staticmethod
+    def _db_messages_to_lc_messages(db_messages: list) -> list:
+        """将数据库消息记录转换为 LangChain Message 对象列表。"""
+        messages = []
+        for msg in db_messages:
+            if msg.role == "user":
+                messages.append(HumanMessage(content=msg.content))
+            elif msg.role == "assistant":
+                kwargs: dict = {}
+                if msg.meta and msg.meta.get("tool_calls"):
+                    kwargs["tool_calls"] = [
+                        {
+                            "id": tc.get("id"),
+                            "name": tc.get("name"),
+                            "args": tc.get("args"),
+                            "type": "tool_call",
+                        }
+                        for tc in msg.meta["tool_calls"]
+                    ]
+                messages.append(AIMessage(content=msg.content, **kwargs))
+            elif msg.role == "system":
+                messages.append(SystemMessage(content=msg.content))
+            elif msg.role == "tool":
+                kwargs: dict = {}
+                if msg.meta:
+                    if msg.meta.get("tool_call_id"):
+                        kwargs["tool_call_id"] = msg.meta["tool_call_id"]
+                    if msg.meta.get("name"):
+                        kwargs["name"] = msg.meta["name"]
+                messages.append(ToolMessage(content=msg.content, **kwargs))
+        return messages
+
+    def _build_system_message(self, user_id: int) -> SystemMessage:
+        """构建包含固定指令和用户画像的 SystemMessage。"""
+        profile_text = self.profile_service.get_profile_text(user_id)
+        content = CHAT_DEFAULT_SYSTEM_PROMPT
+        if profile_text:
+            content += f"\n\n--- 用户画像 ---\n{profile_text}\n---"
+        return SystemMessage(content=content)
+
+    async def _restore_state_from_db(
+        self, config: dict, conversation_id: int, user_id: int
+    ) -> None:
+        """从数据库加载对话历史，恢复到 Redis checkpoint 中（包含 SystemMessage）。"""
+        db_messages = await asyncio.to_thread(
+            msg_crud.list_conversation_messages,
+            self.db,
+            conversation_id,
+            limit=None,
+        )
+
+        system_msg = self._build_system_message(user_id)
+        if db_messages:
+            history = self._db_messages_to_lc_messages(db_messages)
+            messages = [system_msg] + history
+        else:
+            messages = [system_msg]
+
+        await self.graph.aupdate_state(config, {"messages": messages})
+        logger.info(
+            "从数据库恢复对话历史到 checkpoint: conv=%s, messages=%d",
+            conversation_id,
+            len(messages),
+        )
 
     async def chat(self, chat_in: ChatRequest, user_id: int) -> ChatResponse:
         """
@@ -89,6 +154,57 @@ class ChatService:
             )
             conversation_id = chat_in.conversation_id
 
+        config = {"configurable": {"thread_id": conversation_id}}
+
+        # 获取调用前的 checkpoint 状态
+        try:
+            state_before = await self.graph.aget_state(config)
+        except Exception:
+            logger.exception("获取 checkpoint 状态失败，假设为新对话")
+            state_before = None
+
+        # 如果 checkpoint 存在但格式旧（无 SystemMessage），清理后重新初始化
+        if state_before is not None:
+            messages = state_before.values.get("messages", [])
+            if not messages or not isinstance(messages[0], SystemMessage):
+                logger.info("检测到旧格式 checkpoint，清理后重新初始化")
+                await delete_checkpoint(str(conversation_id))
+                state_before = None
+
+        # checkpoint 为 None 时：新对话、已过期、或刚清理的旧格式
+        if state_before is None:
+            if chat_in.conversation_id is not None:
+                # 已有对话：从数据库恢复历史并注入 SystemMessage
+                try:
+                    await self._restore_state_from_db(config, conversation_id, user_id)
+                    state_before = await self.graph.aget_state(config)
+                except Exception:
+                    logger.exception("从数据库恢复 checkpoint 失败，继续作为新对话")
+                    state_before = None
+            else:
+                # 新对话：仅注入 SystemMessage
+                try:
+                    system_msg = self._build_system_message(user_id)
+                    await self.graph.aupdate_state(
+                        config, {"messages": [system_msg]}
+                    )
+                    state_before = await self.graph.aget_state(config)
+                except Exception:
+                    logger.exception("注入 SystemMessage 失败")
+                    state_before = None
+
+        history_len = (
+            len(state_before.values.get("messages", [])) if state_before else 0
+        )
+
+        # 统计当前 checkpoint 中的 HumanMessage 数量（用于判断画像更新）
+        current_messages = (
+            state_before.values.get("messages", []) if state_before else []
+        )
+        human_count_before = sum(
+            1 for m in current_messages if isinstance(m, HumanMessage)
+        )
+
         # 持久化用户消息
         await asyncio.to_thread(
             msg_crud.create_conversation_message,
@@ -97,16 +213,6 @@ class ChatService:
             "user",
             chat_in.user_input,
         )
-
-        config = {"configurable": {"thread_id": conversation_id}}
-
-        # 获取调用前的 checkpoint 状态，用于计算本轮新增消息数量
-        try:
-            state_before = await self.graph.aget_state(config)
-            history_len = len(state_before.values.get("messages", [])) if state_before else 0
-        except Exception:
-            logger.exception("获取 checkpoint 状态失败，假设为新对话")
-            history_len = 0
 
         try:
             result = await self.graph.ainvoke(
@@ -175,7 +281,7 @@ class ChatService:
                     },
                 )
 
-        # 标题生成和画像摘要改为后台异步执行，不阻塞响应
+        # 标题生成（后台异步执行，不阻塞响应）
         if not chat_in.is_edit:
             task = asyncio.create_task(
                 self._run_in_new_session(
@@ -185,13 +291,20 @@ class ChatService:
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
 
-        task = asyncio.create_task(
-            self._run_in_new_session(
-                self._maybe_sync_summary_async, user_id, conversation_id
-            )
-        )
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
+        # 用户画像更新判断：每 N 条用户消息触发一次（编辑消息时不触发）
+        if not chat_in.is_edit:
+            human_count_after = human_count_before + 1
+            if (
+                human_count_after > 0
+                and human_count_after % self._PROFILE_UPDATE_INTERVAL == 0
+            ):
+                task = asyncio.create_task(
+                    self._run_in_new_session(
+                        self._maybe_update_profile_async, user_id, conversation_id
+                    )
+                )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
 
         # 提取最终回复文本用于接口返回
         final_content = self._extract_ai_content(final_msg)
@@ -211,6 +324,19 @@ class ChatService:
                 await bound(*args)
         except Exception:
             logger.exception("后台任务 %s 失败", method.__name__)
+
+    async def _maybe_update_profile_async(
+        self, user_id: int, conversation_id: int
+    ) -> None:
+        """触发用户画像更新判断（后台任务）。"""
+        try:
+            await self.profile_service.maybe_update_user_profile(
+                user_id, conversation_id
+            )
+        except Exception:
+            logger.exception(
+                "用户画像更新失败: user=%s conv=%s", user_id, conversation_id
+            )
 
     async def _ensure_title_async(
         self, chat_in: ChatRequest, conversation_id: int
@@ -236,11 +362,11 @@ class ChatService:
                 last_at = last_at.replace(tzinfo=timezone.utc)
 
             # 判断是否需要重新生成标题
-            should_regenerate = False
             should_regenerate = (
                 chat_in.conversation_id is None
                 or last_at is None
-                or (now - last_at).total_seconds() > self._TITLE_REGENERATE_THRESHOLD_SECONDS
+                or (now - last_at).total_seconds()
+                > self._TITLE_REGENERATE_THRESHOLD_SECONDS
             )
 
             if should_regenerate:
@@ -274,41 +400,6 @@ class ChatService:
             return title[:self._TITLE_MAX_LENGTH] if title else ""
         except Exception:
             return ""
-
-    async def _maybe_sync_summary_async(
-        self, user_id: int, conversation_id: int
-    ) -> None:
-        """
-        检查当前对话消息数，若达到阈值则触发用户画像摘要生成。
-        """
-        try:
-            conv = await asyncio.to_thread(
-                conv_crud.get_ai_conversation_by_id, self.db, conversation_id
-            )
-            if conv is None:
-                return
-
-            current_count = await asyncio.to_thread(
-                msg_crud.count_conversation_messages,
-                self.db,
-                conversation_id,
-            )
-            last_count = conv.summary_message_count or 0
-
-            if current_count >= self._SUMMARY_INTERVAL and (
-                current_count - last_count
-            ) >= self._SUMMARY_INTERVAL:
-                await self.memory_service.sync_conversation_summary_async(
-                    user_id, conversation_id
-                )
-                await asyncio.to_thread(
-                    conv_crud.update_summary_message_count,
-                    self.db,
-                    conversation_id,
-                    current_count,
-                )
-        except Exception:
-            logger.exception("判断画像摘要触发失败: conv=%s", conversation_id)
 
     def get_conversation_if_owned(
         self, conversation_id: int, user_id: int
@@ -401,7 +492,6 @@ class ChatService:
     async def delete_conversation(self, conversation_id: int, user_id: int) -> None:
         """
         物理删除对话，并清理 Checkpointer。
-        向量库中的画像摘要会被保留，作为长期记忆供后续检索使用。
 
         Args:
             conversation_id: 对话 ID

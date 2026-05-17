@@ -96,7 +96,7 @@ async def delete_conversation(
     current_user: User = Depends(get_current_user),
 ) -> None:
     """
-    软删除对话（仅对话所有者可用）。
+    物理删除对话（仅对话所有者可用）。
     同时清理 Checkpointer 中的对话历史。
     """
     service = ChatService(db)

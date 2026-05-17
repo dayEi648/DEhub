@@ -26,19 +26,6 @@ def delete_ai_conversation(db: Session, conversation_id: int) -> int:
     return 1
 
 
-def update_summary_message_count(
-    db: Session, conversation_id: int, count: int
-) -> int:
-    """更新对话的 summary_message_count 字段。"""
-    result = (
-        db.query(AIConversation)
-        .filter(AIConversation.id == conversation_id)
-        .update({"summary_message_count": count}, synchronize_session=False)
-    )
-    db.commit()
-    return result
-
-
 def update_conversation_title(
     db: Session, conversation_id: int, title: str
 ) -> int:

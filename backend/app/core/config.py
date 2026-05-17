@@ -25,13 +25,13 @@ class Settings(BaseSettings):
     LLM_MAIN_API_KEY: str = Field(default="")
     LLM_MAIN_BASE_URL: str = Field(default="")
     LLM_MAIN_MODEL: str = Field(default="")
-    LLM_MAIN_MAX_TOKENS: int = Field(default=200000)
+    LLM_MAIN_MAX_TOKENS: int = Field(default=800000)
     LLM_MAIN_TEMPERATURE: float = Field(default=0.6)
     LLM_MAIN_TIMEOUT: int = Field(default=60)
     LLM_SMALL_API_KEY: str = Field(default="")
     LLM_SMALL_BASE_URL: str = Field(default="")
     LLM_SMALL_MODEL: str = Field(default="")
-    LLM_SMALL_MAX_TOKENS: int = Field(default=100000)
+    LLM_SMALL_MAX_TOKENS: int = Field(default=500000)
     LLM_SMALL_TEMPERATURE: float = Field(default=0.6)
     LLM_SMALL_TIMEOUT: int = Field(default=60)
 
@@ -41,11 +41,6 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSION: int | None = Field(default=1024)
     EMBEDDING_TIMEOUT: int = Field(default=60)
     EMBEDDING_CHUNK_SIZE: int = Field(default=25)
-
-    # AI Chat 记忆检索参数
-    MEMORY_RETRIEVAL_TOP_K: int = Field(default=3)
-    MEMORY_RETRIEVAL_MAX_DISTANCE: float = Field(default=0.4)
-    MEMORY_RETENTION_DAYS: int = Field(default=365)
 
     # RAG 博客检索参数
     RAG_BLOG_TOP_K: int = Field(default=3)
