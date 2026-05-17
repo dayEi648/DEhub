@@ -22,12 +22,26 @@ router = APIRouter(prefix="/blog_posts", tags=["博客文章管理"])
 
 def parse_blog_post_create(post_in: str = Form(..., description="博客文章创建请求的 JSON 字符串")) -> BlogPostCreate:
     """解析前端传来的 post_in JSON 字符串为 BlogPostCreate 模型"""
-    return BlogPostCreate.model_validate(json.loads(post_in))
+    try:
+        data = json.loads(post_in)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="请求体 JSON 格式错误"
+        )
+    return BlogPostCreate.model_validate(data)
 
 
 def parse_blog_post_update(post_in: str = Form(..., description="博客文章更新请求的 JSON 字符串")) -> BlogPostUpdate:
     """解析前端传来的 post_in JSON 字符串为 BlogPostUpdate 模型"""
-    return BlogPostUpdate.model_validate(json.loads(post_in))
+    try:
+        data = json.loads(post_in)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="请求体 JSON 格式错误"
+        )
+    return BlogPostUpdate.model_validate(data)
 
 
 # ---------- 写操作（超管专属）----------

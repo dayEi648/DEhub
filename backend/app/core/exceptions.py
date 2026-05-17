@@ -51,6 +51,7 @@ def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSON
     Returns:
         JSONResponse: JSON 响应
     """
+    logger.error("数据库异常: %s", exc, exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={

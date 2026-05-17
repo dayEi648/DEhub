@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.user import User
@@ -145,17 +146,15 @@ class CommentService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="评论不存在",
             )
-        existing = comment_crud.get_user_comment_like(
-            self.db, comment_id, current_user.id
-        )
-        if existing is not None:
+        try:
+            comment_crud.create_user_comment_like(self.db, comment_id, current_user.id)
+            # 数据库触发器会自动维护 likecount，Service 层不再手动操作
+        except IntegrityError:
+            self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="已点赞该评论",
             )
-        comment_crud.create_user_comment_like(self.db, comment_id, current_user.id)
-        db_comment.likecount += 1
-        self.db.commit()
 
     def unlike_comment(self, comment_id: int, current_user: User) -> None:
         """
@@ -181,5 +180,4 @@ class CommentService:
                 detail="未点赞该评论",
             )
         comment_crud.delete_user_comment_like(self.db, comment_id, current_user.id)
-        db_comment.likecount -= 1
-        self.db.commit()
+        # 数据库触发器会自动维护 likecount，Service 层不再手动操作

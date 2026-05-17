@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.orm import Session
 from app.crud import user as user_crud
 from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister, UserListResponse, ChangePasswordRequest
@@ -8,6 +10,9 @@ from app.core.config import settings
 from app.core.permissions import require_admin
 from app.storage.oss import delete_file_from_oss, upload_user_avatar, convert_oss_url_to_file_path
 from app.redis_client import get_redis_client
+
+logger = logging.getLogger(__name__)
+
 
 class UserService:
 
@@ -196,17 +201,20 @@ class UserService:
             )
 
         # 在 Redis 中记录注销时间戳，使该用户所有已有 token 失效
-        from app.core.security import blacklist_token_sync
-        from app.redis_client import get_sync_redis_client
-        import time
-        revoked_at = int(time.time())
-        redis = get_sync_redis_client()
-        ttl = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
-        redis.setex(f"user_revoked:{user_id}", ttl, revoked_at)
+        try:
+            from app.core.security import blacklist_token_sync
+            from app.redis_client import get_sync_redis_client
+            import time
+            revoked_at = int(time.time())
+            redis = get_sync_redis_client()
+            ttl = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
+            redis.setex(f"user_revoked:{user_id}", ttl, revoked_at)
 
-        # 用户自己注销自己时，顺手拉黑当前 token（管理员注销他人不拉黑管理员 token）
-        if access_token and current_user.id == user_id:
-            blacklist_token_sync(access_token)
+            # 用户自己注销自己时，顺手拉黑当前 token（管理员注销他人不拉黑管理员 token）
+            if access_token and current_user.id == user_id:
+                blacklist_token_sync(access_token)
+        except Exception:
+            logger.exception("注销后 Token 失效标记失败: user=%s", user_id)
 
     def hard_delete_user(self, user_id: int, current_user: User) -> None:
         """
@@ -302,7 +310,11 @@ class UserService:
         revoked_at_str = await redis.get(f"user_revoked:{user_id}")
         if revoked_at_str:
             iat = payload.get("iat")
-            if iat and float(iat) < float(revoked_at_str):
+            try:
+                revoked_at = float(revoked_at_str)
+            except (ValueError, TypeError):
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌校验失败")
+            if iat and float(iat) < revoked_at:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="用户已注销",
@@ -379,14 +391,17 @@ class UserService:
         self.db.commit()
 
         # 在 Redis 中记录撤销时间戳，使该用户所有已有 token 失效
-        from app.core.security import blacklist_token_sync
-        from app.redis_client import get_sync_redis_client
-        import time
-        revoked_at = int(time.time())
-        redis = get_sync_redis_client()
-        ttl = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
-        redis.setex(f"user_revoked:{current_user.id}", ttl, revoked_at)
+        try:
+            from app.core.security import blacklist_token_sync
+            from app.redis_client import get_sync_redis_client
+            import time
+            revoked_at = int(time.time())
+            redis = get_sync_redis_client()
+            ttl = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
+            redis.setex(f"user_revoked:{current_user.id}", ttl, revoked_at)
 
-        # 顺手拉黑当前 token
-        if access_token:
-            blacklist_token_sync(access_token)
+            # 顺手拉黑当前 token
+            if access_token:
+                blacklist_token_sync(access_token)
+        except Exception:
+            logger.exception("修改密码后 Token 失效标记失败: user=%s", current_user.id)

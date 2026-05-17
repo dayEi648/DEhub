@@ -68,7 +68,14 @@ def list_users(
 
 def parse_user_update(user_in: str = Form(..., description="用户更新请求的 JSON 字符串")) -> UserUpdate:
     """解析前端传来的 user_in JSON 字符串为 UserUpdate 模型"""
-    return UserUpdate.model_validate(json.loads(user_in))
+    try:
+        data = json.loads(user_in)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="请求体 JSON 格式错误"
+        )
+    return UserUpdate.model_validate(data)
 
 
 @router.put("/{user_id}", response_model=UserResponse)
