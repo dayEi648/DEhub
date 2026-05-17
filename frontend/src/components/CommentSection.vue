@@ -44,6 +44,7 @@
           :depth="0"
           :replies="getReplies(comment.id)"
           :replies-loaded="loadedRootIds.has(comment.id)"
+          :all-comments="commentStore.comments"
           @load-replies="loadReplies"
         />
       </div>
@@ -52,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useCommentStore } from '@/stores/comment'
 import { useUiStore } from '@/stores/ui'
 import PrimaryButton from './PrimaryButton.vue'
@@ -84,6 +85,14 @@ function getReplies(parentId: number) {
   return commentStore.comments.filter((c) => c.parent_id === parentId)
 }
 
+function resetAndLoad() {
+  commentStore.comments = []
+  commentStore.totalComments = 0
+  loadedRootIds.value.clear()
+  // 无论展开/收起都预加载评论数据，确保评论数正确
+  loadRootComments()
+}
+
 async function expandComments() {
   isExpanded.value = true
   await loadRootComments()
@@ -109,7 +118,8 @@ async function loadRootComments() {
 async function loadReplies(rootId: number) {
   if (loadedRootIds.value.has(rootId)) return
   try {
-    await commentStore.fetchComments({
+    // 1. 加载第一层回复（target_type 与父级相同，parent_id 为 rootId）
+    const firstLayer = await commentStore.fetchComments({
       target_type: props.targetType,
       target_id: props.targetId,
       parent_id: rootId,
@@ -117,6 +127,21 @@ async function loadReplies(rootId: number) {
       skip: 0,
       limit: 100
     }, true)
+
+    // 2. 递归加载嵌套回复（target_type 为 'comment'，target_id 为各层回复的 id）
+    const queue = [...firstLayer.items]
+    while (queue.length > 0) {
+      const reply = queue.shift()!
+      const nested = await commentStore.fetchComments({
+        target_type: 'comment',
+        target_id: reply.id,
+        sort_by: currentSort.value,
+        skip: 0,
+        limit: 100
+      }, true)
+      queue.push(...nested.items)
+    }
+
     loadedRootIds.value.add(rootId)
   } catch (error: any) {
     const message = error.response?.data?.message || '加载回复失败'
@@ -144,6 +169,17 @@ watch(currentSort, () => {
   if (isExpanded.value) {
     loadRootComments()
   }
+})
+
+watch(() => props.targetId, (newId, oldId) => {
+  if (newId !== oldId) {
+    resetAndLoad()
+  }
+})
+
+onMounted(() => {
+  // 预加载评论数据，确保收起状态也能显示正确的评论数
+  loadRootComments()
 })
 </script>
 

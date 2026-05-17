@@ -103,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { reactive, onMounted, onUnmounted, computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBlogStore } from '@/stores/blog'

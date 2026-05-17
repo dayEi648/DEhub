@@ -37,6 +37,7 @@ def delete_comment(
 ) -> None:
     """
     删除评论（评论作者或管理员）
+    若删除博客表层评论，会自动级联删除其下所有里层回复与嵌套回复。
     Args:
         comment_id: 评论ID
         db: 数据库会话
@@ -54,6 +55,8 @@ def list_comments(
     target_type: str = Query(..., min_length=1, max_length=32),
     target_id: int = Query(..., ge=1),
     parent_id: int | None = Query(default=None, ge=1),
+    is_nested: bool | None = Query(default=None),
+    nested_parent_id: int | None = Query(default=None, ge=1),
     sort_by: str = Query(default="time", pattern=r"^(time|hot)$"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
@@ -64,11 +67,15 @@ def list_comments(
     分页查询评论列表
     - sort_by=time: 按创建时间倒序
     - sort_by=hot: 按点赞数倒序
-    - parent_id 为空时查询一级评论，传入时查询对应子评论
+    - parent_id 筛选某父级下的评论
+    - is_nested 筛选是否嵌套回复
+    - nested_parent_id 筛选引用某里层/回复评论的嵌套回复
     Args:
         target_type: 目标类型
         target_id: 目标ID
-        parent_id: 父评论ID，None 表示查询一级评论
+        parent_id: 父级ID
+        is_nested: 是否嵌套回复
+        nested_parent_id: 嵌套父级ID
         sort_by: 排序方式，"time" 或 "hot"
         skip: 跳过数量
         limit: 限制数量
@@ -82,6 +89,8 @@ def list_comments(
         target_type=target_type,
         target_id=target_id,
         parent_id=parent_id,
+        is_nested=is_nested,
+        nested_parent_id=nested_parent_id,
         sort_by=sort_by,
         skip=skip,
         limit=limit,

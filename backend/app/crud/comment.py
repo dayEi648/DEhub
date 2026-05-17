@@ -28,6 +28,8 @@ def get_comments(
     target_type: str,
     target_id: int,
     parent_id: int | None = None,
+    is_nested: bool | None = None,
+    nested_parent_id: int | None = None,
     sort_by: str = "time",
     skip: int = 0,
     limit: int = 20,
@@ -38,7 +40,9 @@ def get_comments(
         db: 数据库会话
         target_type: 目标类型
         target_id: 目标ID
-        parent_id: 父评论ID，None 表示查询一级评论
+        parent_id: 父级ID，None 表示不过滤
+        is_nested: 是否嵌套回复，None 表示不过滤
+        nested_parent_id: 嵌套父级ID，None 表示不过滤
         sort_by: 排序方式，"time" 按时间倒序，"hot" 按热度（点赞数）倒序
         skip: 跳过数量
         limit: 限制数量
@@ -52,7 +56,12 @@ def get_comments(
 
     if parent_id is not None:
         query = query.filter(Comment.parent_id == parent_id)
-    # parent_id 为 None 时，不额外过滤 parent_id，返回该目标下所有层级的评论
+
+    if is_nested is not None:
+        query = query.filter(Comment.is_nested == is_nested)
+
+    if nested_parent_id is not None:
+        query = query.filter(Comment.nested_parent_id == nested_parent_id)
 
     if sort_by == "hot":
         query = query.order_by(desc(Comment.likecount), desc(Comment.created_at))
@@ -67,6 +76,20 @@ def get_comments(
         .all()
     )
     return items, total
+
+
+def get_comments_by_parent_id(
+    db: Session, parent_id: int
+) -> list[Comment]:
+    """
+    查询某父级下的所有评论（用于级联删除）
+    Args:
+        db: 数据库会话
+        parent_id: 父级ID
+    Returns:
+        list[Comment]: 评论列表
+    """
+    return db.query(Comment).filter(Comment.parent_id == parent_id).all()
 
 
 def create_comment(db: Session, comment_in: CommentCreate, user_id: int) -> Comment:
@@ -85,6 +108,8 @@ def create_comment(db: Session, comment_in: CommentCreate, user_id: int) -> Comm
         parent_id=comment_in.parent_id,
         user_id=user_id,
         content=comment_in.content,
+        is_nested=comment_in.is_nested,
+        nested_parent_id=comment_in.nested_parent_id,
     )
     db.add(db_comment)
     db.commit()
@@ -104,6 +129,26 @@ def delete_comment(db: Session, comment_id: int) -> int:
     result = (
         db.query(Comment)
         .filter(Comment.id == comment_id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+
+def delete_comments_by_ids(db: Session, comment_ids: list[int]) -> int:
+    """
+    按评论 ID 列表批量删除评论
+    Args:
+        db: 数据库会话
+        comment_ids: 评论 ID 列表
+    Returns:
+        int: 删除行数
+    """
+    if not comment_ids:
+        return 0
+    result = (
+        db.query(Comment)
+        .filter(Comment.id.in_(comment_ids))
         .delete(synchronize_session=False)
     )
     db.commit()
@@ -138,26 +183,6 @@ def get_child_comment_ids_by_parent_ids(
         return []
     rows = db.query(Comment.id).filter(Comment.parent_id.in_(parent_ids)).all()
     return [row[0] for row in rows]
-
-
-def delete_comments_by_ids(db: Session, comment_ids: list[int]) -> int:
-    """
-    按评论 ID 列表批量删除评论
-    Args:
-        db: 数据库会话
-        comment_ids: 评论 ID 列表
-    Returns:
-        int: 删除行数
-    """
-    if not comment_ids:
-        return 0
-    result = (
-        db.query(Comment)
-        .filter(Comment.id.in_(comment_ids))
-        .delete(synchronize_session=False)
-    )
-    db.commit()
-    return result
 
 
 # ---------- 点赞相关 ----------

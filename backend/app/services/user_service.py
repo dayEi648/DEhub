@@ -14,8 +14,8 @@ from fastapi import HTTPException, status, UploadFile
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
 from app.core.config import settings
 from app.core.permissions import require_admin
-from app.storage.oss import delete_file_from_oss_sync, upload_user_avatar, convert_oss_url_to_file_path
-from app.redis_client import get_sync_redis_client
+from app.storage.oss import delete_file_from_oss_sync, upload_user_avatar, convert_oss_url_to_file_path, delete_file_from_oss
+from app.redis_client import get_redis_client, get_sync_redis_client
 
 logger = logging.getLogger(__name__)
 

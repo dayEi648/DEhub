@@ -14,7 +14,6 @@ from app.crud import forum_reply as forum_reply_crud
 TARGET_TYPE_VALIDATORS = {
     "blog_post": lambda db, target_id: blog_post_crud.get_blog_post_by_id(db, target_id),
     "forum_reply": lambda db, target_id: forum_reply_crud.get_reply_by_id(db, target_id),
-    "comment": lambda db, target_id: comment_crud.get_comment_by_id(db, target_id),
 }
 
 
@@ -66,6 +65,115 @@ class CommentService:
                 detail="无权操作此评论",
             )
 
+    def _validate_comment_create(self, comment_in: CommentCreate) -> CommentCreate:
+        """
+        校验并规范化评论创建请求
+        Args:
+            comment_in: 评论创建请求
+        Returns:
+            CommentCreate: 规范化后的请求
+        Raises:
+            HTTPException: 参数非法
+        """
+        # 规则1：is_nested=False 时 nested_parent_id 必须为 None
+        if not comment_in.is_nested and comment_in.nested_parent_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="非嵌套回复不能指定 nested_parent_id",
+            )
+
+        # 论坛场景：若未传 parent_id，自动设置为 target_id
+        if comment_in.target_type == "forum_reply" and comment_in.parent_id is None:
+            comment_in = CommentCreate(
+                target_type=comment_in.target_type,
+                target_id=comment_in.target_id,
+                parent_id=comment_in.target_id,
+                is_nested=comment_in.is_nested,
+                nested_parent_id=comment_in.nested_parent_id,
+                content=comment_in.content,
+            )
+
+        # 规则2：parent_id 为 None 时 is_nested 必须为 False
+        if comment_in.parent_id is None and comment_in.is_nested:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="嵌套回复必须指定 parent_id",
+            )
+
+        # 博客场景校验
+        if comment_in.target_type == "blog_post":
+            if comment_in.parent_id is not None:
+                parent_comment = comment_crud.get_comment_by_id(
+                    self.db, comment_in.parent_id
+                )
+                if parent_comment is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="parent_id 对应的评论不存在",
+                    )
+                # 博客里层/嵌套回复的 parent_id 必须指向表层评论
+                if parent_comment.parent_id is not None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="博客场景下 parent_id 必须指向表层评论",
+                    )
+                # target 一致性校验
+                if (
+                    parent_comment.target_type != comment_in.target_type
+                    or parent_comment.target_id != comment_in.target_id
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="parent_id 对应的评论与当前评论目标不一致",
+                    )
+
+        # 论坛场景校验
+        elif comment_in.target_type == "forum_reply":
+            if comment_in.parent_id != comment_in.target_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="论坛场景下 parent_id 必须等于 target_id",
+                )
+
+        # 嵌套回复校验
+        if comment_in.is_nested:
+            if comment_in.nested_parent_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="嵌套回复必须指定 nested_parent_id",
+                )
+            nested_target = comment_crud.get_comment_by_id(
+                self.db, comment_in.nested_parent_id
+            )
+            if nested_target is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="nested_parent_id 对应的评论不存在",
+                )
+            if nested_target.is_nested:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="nested_parent_id 不能指向另一条嵌套回复",
+                )
+            # target 一致性校验
+            if (
+                nested_target.target_type != comment_in.target_type
+                or nested_target.target_id != comment_in.target_id
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="nested_parent_id 对应的评论与当前评论目标不一致",
+                )
+            # 博客场景：nested_parent_id 必须指向同一表层评论下的里层回复
+            if comment_in.target_type == "blog_post":
+                if nested_target.parent_id != comment_in.parent_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="nested_parent_id 必须与 parent_id 指向同一表层评论",
+                    )
+
+        return comment_in
+
     def create_comment(
         self, comment_in: CommentCreate, current_user: User
     ) -> Comment:
@@ -78,6 +186,7 @@ class CommentService:
             Comment: 评论对象（已加载 user 关联）
         """
         self._validate_target(comment_in.target_type, comment_in.target_id)
+        comment_in = self._validate_comment_create(comment_in)
         db_comment = comment_crud.create_comment(self.db, comment_in, current_user.id)
         # 重新查询以加载 user 关联，避免延迟加载问题
         refreshed = comment_crud.get_comment_by_id(self.db, db_comment.id)
@@ -99,6 +208,19 @@ class CommentService:
                 detail="评论不存在",
             )
         self._require_owner_or_admin(current_user, db_comment.user_id)
+
+        # 若删除的是博客表层评论，先级联删除其下所有里层回复与嵌套回复
+        if db_comment.target_type == "blog_post" and db_comment.parent_id is None:
+            child_comments = comment_crud.get_comments_by_parent_id(
+                self.db, comment_id
+            )
+            child_ids = [c.id for c in child_comments]
+            if child_ids:
+                # 先批量删除点赞记录（避免外键约束问题）
+                comment_crud.delete_comment_likes_by_comment_ids(self.db, child_ids)
+                # 批量删除子评论（嵌套回复由 nested_parent_id 的级联外键自动处理）
+                comment_crud.delete_comments_by_ids(self.db, child_ids)
+
         comment_crud.delete_comment(self.db, comment_id)
 
     def list_comments(
@@ -106,6 +228,8 @@ class CommentService:
         target_type: str,
         target_id: int,
         parent_id: int | None,
+        is_nested: bool | None,
+        nested_parent_id: int | None,
         sort_by: str,
         skip: int,
         limit: int,
@@ -115,7 +239,9 @@ class CommentService:
         Args:
             target_type: 目标类型
             target_id: 目标ID
-            parent_id: 父评论ID
+            parent_id: 父级ID
+            is_nested: 是否嵌套回复
+            nested_parent_id: 嵌套父级ID
             sort_by: 排序方式
             skip: 跳过数量
             limit: 限制数量
@@ -127,6 +253,8 @@ class CommentService:
             target_type=target_type,
             target_id=target_id,
             parent_id=parent_id,
+            is_nested=is_nested,
+            nested_parent_id=nested_parent_id,
             sort_by=sort_by,
             skip=skip,
             limit=limit,

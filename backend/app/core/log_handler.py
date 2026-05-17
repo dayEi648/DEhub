@@ -59,7 +59,7 @@ class SystemLogHandler(logging.Handler):
         message = record.getMessage()
 
         exception_text: str | None = None
-        if record.exc_info:
+        if record.exc_info and record.exc_info != (None, None, None):
             exception_text = "".join(
                 traceback.format_exception(*record.exc_info)
             )

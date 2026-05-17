@@ -22,17 +22,17 @@
         </div>
       </div>
 
-      <!-- 查看所有回复按钮（仅表层评论显示） -->
-      <div v-if="depth === 0 && !repliesLoaded" class="load-replies-btn">
+      <!-- 查看所有回复按钮（仅表层评论显示且尚未展开时） -->
+      <div v-if="depth === 0 && !repliesLoaded && childComments.length > 0" class="load-replies-btn">
         <button class="action-btn" @click="emitLoadReplies">
           查看所有回复
         </button>
       </div>
 
       <!-- 嵌套子评论 -->
-      <div v-if="replies.length > 0 && depth === 0" class="replies-list">
+      <div v-if="childComments.length > 0 && (depth > 0 || repliesLoaded)" class="replies-list">
         <CommentItem
-          v-for="reply in replies"
+          v-for="reply in childComments"
           :key="reply.id"
           :comment="reply"
           :target-type="targetType"
@@ -40,6 +40,7 @@
           :root-id="rootId"
           :depth="depth + 1"
           :replies="[]"
+          :all-comments="allComments"
         />
       </div>
     </div>
@@ -62,11 +63,13 @@ interface Props {
   depth?: number
   replies?: CommentResponse[]
   repliesLoaded?: boolean
+  allComments?: CommentResponse[]
 }
 const props = withDefaults(defineProps<Props>(), {
   depth: 0,
   replies: () => [],
-  repliesLoaded: false
+  repliesLoaded: false,
+  allComments: () => []
 })
 
 const emit = defineEmits<{
@@ -85,6 +88,17 @@ const replyContent = ref('')
 const indentStyle = computed(() => ({
   paddingLeft: props.depth > 0 ? `${props.depth * 48}px` : '0'
 }))
+
+const childComments = computed(() => {
+  if (props.depth === 0) {
+    // 表层评论的子评论：parent_id 等于当前评论 id（第一层回复）
+    return props.allComments.filter((c) => c.parent_id === props.comment.id)
+  }
+  // 非表层评论的子评论（嵌套回复）：target_type 为 'comment' 且 target_id 等于当前评论 id
+  return props.allComments.filter(
+    (c) => c.target_type === 'comment' && c.target_id === props.comment.id
+  )
+})
 
 const isLiked = computed(() => commentStore.likedCommentIds.has(props.comment.id))
 

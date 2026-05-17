@@ -1,7 +1,5 @@
 import client from './client'
 import type {
-  BlogPostCreate,
-  BlogPostUpdate,
   BlogPostResponse,
   BlogPostDetailResponse,
   BlogPostListResponse,

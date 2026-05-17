@@ -89,7 +89,7 @@ export const useBlogStore = defineStore('blog', () => {
     return data
   }
 
-  async function createCategory(data: { name: string; slug: string; description?: string | null | undefined }) {
+  async function createCategory(data: { name: string; slug?: string; description?: string | null | undefined }) {
     const { data: cat } = await blogApi.createCategory(data)
     categories.value.push(cat)
     uiStore.showToast('分类创建成功', 'success')

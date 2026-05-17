@@ -64,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import type { CommentResponse } from '@/types'
 import * as commentApi from '@/api/comment'
 import { useUiStore } from '@/stores/ui'
@@ -76,7 +76,6 @@ interface Props {
 const props = defineProps<Props>()
 
 const loaded = ref(false)
-const comments = ref<CommentResponse[]>([])
 const newContent = ref('')
 const activeReplyId = ref<number | null>(null)
 const replyInputs = reactive<Record<number, string>>({})
@@ -85,6 +84,10 @@ const secondLayer = ref<CommentResponse[]>([])
 const thirdLayer = reactive<Record<number, CommentResponse[]>>({})
 
 const uiStore = useUiStore()
+
+onMounted(() => {
+  loadAll()
+})
 
 async function loadAll() {
   try {

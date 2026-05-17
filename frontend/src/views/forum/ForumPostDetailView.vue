@@ -52,6 +52,7 @@
             <ForumReplyComments v-if="expandedReplyComments.has(reply.id)" :reply-id="reply.id" />
           </div>
         </div>
+        </div>
         <Pagination
           v-if="forumStore.totalReplies > pageSize"
           v-model:current-page="currentPage"

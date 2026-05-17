@@ -80,7 +80,7 @@ def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSON
         JSONResponse: JSON 响应
     """
     extra = _build_log_extra(request, exc)
-    logger.error("数据库异常: %s", exc, exc_info=True, extra=extra)
+    logger.error("数据库异常: %s", exc, exc_info=(type(exc), exc, exc.__traceback__), extra=extra)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
@@ -101,7 +101,7 @@ def catch_all_exception_handler(request: Request, exc: Exception) -> JSONRespons
         JSONResponse: JSON 响应
     """
     extra = _build_log_extra(request, exc)
-    logger.error("发生未捕获的异常: %s", exc, exc_info=True, extra=extra)
+    logger.error("发生未捕获的异常: %s", exc, exc_info=(type(exc), exc, exc.__traceback__), extra=extra)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"code": 500, "message": "服务器内部错误"},

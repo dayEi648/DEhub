@@ -27,10 +27,11 @@ export const useCommentStore = defineStore('comment', () => {
       const existingIds = new Set(comments.value.map((c) => c.id))
       const newItems = data.items.filter((c) => !existingIds.has(c.id))
       comments.value.push(...newItems)
+      totalComments.value += newItems.length
     } else {
       comments.value = data.items
+      totalComments.value = data.total
     }
-    totalComments.value = data.total
     return data
   }
 

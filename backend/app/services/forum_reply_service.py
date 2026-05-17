@@ -6,6 +6,7 @@ from app.models.forum_reply import ForumReply
 from app.schemas.forum_reply import ForumReplyCreate, ForumReplyResponse
 from app.crud import forum_reply as forum_reply_crud
 from app.crud import forum_post as forum_post_crud
+from app.crud import comment as comment_crud
 from app.core.zone_manager import is_zone_manager
 
 
@@ -73,6 +74,7 @@ class ForumReplyService:
     def delete_reply(self, reply_id: int, current_user: User) -> None:
         """
         删除回复（作者本人 或 管理员 或 区主）
+        删除前会先级联删除该回复下的所有评论。
         Args:
             reply_id: 回复ID
             current_user: 当前登录用户
@@ -86,6 +88,19 @@ class ForumReplyService:
             )
 
         self._can_modify_reply(db_reply, current_user)
+
+        # 级联删除该 reply 下的所有评论
+        reply_comments, _ = comment_crud.get_comments(
+            self.db,
+            target_type="forum_reply",
+            target_id=reply_id,
+            limit=10000,  # 足够大的上限以覆盖所有评论
+        )
+        if reply_comments:
+            comment_ids = [c.id for c in reply_comments]
+            comment_crud.delete_comment_likes_by_comment_ids(self.db, comment_ids)
+            comment_crud.delete_comments_by_ids(self.db, comment_ids)
+
         forum_reply_crud.delete_reply(self.db, reply_id)
         forum_post_crud.decrement_reply_count(self.db, db_reply.post_id)
 

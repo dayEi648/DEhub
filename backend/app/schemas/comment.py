@@ -17,6 +17,8 @@ class CommentCreate(BaseModel):
     target_type: str = Field(min_length=1, max_length=32)
     target_id: int = Field(ge=1)
     parent_id: Optional[int] = Field(default=None, ge=1)
+    is_nested: bool = Field(default=False)
+    nested_parent_id: Optional[int] = Field(default=None, ge=1)
     content: str = Field(min_length=1)
 
 
@@ -28,6 +30,8 @@ class CommentResponse(BaseModel):
     parent_id: Optional[int] = None
     user_id: int
     content: str
+    is_nested: bool
+    nested_parent_id: Optional[int] = None
     likecount: int
     created_at: datetime
     user: CommentUserInfo
