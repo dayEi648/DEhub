@@ -16,19 +16,28 @@
         <button v-if="canDelete" class="action-btn delete" @click="deleteComment">删除</button>
       </div>
       <div v-if="showReply" class="reply-input-area">
-        <textarea v-model="replyContent" class="reply-textarea" rows="2" placeholder="回复..." />
+        <textarea v-model="replyContent" class="reply-textarea" rows="2" :placeholder="replyPlaceholder" />
         <div class="reply-actions">
           <PrimaryButton @click="submitReply">发送</PrimaryButton>
         </div>
       </div>
+
+      <!-- 查看所有回复按钮（仅表层评论显示） -->
+      <div v-if="depth === 0 && !repliesLoaded" class="load-replies-btn">
+        <button class="action-btn" @click="emitLoadReplies">
+          查看所有回复
+        </button>
+      </div>
+
       <!-- 嵌套子评论 -->
-      <div v-if="replies.length > 0" class="replies-list">
+      <div v-if="replies.length > 0 && depth === 0" class="replies-list">
         <CommentItem
           v-for="reply in replies"
           :key="reply.id"
           :comment="reply"
           :target-type="targetType"
           :target-id="targetId"
+          :root-id="rootId"
           :depth="depth + 1"
           :replies="[]"
         />
@@ -49,12 +58,23 @@ interface Props {
   comment: CommentResponse
   targetType: string
   targetId: number
+  rootId: number
   depth?: number
   replies?: CommentResponse[]
+  repliesLoaded?: boolean
 }
 const props = withDefaults(defineProps<Props>(), {
   depth: 0,
-  replies: () => []
+  replies: () => [],
+  repliesLoaded: false
+})
+
+const emit = defineEmits<{
+  loadReplies: [rootId: number]
+}>()
+
+const replyPlaceholder = computed(() => {
+  return props.depth === 0 ? '回复...' : `回复 @${props.comment.user.username} `
 })
 
 const commentStore = useCommentStore()
@@ -86,14 +106,22 @@ async function deleteComment() {
 
 async function submitReply() {
   if (!replyContent.value.trim()) return
+  const isReplyToInner = props.depth === 1
+  const content = isReplyToInner
+    ? `@${props.comment.user.username} ${replyContent.value.trim()}`
+    : replyContent.value.trim()
   await commentStore.createComment({
-    target_type: props.targetType,
-    target_id: props.targetId,
-    parent_id: props.comment.id,
-    content: replyContent.value.trim()
+    target_type: isReplyToInner ? 'comment' : props.targetType,
+    target_id: isReplyToInner ? props.comment.id : props.targetId,
+    parent_id: props.rootId,
+    content
   })
   replyContent.value = ''
   showReply.value = false
+}
+
+function emitLoadReplies() {
+  emit('loadReplies', props.comment.id)
 }
 </script>
 
@@ -182,6 +210,9 @@ async function submitReply() {
   justify-content: flex-end;
 }
 .replies-list {
+  margin-top: 8px;
+}
+.load-replies-btn {
   margin-top: 8px;
 }
 </style>

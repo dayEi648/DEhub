@@ -95,12 +95,6 @@ export const useBlogStore = defineStore('blog', () => {
     return data
   }
 
-  async function cleanupDeletedPosts() {
-    const { data } = await blogApi.cleanupDeletedPosts()
-    uiStore.showToast(`已清理 ${data.deleted_count} 篇文章`, 'success')
-    return data
-  }
-
   async function createCategory(data: { name: string; slug: string; description?: string | null | undefined }) {
     const { data: cat } = await blogApi.createCategory(data)
     categories.value.push(cat)
@@ -137,7 +131,6 @@ export const useBlogStore = defineStore('blog', () => {
     hardDeletePost,
     publishPost,
     unpublishPost,
-    cleanupDeletedPosts,
     createCategory,
     updateCategory,
     deleteCategory

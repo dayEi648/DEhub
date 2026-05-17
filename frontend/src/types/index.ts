@@ -89,7 +89,6 @@ export interface BlogPostResponse extends BlogPostBase {
   slug: string
   category: BlogCategoryBrief
   view_count: number
-  is_deleted: boolean
   created_at: string
   updated_at: string
 }
@@ -105,7 +104,6 @@ export interface BlogPostListItem {
   tags: string[]
   status: string
   view_count: number
-  is_deleted: boolean
   created_at: string
   updated_at: string
 }

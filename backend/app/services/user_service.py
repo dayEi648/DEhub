@@ -2,14 +2,20 @@ import logging
 
 from sqlalchemy.orm import Session
 from app.crud import user as user_crud
+from app.crud import forum_zone as forum_zone_crud
+from app.crud import forum_post as forum_post_crud
+from app.crud import forum_reply as forum_reply_crud
+from app.crud import comment as comment_crud
+from app.crud import ai_conversation as ai_conversation_crud
+from app.crud import user_favorite as user_favorite_crud
 from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister, UserListResponse, ChangePasswordRequest
 from app.models.user import User
 from fastapi import HTTPException, status, UploadFile
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
 from app.core.config import settings
 from app.core.permissions import require_admin
-from app.storage.oss import delete_file_from_oss, upload_user_avatar, convert_oss_url_to_file_path
-from app.redis_client import get_redis_client
+from app.storage.oss import delete_file_from_oss_sync, upload_user_avatar, convert_oss_url_to_file_path
+from app.redis_client import get_sync_redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -218,9 +224,103 @@ class UserService:
 
     def hard_delete_user(self, user_id: int, current_user: User) -> None:
         """
-        硬删除用户（从数据库移除，管理员专属）
+        硬删除用户（从数据库彻底移除，管理员专属）。
+
+        级联清理顺序：
+        1. 删除用户头像（OSS）
+        2. 将用户管理的分区区主转移给当前操作管理员
+        3. 删除 AI 对话（ORM 级联删除 messages）
+        4. 删除评论及子评论（含点赞记录）
+        5. 删除论坛帖子和回复
+        6. 删除收藏/点赞/关注记录
+        7. 清理 Redis 撤销标记
+        8. 最后删除用户
         """
         self._require_admin(current_user)
+
+        db_user = user_crud.get_user_by_id(self.db, user_id)
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在"
+            )
+
+        # 1. 删除用户头像
+        if db_user.avatar_url:
+            try:
+                delete_file_from_oss_sync(
+                    convert_oss_url_to_file_path(db_user.avatar_url)
+                )
+            except Exception:
+                logger.exception("删除用户头像失败: user=%s", user_id)
+
+        # 2. 转移区主身份：将该用户管理的分区转给当前操作管理员
+        try:
+            forum_zone_crud.update_zones_manager_by_old_manager(
+                self.db, user_id, current_user.id
+            )
+        except Exception:
+            logger.exception("转移区主身份失败: user=%s", user_id)
+
+        # 3. 删除 AI 对话（ORM 级联自动删除 messages）
+        try:
+            convs = ai_conversation_crud.list_ai_conversations_by_user(
+                self.db, user_id, skip=0, limit=999999
+            )
+            for conv in convs[0]:
+                ai_conversation_crud.delete_ai_conversation(self.db, conv.id)
+        except Exception:
+            logger.exception("删除 AI 对话失败: user=%s", user_id)
+
+        # 4. 删除评论及子评论（先删点赞，再删评论）
+        try:
+            user_comment_ids = comment_crud.get_comment_ids_by_user_id(
+                self.db, user_id
+            )
+            child_comment_ids = comment_crud.get_child_comment_ids_by_parent_ids(
+                self.db, user_comment_ids
+            )
+            all_comment_ids = list(set(user_comment_ids + child_comment_ids))
+            if all_comment_ids:
+                comment_crud.delete_comment_likes_by_comment_ids(
+                    self.db, all_comment_ids
+                )
+                comment_crud.delete_comments_by_ids(self.db, all_comment_ids)
+        except Exception:
+            logger.exception("删除评论失败: user=%s", user_id)
+
+        # 5. 删除论坛帖子和回复
+        try:
+            user_post_ids = forum_post_crud.get_post_ids_by_user_id(
+                self.db, user_id
+            )
+            if user_post_ids:
+                # 先删除帖子下的所有回复（含其他用户的）
+                forum_reply_crud.delete_replies_by_post_ids(
+                    self.db, user_post_ids
+                )
+                # 删除帖子
+                for post_id in user_post_ids:
+                    forum_post_crud.delete_post(self.db, post_id)
+            # 删除该用户回复他人帖子的回复
+            forum_reply_crud.delete_replies_by_user_id(self.db, user_id)
+        except Exception:
+            logger.exception("删除论坛内容失败: user=%s", user_id)
+
+        # 6. 删除收藏/点赞/关注记录
+        try:
+            user_favorite_crud.delete_all_favorites_by_user_id(self.db, user_id)
+        except Exception:
+            logger.exception("删除收藏记录失败: user=%s", user_id)
+
+        # 7. 清理 Redis 撤销标记
+        try:
+            redis = get_sync_redis_client()
+            redis.delete(f"user_revoked:{user_id}")
+        except Exception:
+            logger.exception("清理 Redis 撤销标记失败: user=%s", user_id)
+
+        # 8. 最后删除用户
         deleted = user_crud.hard_delete_user(self.db, user_id)
         if deleted == 0:
             raise HTTPException(

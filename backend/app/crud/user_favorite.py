@@ -302,3 +302,38 @@ def get_user_post_favorites(
     total = query.count()
     items = query.offset(skip).limit(limit).all()
     return items, total
+
+
+# ---------- 用户级联清理 ----------
+
+
+def delete_all_favorites_by_user_id(db: Session, user_id: int) -> dict[str, int]:
+    """
+    删除某用户的所有收藏、点赞、关注记录
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+    Returns:
+        dict[str, int]: 各表删除行数
+    """
+    blog_fav = (
+        db.query(UserBlogPostFavorite)
+        .filter(UserBlogPostFavorite.user_id == user_id)
+        .delete(synchronize_session=False)
+    )
+    zone_follow = (
+        db.query(UserZoneFollow)
+        .filter(UserZoneFollow.user_id == user_id)
+        .delete(synchronize_session=False)
+    )
+    post_fav = (
+        db.query(UserPostFavorite)
+        .filter(UserPostFavorite.user_id == user_id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {
+        "blog_post_favorites": blog_fav,
+        "zone_follows": zone_follow,
+        "post_favorites": post_fav,
+    }

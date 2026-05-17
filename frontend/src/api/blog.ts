@@ -58,10 +58,6 @@ export function unpublishPost(id: number) {
   return client.post<BlogPostResponse>(`/blog_posts/${id}/unpublish`)
 }
 
-export function cleanupDeletedPosts() {
-  return client.delete<{ deleted_count: number }>('/blog_posts/cleanup')
-}
-
 export function generateSummary(content_md: string) {
   return client.post<{ summary: string }>('/blog_posts/generate-summary', { content_md })
 }

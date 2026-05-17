@@ -36,7 +36,6 @@
             </button>
           </div>
           <input v-model="searchQuery" class="search-input" placeholder="搜索标题" @keydown.enter="handleSearch" />
-          <button class="danger-link" @click="handleCleanup">一键清理已删除</button>
         </div>
 
         <div class="admin-table">
@@ -58,21 +57,20 @@
             <div class="col-title">{{ post.title }}</div>
             <div class="col-category">{{ getCategoryName(post.category_id) }}</div>
             <div class="col-status">
-              <span class="status-dot" :class="post.is_deleted ? 'deleted' : post.status" />
-              {{ post.is_deleted ? '已删除' : post.status === 'published' ? '已发布' : '草稿' }}
+              <span class="status-dot" :class="post.status" />
+              {{ post.status === 'published' ? '已发布' : '草稿' }}
             </div>
             <div class="col-views">{{ post.view_count }}</div>
             <div class="col-date">{{ formatDate(post.created_at) }}</div>
             <div class="col-actions">
               <PillLink :to="`/blog/edit/${post.slug}`">编辑</PillLink>
               <button
-                v-if="!post.is_deleted"
                 class="action-link"
                 @click="togglePublish(post)"
               >
                 {{ post.status === 'published' ? '下线' : '发布' }}
               </button>
-              <button v-if="!post.is_deleted" class="action-link" @click="handleDelete(post.id)">删除</button>
+              <button class="action-link" @click="handleDelete(post.id)">删除</button>
               <button class="action-link danger" @click="handleHardDelete(post.id)">硬删除</button>
             </div>
           </div>
@@ -142,15 +140,6 @@
           </template>
         </Modal>
 
-        <!-- 清理确认 Modal -->
-        <Modal v-model="showCleanupModal" title="确认清理">
-          <p>确认清理所有已逻辑删除的文章？此操作不可恢复。</p>
-          <template #footer>
-            <PrimaryButton @click="confirmCleanup">确认</PrimaryButton>
-            <PillLink @click="showCleanupModal = false">取消</PillLink>
-          </template>
-        </Modal>
-
         <!-- 分类表单 Modal -->
         <Modal v-model="showCategoryModal" :title="editingCategory ? '编辑分类' : '新建分类'">
           <div class="form-group">
@@ -196,7 +185,6 @@ const pageSize = 20
 
 const showDeleteModal = ref(false)
 const showHardDeleteModal = ref(false)
-const showCleanupModal = ref(false)
 const showCategoryModal = ref(false)
 const pendingDeleteId = ref<number | null>(null)
 const pendingHardDeleteId = ref<number | null>(null)
@@ -206,8 +194,7 @@ const categoryForm = reactive({ name: '', description: '' })
 const statusTabs = [
   { label: '全部', value: 'all' as const },
   { label: '草稿', value: 'draft' as const },
-  { label: '已发布', value: 'published' as const },
-  { label: '已删除', value: 'deleted' as const }
+  { label: '已发布', value: 'published' as const }
 ]
 
 onMounted(() => {
@@ -221,18 +208,13 @@ watch(currentFilter, () => {
   currentPage.value = 1
 })
 
-const publishedCount = computed(() => blogStore.posts.filter((p) => p.status === 'published' && !p.is_deleted).length)
-const draftCount = computed(() => blogStore.posts.filter((p) => p.status === 'draft' && !p.is_deleted).length)
-const deletedCount = computed(() => blogStore.posts.filter((p) => p.is_deleted).length)
+const publishedCount = computed(() => blogStore.posts.filter((p) => p.status === 'published').length)
+const draftCount = computed(() => blogStore.posts.filter((p) => p.status === 'draft').length)
 
 const allFilteredPosts = computed(() => {
   let list = blogStore.posts
   if (currentFilter.value !== 'all') {
-    if (currentFilter.value === 'deleted') {
-      list = list.filter((p) => p.is_deleted)
-    } else {
-      list = list.filter((p) => p.status === currentFilter.value && !p.is_deleted)
-    }
+    list = list.filter((p) => p.status === currentFilter.value)
   }
   if (searchQuery.value) {
     list = list.filter((p) => p.title.includes(searchQuery.value))
@@ -306,21 +288,6 @@ async function confirmHardDelete() {
   }
   showHardDeleteModal.value = false
   pendingHardDeleteId.value = null
-}
-
-function handleCleanup() {
-  showCleanupModal.value = true
-}
-
-async function confirmCleanup() {
-  try {
-    await blogStore.cleanupDeletedPosts()
-    await blogStore.fetchPosts({ include_unpublished: true })
-  } catch (error: any) {
-    const message = error.response?.data?.message || '清理失败'
-    uiStore.showToast(message, 'error')
-  }
-  showCleanupModal.value = false
 }
 
 function openCreateCategory() {

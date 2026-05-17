@@ -184,7 +184,7 @@ async def upload_file_to_oss(
 
 async def delete_file_from_oss(file_path: str) -> None:
     """
-    删除文件从OSS
+    删除文件从OSS（异步版本）
     Args:
         file_path: 文件路径
     Returns:
@@ -194,6 +194,30 @@ async def delete_file_from_oss(file_path: str) -> None:
         return
     try:
         result = await asyncio.to_thread(bucket.delete_object, file_path)
+        if result.status != 204:
+            raise HTTPException(status_code=500, detail="删除文件失败")
+    except HTTPException:
+        raise
+    except oss2.exceptions.OssError as e:
+        # 忽略文件不存在错误，其余 OSS 错误抛出
+        if e.status != 404:
+            raise HTTPException(status_code=500, detail=f"OSS删除失败: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除文件失败: {str(e)}")
+
+
+def delete_file_from_oss_sync(file_path: str) -> None:
+    """
+    删除文件从OSS（同步版本，供同步Service方法使用）
+    Args:
+        file_path: 文件路径
+    Returns:
+        None
+    """
+    if not file_path:
+        return
+    try:
+        result = bucket.delete_object(file_path)
         if result.status != 204:
             raise HTTPException(status_code=500, detail="删除文件失败")
     except HTTPException:

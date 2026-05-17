@@ -103,3 +103,24 @@ def delete_zone(db: Session, zone_id: int) -> int:
     return result
 
 
+def update_zones_manager_by_old_manager(
+    db: Session, old_manager_id: int, new_manager_id: int
+) -> int:
+    """
+    批量将指定区主管理的分区的 manager_id 转移给新区主
+    Args:
+        db: 数据库会话
+        old_manager_id: 原区主用户ID
+        new_manager_id: 新区主用户ID
+    Returns:
+        int: 更新行数
+    """
+    result = (
+        db.query(ForumZone)
+        .filter(ForumZone.manager_id == old_manager_id)
+        .update({"manager_id": new_manager_id}, synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+

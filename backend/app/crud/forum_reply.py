@@ -84,3 +84,41 @@ def delete_reply(db: Session, reply_id: int) -> int:
     return result
 
 
+def delete_replies_by_post_ids(db: Session, post_ids: list[int]) -> int:
+    """
+    按帖子 ID 批量删除回复
+    Args:
+        db: 数据库会话
+        post_ids: 帖子 ID 列表
+    Returns:
+        int: 删除行数
+    """
+    if not post_ids:
+        return 0
+    result = (
+        db.query(ForumReply)
+        .filter(ForumReply.post_id.in_(post_ids))
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+
+def delete_replies_by_user_id(db: Session, user_id: int) -> int:
+    """
+    按用户 ID 批量删除回复
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+    Returns:
+        int: 删除行数
+    """
+    result = (
+        db.query(ForumReply)
+        .filter(ForumReply.user_id == user_id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+

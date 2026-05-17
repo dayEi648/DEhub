@@ -11,16 +11,25 @@ export const useCommentStore = defineStore('comment', () => {
   const totalComments = ref(0)
   const likedCommentIds = ref<Set<number>>(new Set())
 
-  async function fetchComments(params: {
-    target_type: string
-    target_id: number
-    parent_id?: number | null
-    sort_by?: 'time' | 'hot'
-    skip?: number
-    limit?: number
-  }) {
+  async function fetchComments(
+    params: {
+      target_type: string
+      target_id: number
+      parent_id?: number | null
+      sort_by?: 'time' | 'hot'
+      skip?: number
+      limit?: number
+    },
+    append = false
+  ) {
     const { data } = await commentApi.fetchComments(params)
-    comments.value = data.items
+    if (append) {
+      const existingIds = new Set(comments.value.map((c) => c.id))
+      const newItems = data.items.filter((c) => !existingIds.has(c.id))
+      comments.value.push(...newItems)
+    } else {
+      comments.value = data.items
+    }
     totalComments.value = data.total
     return data
   }

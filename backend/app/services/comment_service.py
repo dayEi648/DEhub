@@ -14,6 +14,7 @@ from app.crud import forum_reply as forum_reply_crud
 TARGET_TYPE_VALIDATORS = {
     "blog_post": lambda db, target_id: blog_post_crud.get_blog_post_by_id(db, target_id),
     "forum_reply": lambda db, target_id: forum_reply_crud.get_reply_by_id(db, target_id),
+    "comment": lambda db, target_id: comment_crud.get_comment_by_id(db, target_id),
 }
 
 

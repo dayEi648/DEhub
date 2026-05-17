@@ -109,6 +109,19 @@ def delete_post(db: Session, post_id: int) -> int:
     return result
 
 
+def get_post_ids_by_user_id(db: Session, user_id: int) -> list[int]:
+    """
+    获取某用户发表的所有帖子 ID
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+    Returns:
+        list[int]: 帖子 ID 列表
+    """
+    rows = db.query(ForumPost.id).filter(ForumPost.user_id == user_id).all()
+    return [row[0] for row in rows]
+
+
 def increment_post_view_count(db: Session, post_id: int) -> int:
     """
     增加帖子浏览量

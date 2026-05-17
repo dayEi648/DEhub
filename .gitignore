@@ -222,7 +222,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# VibeCoding
+# 个人开发环境
 AGENTS.md
 GIT.md
 DIRECTORY.md
@@ -234,3 +234,4 @@ planing/
 .claude/
 CLAUDE.md
 error.txt
+ProjectMemory.md

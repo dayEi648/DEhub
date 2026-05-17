@@ -52,8 +52,7 @@ def get_comments(
 
     if parent_id is not None:
         query = query.filter(Comment.parent_id == parent_id)
-    else:
-        query = query.filter(Comment.parent_id.is_(None))
+    # parent_id 为 None 时，不额外过滤 parent_id，返回该目标下所有层级的评论
 
     if sort_by == "hot":
         query = query.order_by(desc(Comment.likecount), desc(Comment.created_at))
@@ -105,6 +104,56 @@ def delete_comment(db: Session, comment_id: int) -> int:
     result = (
         db.query(Comment)
         .filter(Comment.id == comment_id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+
+def get_comment_ids_by_user_id(db: Session, user_id: int) -> list[int]:
+    """
+    获取某用户发表的所有评论 ID
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+    Returns:
+        list[int]: 评论 ID 列表
+    """
+    rows = db.query(Comment.id).filter(Comment.user_id == user_id).all()
+    return [row[0] for row in rows]
+
+
+def get_child_comment_ids_by_parent_ids(
+    db: Session, parent_ids: list[int]
+) -> list[int]:
+    """
+    获取 parent_id 在指定列表中的所有子评论 ID
+    Args:
+        db: 数据库会话
+        parent_ids: 父评论 ID 列表
+    Returns:
+        list[int]: 子评论 ID 列表
+    """
+    if not parent_ids:
+        return []
+    rows = db.query(Comment.id).filter(Comment.parent_id.in_(parent_ids)).all()
+    return [row[0] for row in rows]
+
+
+def delete_comments_by_ids(db: Session, comment_ids: list[int]) -> int:
+    """
+    按评论 ID 列表批量删除评论
+    Args:
+        db: 数据库会话
+        comment_ids: 评论 ID 列表
+    Returns:
+        int: 删除行数
+    """
+    if not comment_ids:
+        return 0
+    result = (
+        db.query(Comment)
+        .filter(Comment.id.in_(comment_ids))
         .delete(synchronize_session=False)
     )
     db.commit()
@@ -169,6 +218,28 @@ def delete_user_comment_like(db: Session, comment_id: int, user_id: int) -> int:
             UserCommentLike.comment_id == comment_id,
             UserCommentLike.user_id == user_id,
         )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+
+def delete_comment_likes_by_comment_ids(
+    db: Session, comment_ids: list[int]
+) -> int:
+    """
+    按评论 ID 列表批量删除点赞记录
+    Args:
+        db: 数据库会话
+        comment_ids: 评论 ID 列表
+    Returns:
+        int: 删除行数
+    """
+    if not comment_ids:
+        return 0
+    result = (
+        db.query(UserCommentLike)
+        .filter(UserCommentLike.comment_id.in_(comment_ids))
         .delete(synchronize_session=False)
     )
     db.commit()

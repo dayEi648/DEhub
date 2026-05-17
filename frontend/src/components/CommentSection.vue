@@ -1,54 +1,61 @@
 <template>
   <div class="comment-section">
-    <div class="comment-header">
-      <h3>评论 <span class="comment-count">{{ commentStore.totalComments }}</span></h3>
-      <div class="sort-tabs">
-        <button
-          v-for="tab in sortTabs"
-          :key="tab.value"
-          class="sort-tab"
-          :class="{ active: currentSort === tab.value }"
-          @click="currentSort = tab.value"
-        >
-          {{ tab.label }}
-        </button>
+    <div v-if="!isExpanded" class="comment-collapsed" @click="expandComments">
+      <span class="comment-count-text">💬 评论 {{ commentStore.totalComments }}</span>
+      <span class="expand-hint">点击展开</span>
+    </div>
+
+    <template v-else>
+      <div class="comment-header">
+        <h3>评论 <span class="comment-count">{{ commentStore.totalComments }}</span></h3>
+        <div class="sort-tabs">
+          <button
+            v-for="tab in sortTabs"
+            :key="tab.value"
+            class="sort-tab"
+            :class="{ active: currentSort === tab.value }"
+            @click="currentSort = tab.value"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
       </div>
-    </div>
-    <div class="comment-input-area">
-      <textarea
-        v-model="newComment"
-        class="comment-textarea"
-        placeholder="写下你的评论..."
-        rows="3"
-      />
-      <div class="comment-actions">
-        <PrimaryButton @click="submitComment">发送</PrimaryButton>
+
+      <div class="comment-input-area">
+        <textarea
+          v-model="newComment"
+          class="comment-textarea"
+          placeholder="写下你的评论..."
+          rows="3"
+        />
+        <div class="comment-actions">
+          <PrimaryButton @click="submitComment">发送</PrimaryButton>
+        </div>
       </div>
-    </div>
-    <div class="comment-list">
-      <CommentItem
-        v-for="comment in rootComments"
-        :key="comment.id"
-        :comment="comment"
-        :target-type="targetType"
-        :target-id="targetId"
-        :depth="0"
-        :replies="getReplies(comment.id)"
-      />
-    </div>
-    <!-- 滚动加载触发元素 -->
-    <div v-if="hasMore" ref="loadTriggerRef" class="load-trigger">
-      <LoadingSpinner v-if="loadingMore" />
-    </div>
+
+      <div class="comment-list">
+        <CommentItem
+          v-for="comment in rootComments"
+          :key="comment.id"
+          :comment="comment"
+          :target-type="targetType"
+          :target-id="targetId"
+          :root-id="comment.id"
+          :depth="0"
+          :replies="getReplies(comment.id)"
+          :replies-loaded="loadedRootIds.has(comment.id)"
+          @load-replies="loadReplies"
+        />
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, computed, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useCommentStore } from '@/stores/comment'
 import PrimaryButton from './PrimaryButton.vue'
 import CommentItem from './CommentItem.vue'
-import LoadingSpinner from './LoadingSpinner.vue'
 
 interface Props {
   targetType: string
@@ -59,11 +66,8 @@ const props = defineProps<Props>()
 const commentStore = useCommentStore()
 const newComment = ref('')
 const currentSort = ref<'time' | 'hot'>('time')
-const currentSkip = ref(0)
-const limit = 20
-const loadingMore = ref(false)
-const loadTriggerRef = ref<HTMLDivElement | null>(null)
-let observer: IntersectionObserver | null = null
+const isExpanded = ref(false)
+const loadedRootIds = ref<Set<number>>(new Set())
 
 const sortTabs = [
   { label: '最新', value: 'time' as const },
@@ -78,33 +82,34 @@ function getReplies(parentId: number) {
   return commentStore.comments.filter((c) => c.parent_id === parentId)
 }
 
-const hasMore = computed(() => {
-  return commentStore.totalComments > commentStore.comments.length
-})
-
-async function loadComments(append = false) {
-  if (loadingMore.value) return
-  loadingMore.value = true
-  try {
-    const data = await commentStore.fetchComments({
-      target_type: props.targetType,
-      target_id: props.targetId,
-      sort_by: currentSort.value,
-      skip: append ? currentSkip.value : 0,
-      limit
-    })
-    if (!append) {
-      currentSkip.value = data.items.length
-    } else {
-      currentSkip.value += data.items.length
-    }
-  } finally {
-    loadingMore.value = false
-  }
+async function expandComments() {
+  isExpanded.value = true
+  await loadRootComments()
 }
 
-async function loadMore() {
-  await loadComments(true)
+async function loadRootComments() {
+  const data = await commentStore.fetchComments({
+    target_type: props.targetType,
+    target_id: props.targetId,
+    parent_id: null,
+    sort_by: currentSort.value,
+    skip: 0,
+    limit: 20
+  })
+  commentStore.totalComments = data.total
+}
+
+async function loadReplies(rootId: number) {
+  if (loadedRootIds.value.has(rootId)) return
+  await commentStore.fetchComments({
+    target_type: props.targetType,
+    target_id: props.targetId,
+    parent_id: rootId,
+    sort_by: currentSort.value,
+    skip: 0,
+    limit: 100
+  }, true)
+  loadedRootIds.value.add(rootId)
 }
 
 async function submitComment() {
@@ -117,34 +122,39 @@ async function submitComment() {
   newComment.value = ''
 }
 
-function setupObserver() {
-  if (!loadTriggerRef.value) return
-  observer = new IntersectionObserver(
-    (entries) => {
-      if (entries[0].isIntersecting && hasMore.value && !loadingMore.value) {
-        loadMore()
-      }
-    },
-    { rootMargin: '200px' }
-  )
-  observer.observe(loadTriggerRef.value)
-}
-
-onMounted(() => {
-  loadComments()
-  setupObserver()
+watch(currentSort, () => {
+  loadedRootIds.value.clear()
+  if (isExpanded.value) {
+    loadRootComments()
+  }
 })
-
-onUnmounted(() => {
-  observer?.disconnect()
-})
-
-watch(currentSort, () => loadComments(false))
 </script>
 
 <style scoped>
 .comment-section {
   padding: 40px 0;
+}
+.comment-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--button-default-light);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.comment-collapsed:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.comment-count-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.expand-hint {
+  font-size: 13px;
+  color: var(--text-tertiary);
 }
 .comment-header {
   display: flex;
@@ -204,11 +214,5 @@ watch(currentSort, () => loadComments(false))
   display: flex;
   justify-content: flex-end;
   margin-top: 12px;
-}
-.load-trigger {
-  display: flex;
-  justify-content: center;
-  padding: 24px 0;
-  min-height: 48px;
 }
 </style>

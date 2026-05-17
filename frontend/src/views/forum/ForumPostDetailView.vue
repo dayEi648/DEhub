@@ -43,10 +43,13 @@
                 <span class="reply-time">{{ formatDate(reply.created_at) }}</span>
               </div>
               <p class="reply-content">{{ reply.content }}</p>
-              <div v-if="canManageReply(reply.user_id)" class="reply-actions-bar">
-                <button class="action-link danger" @click="openDeleteReplyModal(reply.id)">删除</button>
-              </div>
+              <div class="reply-actions-bar">
+              <button class="action-link" @click="toggleReplyComments(reply.id)">
+                {{ expandedReplyComments.has(reply.id) ? '收起回复' : '查看更多回复' }}
+              </button>
+              <button v-if="canManageReply(reply.user_id)" class="action-link danger" @click="openDeleteReplyModal(reply.id)">删除</button>
             </div>
+            <ForumReplyComments v-if="expandedReplyComments.has(reply.id)" :reply-id="reply.id" />
           </div>
         </div>
         <Pagination
@@ -95,6 +98,7 @@ import PrimaryButton from '@/components/PrimaryButton.vue'
 import PillLink from '@/components/PillLink.vue'
 import Pagination from '@/components/Pagination.vue'
 import Modal from '@/components/Modal.vue'
+import ForumReplyComments from '@/components/ForumReplyComments.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -153,6 +157,16 @@ function canManageReply(userId: number) {
   const isAdmin = authStore.isAdmin
   const isZoneManager = forumStore.currentZone?.manager_id === authStore.user.id
   return isAuthor || isAdmin || isZoneManager
+}
+
+const expandedReplyComments = ref<Set<number>>(new Set())
+
+function toggleReplyComments(replyId: number) {
+  if (expandedReplyComments.value.has(replyId)) {
+    expandedReplyComments.value.delete(replyId)
+  } else {
+    expandedReplyComments.value.add(replyId)
+  }
 }
 
 onMounted(() => {
