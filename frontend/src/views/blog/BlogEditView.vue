@@ -171,11 +171,17 @@ onUnmounted(() => {
   }
 })
 
-onMounted(() => {
-  blogStore.fetchCategories()
+onMounted(async () => {
+  try {
+    await blogStore.fetchCategories()
+  } catch (error: any) {
+    const message = error.response?.data?.message || '加载分类失败'
+    uiStore.showToast(message, 'error')
+  }
   if (isEdit.value) {
     const slug = route.params.slug as string
-    blogStore.fetchPostBySlug(slug).then(() => {
+    try {
+      await blogStore.fetchPostBySlug(slug)
       const post = blogStore.currentPost
       if (post) {
         form.title = post.title
@@ -186,7 +192,10 @@ onMounted(() => {
         form.tags = [...post.tags]
         form.status = post.status as 'draft' | 'published'
       }
-    })
+    } catch (error: any) {
+      const message = error.response?.data?.message || '加载文章失败'
+      uiStore.showToast(message, 'error')
+    }
   }
 })
 
@@ -245,11 +254,14 @@ async function handleSave() {
     }
   } catch (err: any) {
     const detail = err.response?.data?.detail
-    if (detail) {
+    if (detail && Array.isArray(detail)) {
       detail.forEach((d: any) => {
         const field = d.loc?.[d.loc.length - 1]
         if (field) errors[field] = d.msg
       })
+    } else {
+      const message = err.response?.data?.message || '保存失败，请重试'
+      uiStore.showToast(message, 'error')
     }
   }
 }

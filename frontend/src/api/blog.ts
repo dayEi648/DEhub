@@ -46,10 +46,6 @@ export function deletePost(id: number) {
   return client.delete(`/blog_posts/${id}`)
 }
 
-export function hardDeletePost(id: number) {
-  return client.delete(`/blog_posts/${id}/hard`)
-}
-
 export function publishPost(id: number) {
   return client.post<BlogPostResponse>(`/blog_posts/${id}/publish`)
 }

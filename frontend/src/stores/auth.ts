@@ -43,7 +43,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken.value = data.refresh_token
     user.value = data.user
     if (data.access_token_expires_in) {
-      expiresAt.value = Date.now() + data.access_token_expires_in * 1000
+      expiresAt.value = Date.now() + data.access_token_expires_in * 60 * 1000
     }
   }
 

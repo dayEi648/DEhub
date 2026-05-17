@@ -201,6 +201,9 @@ async function loadPostData(id: number) {
   } catch (error: any) {
     if (error.response?.status === 404) {
       router.push('/404')
+    } else {
+      const message = error.response?.data?.message || '加载帖子失败'
+      uiStore.showToast(message, 'error')
     }
   }
 }

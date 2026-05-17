@@ -39,12 +39,14 @@
 import { reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { useForumStore } from '@/stores/forum'
+import { useUiStore } from '@/stores/ui'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import PillLink from '@/components/PillLink.vue'
 
 const route = useRoute()
 const router = useRouter()
 const forumStore = useForumStore()
+const uiStore = useUiStore()
 
 const isEdit = computed(() => route.name === 'forum-post-edit')
 const errors = reactive<Record<string, string>>({})
@@ -67,16 +69,26 @@ onBeforeRouteUpdate(async (to) => {
 
 async function initForm(editPostId?: number) {
   if (forumStore.zones.length === 0) {
-    await forumStore.fetchZones()
+    try {
+      await forumStore.fetchZones()
+    } catch (error: any) {
+      const message = error.response?.data?.message || '加载分区失败'
+      uiStore.showToast(message, 'error')
+    }
   }
   if (isEdit.value) {
     const postId = editPostId || Number(route.params.postId)
-    await forumStore.fetchPostById(postId)
-    const post = forumStore.currentPost
-    if (post) {
-      form.title = post.title
-      form.content = post.content
-      form.zone_id = post.zone_id
+    try {
+      await forumStore.fetchPostById(postId)
+      const post = forumStore.currentPost
+      if (post) {
+        form.title = post.title
+        form.content = post.content
+        form.zone_id = post.zone_id
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.message || '加载帖子失败'
+      uiStore.showToast(message, 'error')
     }
   } else {
     form.title = ''
@@ -111,7 +123,8 @@ async function handleSubmit() {
       router.push(`/forum/post/${post.id}`)
     }
   } catch (err: any) {
-    errors.submit = err.response?.data?.message || '提交失败'
+    const message = err.response?.data?.message || '提交失败'
+    uiStore.showToast(message, 'error')
   }
 }
 </script>

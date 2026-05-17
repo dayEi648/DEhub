@@ -67,6 +67,7 @@
 import { ref, reactive } from 'vue'
 import type { CommentResponse } from '@/types'
 import * as commentApi from '@/api/comment'
+import { useUiStore } from '@/stores/ui'
 import Avatar from './Avatar.vue'
 
 interface Props {
@@ -82,6 +83,8 @@ const replyInputs = reactive<Record<number, string>>({})
 
 const secondLayer = ref<CommentResponse[]>([])
 const thirdLayer = reactive<Record<number, CommentResponse[]>>({})
+
+const uiStore = useUiStore()
 
 async function loadAll() {
   try {
@@ -108,8 +111,9 @@ async function loadAll() {
     }
 
     loaded.value = true
-  } catch (e) {
-    console.error('加载评论失败', e)
+  } catch (e: any) {
+    const message = e.response?.data?.message || '加载评论失败'
+    uiStore.showToast(message, 'error')
   }
 }
 
@@ -123,8 +127,9 @@ async function submitNew() {
     })
     secondLayer.value.push(comment)
     newContent.value = ''
-  } catch (e) {
-    console.error('发送评论失败', e)
+  } catch (e: any) {
+    const message = e.response?.data?.message || '发送评论失败'
+    uiStore.showToast(message, 'error')
   }
 }
 
@@ -148,8 +153,9 @@ async function submitReply(parentComment: CommentResponse) {
     thirdLayer[parentComment.id].push(comment)
     replyInputs[parentComment.id] = ''
     activeReplyId.value = null
-  } catch (e) {
-    console.error('发送回复失败', e)
+  } catch (e: any) {
+    const message = e.response?.data?.message || '发送回复失败'
+    uiStore.showToast(message, 'error')
   }
 }
 

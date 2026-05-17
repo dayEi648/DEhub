@@ -71,12 +71,6 @@ export const useBlogStore = defineStore('blog', () => {
     uiStore.showToast('已删除', 'success')
   }
 
-  async function hardDeletePost(id: number) {
-    await blogApi.hardDeletePost(id)
-    posts.value = posts.value.filter((p) => p.id !== id)
-    uiStore.showToast('已彻底删除', 'success')
-  }
-
   async function publishPost(id: number) {
     const { data } = await blogApi.publishPost(id)
     const idx = posts.value.findIndex((p) => p.id === id)
@@ -128,7 +122,6 @@ export const useBlogStore = defineStore('blog', () => {
     createPost,
     updatePost,
     deletePost,
-    hardDeletePost,
     publishPost,
     unpublishPost,
     createCategory,

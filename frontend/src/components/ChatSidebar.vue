@@ -52,8 +52,13 @@ const uiStore = useUiStore()
 const showDeleteModal = ref(false)
 const pendingDeleteId = ref<number | null>(null)
 
-onMounted(() => {
-  chatStore.fetchConversations()
+onMounted(async () => {
+  try {
+    await chatStore.fetchConversations()
+  } catch (error: any) {
+    const message = error.response?.data?.message || '加载对话列表失败'
+    uiStore.showToast(message, 'error')
+  }
 })
 
 function startNewChat() {
@@ -62,8 +67,13 @@ function startNewChat() {
   uiStore.isMobileMenuOpen = false
 }
 
-function selectConversation(id: number) {
-  chatStore.fetchMessages(id)
+async function selectConversation(id: number) {
+  try {
+    await chatStore.fetchMessages(id)
+  } catch (error: any) {
+    const message = error.response?.data?.message || '加载消息失败'
+    uiStore.showToast(message, 'error')
+  }
   uiStore.isMobileMenuOpen = false
 }
 
@@ -72,10 +82,15 @@ function confirmDelete(id: number) {
   showDeleteModal.value = true
 }
 
-function executeDelete() {
+async function executeDelete() {
   if (pendingDeleteId.value !== null) {
     showDeleteModal.value = false
-    chatStore.deleteConversation(pendingDeleteId.value)
+    try {
+      await chatStore.deleteConversation(pendingDeleteId.value)
+    } catch (error: any) {
+      const message = error.response?.data?.message || '删除对话失败'
+      uiStore.showToast(message, 'error')
+    }
     pendingDeleteId.value = null
   }
 }

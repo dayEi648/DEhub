@@ -9,7 +9,7 @@
       <h1 class="post-title">{{ blogStore.currentPost.title }}</h1>
       <div class="post-meta">
         <PillLink :to="`/blog?category=${blogStore.currentPost.category_id}`">
-          {{ getCategoryName(blogStore.currentPost.category_id) }}
+          {{ blogStore.currentPost.category?.name || '未分类' }}
         </PillLink>
         <span>发布于 {{ formatDate(blogStore.currentPost.created_at) }}</span>
         <span>更新于 {{ formatDate(blogStore.currentPost.updated_at) }}</span>
@@ -128,6 +128,9 @@ async function loadPost() {
   } catch (error: any) {
     if (error.response?.status === 404) {
       router.push('/404')
+    } else {
+      const message = error.response?.data?.message || '加载文章失败'
+      uiStore.showToast(message, 'error')
     }
   }
 }
@@ -149,10 +152,6 @@ async function togglePublish() {
 onMounted(loadPost)
 
 watch(() => route.params.slug, loadPost)
-
-function getCategoryName(id: number) {
-  return blogStore.categories.find((c) => c.id === id)?.name || '未分类'
-}
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString('zh-CN')

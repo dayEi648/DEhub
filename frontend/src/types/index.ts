@@ -278,6 +278,7 @@ export interface MessageResponse {
   conversation_id: number
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
+  meta?: Record<string, any> | null
   created_at: string
 }
 

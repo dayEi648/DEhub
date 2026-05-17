@@ -17,10 +17,6 @@
             <div class="stat-value">{{ draftCount }}</div>
             <div class="stat-label">草稿</div>
           </Card>
-          <Card class="stat-card">
-            <div class="stat-value">{{ deletedCount }}</div>
-            <div class="stat-label">已删除</div>
-          </Card>
         </div>
 
         <div class="admin-toolbar">
@@ -55,7 +51,7 @@
           >
             <div class="col-id">{{ post.id }}</div>
             <div class="col-title">{{ post.title }}</div>
-            <div class="col-category">{{ getCategoryName(post.category_id) }}</div>
+            <div class="col-category">{{ post.category?.name || '未分类' }}</div>
             <div class="col-status">
               <span class="status-dot" :class="post.status" />
               {{ post.status === 'published' ? '已发布' : '草稿' }}
@@ -70,8 +66,7 @@
               >
                 {{ post.status === 'published' ? '下线' : '发布' }}
               </button>
-              <button class="action-link" @click="handleDelete(post.id)">删除</button>
-              <button class="action-link danger" @click="handleHardDelete(post.id)">硬删除</button>
+              <button class="action-link danger" @click="handleDelete(post.id)">删除</button>
             </div>
           </div>
           <div v-if="paginatedPosts.length === 0" class="table-row empty">
@@ -131,15 +126,6 @@
           </template>
         </Modal>
 
-        <!-- 硬删除确认 Modal -->
-        <Modal v-model="showHardDeleteModal" title="确认彻底删除">
-          <p style="color: var(--error-red)">此操作不可恢复，确定要彻底删除这篇文章吗？</p>
-          <template #footer>
-            <PrimaryButton @click="confirmHardDelete">确认</PrimaryButton>
-            <PillLink @click="showHardDeleteModal = false">取消</PillLink>
-          </template>
-        </Modal>
-
         <!-- 分类表单 Modal -->
         <Modal v-model="showCategoryModal" :title="editingCategory ? '编辑分类' : '新建分类'">
           <div class="form-group">
@@ -178,16 +164,14 @@ const authStore = useAuthStore()
 const blogStore = useBlogStore()
 const uiStore = useUiStore()
 
-const currentFilter = ref<'all' | 'draft' | 'published' | 'deleted'>('all')
+const currentFilter = ref<'all' | 'draft' | 'published'>('all')
 const searchQuery = ref('')
 const currentPage = ref(1)
 const pageSize = 20
 
 const showDeleteModal = ref(false)
-const showHardDeleteModal = ref(false)
 const showCategoryModal = ref(false)
 const pendingDeleteId = ref<number | null>(null)
-const pendingHardDeleteId = ref<number | null>(null)
 const editingCategory = ref<BlogCategoryWithPostCount | null>(null)
 const categoryForm = reactive({ name: '', description: '' })
 
@@ -197,10 +181,15 @@ const statusTabs = [
   { label: '已发布', value: 'published' as const }
 ]
 
-onMounted(() => {
+onMounted(async () => {
   if (authStore.isSuperAdmin) {
-    blogStore.fetchPosts({ include_unpublished: true })
-    blogStore.fetchCategories()
+    try {
+      await blogStore.fetchPosts({ include_unpublished: true })
+      await blogStore.fetchCategories()
+    } catch (error: any) {
+      const message = error.response?.data?.message || '加载数据失败'
+      uiStore.showToast(message, 'error')
+    }
   }
 })
 
@@ -228,10 +217,6 @@ const paginatedPosts = computed(() => {
   const start = (currentPage.value - 1) * pageSize
   return allFilteredPosts.value.slice(start, start + pageSize)
 })
-
-function getCategoryName(id: number) {
-  return blogStore.categories.find((c) => c.id === id)?.name || '未分类'
-}
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString('zh-CN')
@@ -270,24 +255,6 @@ async function confirmDelete() {
   }
   showDeleteModal.value = false
   pendingDeleteId.value = null
-}
-
-function handleHardDelete(id: number) {
-  pendingHardDeleteId.value = id
-  showHardDeleteModal.value = true
-}
-
-async function confirmHardDelete() {
-  if (pendingHardDeleteId.value !== null) {
-    try {
-      await blogStore.hardDeletePost(pendingHardDeleteId.value)
-    } catch (error: any) {
-      const message = error.response?.data?.message || '彻底删除失败'
-      uiStore.showToast(message, 'error')
-    }
-  }
-  showHardDeleteModal.value = false
-  pendingHardDeleteId.value = null
 }
 
 function openCreateCategory() {

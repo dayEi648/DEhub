@@ -138,15 +138,20 @@ watch(currentPage, () => {
   loadUsers()
 })
 
-function loadUsers() {
-  userStore.fetchUsers({
-    skip: (currentPage.value - 1) * pageSize,
-    limit: pageSize,
-    username: searchQuery.value || undefined,
-    email: searchQuery.value || undefined,
-    permission: permissionFilter.value ? Number(permissionFilter.value) : undefined,
-    include_deleted: includeDeleted.value
-  })
+async function loadUsers() {
+  try {
+    await userStore.fetchUsers({
+      skip: (currentPage.value - 1) * pageSize,
+      limit: pageSize,
+      username: searchQuery.value || undefined,
+      email: searchQuery.value || undefined,
+      permission: permissionFilter.value ? Number(permissionFilter.value) : undefined,
+      include_deleted: includeDeleted.value
+    })
+  } catch (error: any) {
+    const message = error.response?.data?.message || '加载用户列表失败'
+    uiStore.showToast(message, 'error')
+  }
 }
 
 function handleSearch() {

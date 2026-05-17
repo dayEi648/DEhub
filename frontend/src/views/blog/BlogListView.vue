@@ -46,7 +46,7 @@
             <h3 class="post-title">{{ post.title }}</h3>
             <p class="post-summary">{{ post.summary || '暂无摘要' }}</p>
             <div class="post-meta">
-              <span class="post-category">{{ getCategoryName(post.category_id) }}</span>
+              <span class="post-category">{{ post.category?.name || '未分类' }}</span>
               <span class="post-date">{{ formatDate(post.created_at) }}</span>
               <span class="post-views">👁 {{ post.view_count }}</span>
             </div>
@@ -81,6 +81,7 @@ import { ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBlogStore } from '@/stores/blog'
+import { useUiStore } from '@/stores/ui'
 import Card from '@/components/Card.vue'
 import FilterButton from '@/components/FilterButton.vue'
 import PrimaryButton from '@/components/PrimaryButton.vue'
@@ -92,6 +93,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const blogStore = useBlogStore()
+const uiStore = useUiStore()
 
 const currentCategory = ref<number | undefined>(undefined)
 const currentTag = ref<string | undefined>(undefined)
@@ -117,13 +119,18 @@ function loadFromUrl() {
 }
 
 async function fetchData() {
-  await blogStore.fetchPosts({
-    category_id: currentCategory.value,
-    tag: currentTag.value,
-    q: searchQuery.value || undefined,
-    skip: (currentPage.value - 1) * pageSize,
-    limit: pageSize
-  })
+  try {
+    await blogStore.fetchPosts({
+      category_id: currentCategory.value,
+      tag: currentTag.value,
+      q: searchQuery.value || undefined,
+      skip: (currentPage.value - 1) * pageSize,
+      limit: pageSize
+    })
+  } catch (error: any) {
+    const message = error.response?.data?.message || '加载文章列表失败'
+    uiStore.showToast(message, 'error')
+  }
 }
 
 function selectCategory(id: number | undefined) {
@@ -162,10 +169,6 @@ watch(
 watch(currentPage, () => {
   syncUrlQuery()
 })
-
-function getCategoryName(id: number) {
-  return blogStore.categories.find((c) => c.id === id)?.name || '未分类'
-}
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString('zh-CN')

@@ -54,6 +54,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useCommentStore } from '@/stores/comment'
+import { useUiStore } from '@/stores/ui'
 import PrimaryButton from './PrimaryButton.vue'
 import CommentItem from './CommentItem.vue'
 
@@ -64,6 +65,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const commentStore = useCommentStore()
+const uiStore = useUiStore()
 const newComment = ref('')
 const currentSort = ref<'time' | 'hot'>('time')
 const isExpanded = ref(false)
@@ -88,38 +90,53 @@ async function expandComments() {
 }
 
 async function loadRootComments() {
-  const data = await commentStore.fetchComments({
-    target_type: props.targetType,
-    target_id: props.targetId,
-    parent_id: null,
-    sort_by: currentSort.value,
-    skip: 0,
-    limit: 20
-  })
-  commentStore.totalComments = data.total
+  try {
+    const data = await commentStore.fetchComments({
+      target_type: props.targetType,
+      target_id: props.targetId,
+      parent_id: null,
+      sort_by: currentSort.value,
+      skip: 0,
+      limit: 20
+    })
+    commentStore.totalComments = data.total
+  } catch (error: any) {
+    const message = error.response?.data?.message || '加载评论失败'
+    uiStore.showToast(message, 'error')
+  }
 }
 
 async function loadReplies(rootId: number) {
   if (loadedRootIds.value.has(rootId)) return
-  await commentStore.fetchComments({
-    target_type: props.targetType,
-    target_id: props.targetId,
-    parent_id: rootId,
-    sort_by: currentSort.value,
-    skip: 0,
-    limit: 100
-  }, true)
-  loadedRootIds.value.add(rootId)
+  try {
+    await commentStore.fetchComments({
+      target_type: props.targetType,
+      target_id: props.targetId,
+      parent_id: rootId,
+      sort_by: currentSort.value,
+      skip: 0,
+      limit: 100
+    }, true)
+    loadedRootIds.value.add(rootId)
+  } catch (error: any) {
+    const message = error.response?.data?.message || '加载回复失败'
+    uiStore.showToast(message, 'error')
+  }
 }
 
 async function submitComment() {
   if (!newComment.value.trim()) return
-  await commentStore.createComment({
-    target_type: props.targetType,
-    target_id: props.targetId,
-    content: newComment.value.trim()
-  })
-  newComment.value = ''
+  try {
+    await commentStore.createComment({
+      target_type: props.targetType,
+      target_id: props.targetId,
+      content: newComment.value.trim()
+    })
+    newComment.value = ''
+  } catch (error: any) {
+    const message = error.response?.data?.message || '评论发送失败'
+    uiStore.showToast(message, 'error')
+  }
 }
 
 watch(currentSort, () => {

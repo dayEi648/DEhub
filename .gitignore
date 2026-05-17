@@ -223,15 +223,17 @@ __marimo__/
 .streamlit/secrets.toml
 
 # 个人开发环境
+.kimi/
+.claude/
+.vscode/
+.cursor/
 AGENTS.md
+CLAUDE.md
 GIT.md
 DIRECTORY.md
-.kimi/
 planing/
 权限校验表.md
 技术亮点.md
 废弃/
-.claude/
-CLAUDE.md
 error.txt
 ProjectMemory.md

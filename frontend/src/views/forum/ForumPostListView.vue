@@ -54,6 +54,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { useForumStore } from '@/stores/forum'
+import { useUiStore } from '@/stores/ui'
 import PrimaryButton from '@/components/PrimaryButton.vue'
 import PillLink from '@/components/PillLink.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -63,6 +64,7 @@ import ForumPostCard from '@/components/ForumPostCard.vue'
 const route = useRoute()
 const router = useRouter()
 const forumStore = useForumStore()
+const uiStore = useUiStore()
 
 const currentSort = ref<'created' | 'view'>('created')
 const currentPage = ref(1)
@@ -98,18 +100,29 @@ async function loadZoneAndPosts(slug?: string) {
   const targetSlug = slug || (route.params.zoneSlug as string)
   let zone = forumStore.zones.find((z) => z.slug === targetSlug)
   if (!zone) {
-    await forumStore.fetchZones()
+    try {
+      await forumStore.fetchZones()
+    } catch (error: any) {
+      const message = error.response?.data?.message || '加载分区失败'
+      uiStore.showToast(message, 'error')
+      return
+    }
     zone = forumStore.zones.find((z) => z.slug === targetSlug)
   }
   if (zone) {
     forumStore.currentZone = zone
     currentZoneId.value = zone.id
-    forumStore.fetchPosts({
-      zone_id: zone.id,
-      sort_by: currentSort.value,
-      skip: (currentPage.value - 1) * pageSize,
-      limit: pageSize
-    })
+    try {
+      await forumStore.fetchPosts({
+        zone_id: zone.id,
+        sort_by: currentSort.value,
+        skip: (currentPage.value - 1) * pageSize,
+        limit: pageSize
+      })
+    } catch (error: any) {
+      const message = error.response?.data?.message || '加载帖子失败'
+      uiStore.showToast(message, 'error')
+    }
   } else {
     router.push('/404')
   }

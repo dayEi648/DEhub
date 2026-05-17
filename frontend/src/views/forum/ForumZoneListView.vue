@@ -195,7 +195,7 @@ async function createZone() {
     createForm.description = ''
     createForm.manager_id = null
   } catch (error: any) {
-    const message = error.response?.data?.detail || '创建失败'
+    const message = error.response?.data?.message || '创建失败'
     uiStore.showToast(message, 'error')
   }
 }
@@ -222,7 +222,7 @@ async function updateZone() {
     showEditModal.value = false
     editingZoneId.value = null
   } catch (error: any) {
-    const message = error.response?.data?.detail || '更新失败'
+    const message = error.response?.data?.message || '更新失败'
     uiStore.showToast(message, 'error')
   }
 }
@@ -249,10 +249,15 @@ async function toggleFollow(zoneId: number) {
   }
 }
 
-function confirmDeleteZone() {
+async function confirmDeleteZone() {
   showDeleteZoneModal.value = false
   if (pendingZoneId.value !== null) {
-    forumStore.deleteZone(pendingZoneId.value)
+    try {
+      await forumStore.deleteZone(pendingZoneId.value)
+    } catch (error: any) {
+      const message = error.response?.data?.message || '删除失败'
+      uiStore.showToast(message, 'error')
+    }
     pendingZoneId.value = null
   }
 }
