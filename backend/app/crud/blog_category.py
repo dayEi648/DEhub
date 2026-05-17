@@ -96,7 +96,7 @@ def delete_category(db: Session, category_id: int) -> int:
 
 def count_posts_in_category(db: Session, category_id: int) -> int:
     """
-    统计某分类下的未删除文章数量
+    统计某分类下的文章数量
     Args:
         db: 数据库会话
         category_id: 分类ID
@@ -107,7 +107,6 @@ def count_posts_in_category(db: Session, category_id: int) -> int:
         db.query(func.count(BlogPost.id))
         .filter(
             BlogPost.category_id == category_id,
-            BlogPost.is_deleted == False,
         )
         .scalar()
         or 0

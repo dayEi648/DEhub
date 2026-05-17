@@ -324,3 +324,33 @@ export interface ZoneFollowListResponse {
   items: ForumZoneResponse[]
   total: number
 }
+
+/* ---------- System Log ---------- */
+export interface SystemLogResponse {
+  id: number
+  level: 'WARN' | 'ERROR' | 'CRITICAL'
+  module: string | null
+  message: string
+  exception: string | null
+  trace_id: string | null
+  user_id: number | null
+  ip: string | null
+  extra: Record<string, any> | null
+  is_resolved: boolean
+  resolved_at: string | null
+  resolved_by: number | null
+  created_at: string
+}
+
+export interface SystemLogListResponse {
+  items: SystemLogResponse[]
+  total: number
+}
+
+export interface SystemLogStatsResponse {
+  total: number
+  total_unresolved: number
+  warn_count: number
+  error_count: number
+  critical_count: number
+}

@@ -1,13 +1,15 @@
+import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, ai_chat as chat, user_favorites, uploads
+from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, ai_chat as chat, user_favorites, uploads, system_logs
 from app.core.exceptions import (
     http_exception_handler,
     validation_exception_handler,
     sqlalchemy_exception_handler,
     catch_all_exception_handler,
 )
+from app.core.log_handler import SystemLogHandler
 from app.redis_client import init_redis_client, close_redis_client, init_sync_redis_client, close_sync_redis_client, init_checkpoint_redis_client, close_checkpoint_redis_client
 from app.infrastructure.llm_client import (
     init_llm_client, close_llm_client,
@@ -18,9 +20,19 @@ from app.infrastructure.checkpoint_client import init_checkpoint_client, close_c
 from contextlib import asynccontextmanager
 
 
+def _setup_system_log_handler() -> None:
+    """将 SystemLogHandler 挂载到 root logger，避免重复挂载。"""
+    root = logging.getLogger()
+    if any(isinstance(h, SystemLogHandler) for h in root.handlers):
+        return
+    handler = SystemLogHandler()
+    root.addHandler(handler)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时
+    _setup_system_log_handler()
     await init_redis_client()
     init_sync_redis_client()
     await init_checkpoint_redis_client()
@@ -58,6 +70,7 @@ app.include_router(chat.router, prefix="/api/v1")
 app.include_router(user_favorites.router_favorites, prefix="/api/v1")
 app.include_router(user_favorites.router_follows, prefix="/api/v1")
 app.include_router(uploads.router, prefix="/api/v1")
+app.include_router(system_logs.router, prefix="/api/v1")
 
 @app.get("/")
 def root():

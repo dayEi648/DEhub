@@ -6,6 +6,26 @@ from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
+
+def _build_log_extra(request: Request, exc: Exception) -> dict:
+    """构造日志 extra 字段，供 SystemLogHandler 提取结构化上下文。"""
+    extra: dict = {
+        "extra": {
+            "error_type": exc.__class__.__name__,
+            "error_detail": str(exc),
+        }
+    }
+
+    if request.client:
+        extra["ip"] = request.client.host
+
+    trace_id = request.headers.get("x-request-id")
+    if trace_id:
+        extra["trace_id"] = trace_id
+
+    return extra
+
+
 def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """
     HTTP 异常处理器
@@ -16,10 +36,15 @@ def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse
     Returns:
         JSONResponse: JSON 响应
     """
+    if exc.status_code >= 500:
+        extra = _build_log_extra(request, exc)
+        logger.error("HTTP 异常: %s", exc.detail, extra=extra)
+
     return JSONResponse(
         status_code=exc.status_code,
         content={"code": exc.status_code, "message": exc.detail},
     )
+
 
 def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """
@@ -31,7 +56,9 @@ def validation_exception_handler(request: Request, exc: RequestValidationError) 
     Returns:
         JSONResponse: JSON 响应
     """
-    logger.warning(f"请求参数校验失败: {exc.errors()}")
+    extra = _build_log_extra(request, exc)
+    extra["extra"]["validation_errors"] = exc.errors()
+    logger.warning("请求参数校验失败: %s", exc.errors(), extra=extra)
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
@@ -40,6 +67,7 @@ def validation_exception_handler(request: Request, exc: RequestValidationError) 
             "detail": exc.errors()
         },
     )
+
 
 def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
     """
@@ -51,14 +79,16 @@ def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSON
     Returns:
         JSONResponse: JSON 响应
     """
-    logger.error("数据库异常: %s", exc, exc_info=True)
+    extra = _build_log_extra(request, exc)
+    logger.error("数据库异常: %s", exc, exc_info=True, extra=extra)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "code": 500, 
+            "code": 500,
             "message": "数据库异常，请稍后重试",
         },
     )
+
 
 def catch_all_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
@@ -70,8 +100,9 @@ def catch_all_exception_handler(request: Request, exc: Exception) -> JSONRespons
     Returns:
         JSONResponse: JSON 响应
     """
-    logger.error(f"发生未捕获的异常: {exc}", exc_info=True)
+    extra = _build_log_extra(request, exc)
+    logger.error("发生未捕获的异常: %s", exc, exc_info=True, extra=extra)
     return JSONResponse(
-          status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-          content={"code": 500, "message": "服务器内部错误"},
-      )
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"code": 500, "message": "服务器内部错误"},
+    )

@@ -108,6 +108,12 @@ const router = createRouter({
           name: 'user-admin',
           component: () => import('@/views/admin/UserAdminView.vue'),
           meta: { title: '用户管理', requiresAdmin: true }
+        },
+        {
+          path: 'logs',
+          name: 'log-monitor',
+          component: () => import('@/views/admin/LogMonitorView.vue'),
+          meta: { title: '日志监控', requiresAdmin: true }
         }
       ]
     },

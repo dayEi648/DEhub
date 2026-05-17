@@ -146,8 +146,8 @@ function triggerCoverInput() {
 async function handleCoverChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  if (file.size > 10 * 1024 * 1024) {
-    uiStore.showToast('文件大小不能超过 10MB', 'error')
+  if (file.size > 20 * 1024 * 1024) {
+    uiStore.showToast('文件大小不能超过 20MB', 'error')
     return
   }
 

@@ -20,7 +20,8 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 
 const navItems = [
-  { path: '/admin/users', label: '用户管理' }
+  { path: '/admin/users', label: '用户管理' },
+  { path: '/admin/logs', label: '日志监控' }
 ]
 
 function isActive(path: string) {

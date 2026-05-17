@@ -33,7 +33,7 @@ const props = withDefaults(defineProps<Props>(), {
   name: '',
   size: 160,
   accept: 'image/*',
-  maxSize: 10 * 1024 * 1024
+  maxSize: 20 * 1024 * 1024
 })
 
 const emit = defineEmits<{

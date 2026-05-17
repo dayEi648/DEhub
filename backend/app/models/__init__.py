@@ -12,6 +12,7 @@ from app.models.forum_zone import ForumZone
 from app.models.user import User
 from app.models.user_comment_like import UserCommentLike
 from app.models.user_blog_post_favorite import UserBlogPostFavorite
+from app.models.system_log import SystemLog
 from app.models.user_zone_follow import UserZoneFollow
 from app.models.user_post_favorite import UserPostFavorite
 
@@ -29,6 +30,7 @@ __all__ = [
     "User",
     "UserCommentLike",
     "UserBlogPostFavorite",
+    "SystemLog",
     "UserZoneFollow",
     "UserPostFavorite",
 ]

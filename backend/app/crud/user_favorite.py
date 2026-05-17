@@ -103,7 +103,6 @@ def get_user_blog_post_favorites(
             BlogPost.id == UserBlogPostFavorite.blog_post_id,
         )
         .filter(UserBlogPostFavorite.user_id == user_id)
-        .filter(BlogPost.is_deleted == False)
     )
     if status:
         query = query.filter(BlogPost.status == status)
