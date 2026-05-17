@@ -6,7 +6,7 @@
 import logging
 
 from app.core.config import settings
-from app.redis_client import get_redis_client
+from app.redis_client import get_checkpoint_redis_client
 
 from .redis_checkpoint import AsyncRedisCheckpointSaver
 
@@ -22,7 +22,7 @@ async def init_checkpoint_client() -> None:
     """
     global _checkpointer
 
-    redis = get_redis_client()
+    redis = get_checkpoint_redis_client()
     _checkpointer = AsyncRedisCheckpointSaver(
         redis_client=redis,
         ttl_seconds=settings.REDIS_CHECKPOINT_TTL,

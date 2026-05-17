@@ -15,6 +15,7 @@ export function deleteConversation(id: number) {
 
 export function sendMessage(params: ChatCreate) {
   return client.post<{ response: string; conversation_id: number }>('/ai_chat/chat', params, {
-    skipGlobalLoading: true
+    skipGlobalLoading: true,
+    timeout: 120000,
   } as any)
 }

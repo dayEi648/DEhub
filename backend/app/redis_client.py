@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 redis_client: aioredis.Redis | None = None
 _sync_redis_client: redis.Redis | None = None
+_checkpoint_redis_client: aioredis.Redis | None = None
 
 
 async def init_redis_client() -> None:
@@ -76,3 +77,37 @@ def get_sync_redis_client() -> redis.Redis:
     if _sync_redis_client is None:
         raise ValueError("Redis 同步客户端未初始化")
     return _sync_redis_client
+
+
+async def init_checkpoint_redis_client() -> None:
+    """初始化专用于 Checkpoint 的 Redis 异步客户端（不自动解码响应）。"""
+    global _checkpoint_redis_client
+    _checkpoint_redis_client = aioredis.Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        password=settings.REDIS_PASSWORD or None,
+        db=settings.REDIS_DB,
+        decode_responses=False,
+    )
+    try:
+        await _checkpoint_redis_client.ping()
+        logger.info("Checkpoint Redis 异步客户端初始化成功")
+    except Exception:
+        logger.exception("Checkpoint Redis 异步客户端初始化失败")
+        raise
+
+
+async def close_checkpoint_redis_client() -> None:
+    """关闭专用于 Checkpoint 的 Redis 异步客户端。"""
+    global _checkpoint_redis_client
+    if _checkpoint_redis_client is not None:
+        await _checkpoint_redis_client.close()
+        logger.info("Checkpoint Redis 异步客户端关闭成功")
+    _checkpoint_redis_client = None
+
+
+def get_checkpoint_redis_client() -> aioredis.Redis:
+    """获取已初始化的 Checkpoint Redis 异步客户端。"""
+    if _checkpoint_redis_client is None:
+        raise ValueError("Checkpoint Redis 客户端未初始化")
+    return _checkpoint_redis_client
