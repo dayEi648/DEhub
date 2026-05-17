@@ -7,6 +7,7 @@ from app.core.security import verify_password, get_password_hash, create_access_
 from app.core.config import settings
 from app.core.permissions import require_admin
 from app.storage.oss import delete_file_from_oss, upload_user_avatar, convert_oss_url_to_file_path
+from app.redis_client import get_redis_client
 
 class UserService:
 

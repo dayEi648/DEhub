@@ -31,8 +31,8 @@ async def lifespan(app: FastAPI):
     # 关闭时
     await close_checkpoint_client()
     await close_embedding_client()
-    await close_llm_small_client()
-    await close_llm_client()
+    close_llm_small_client()
+    close_llm_client()
     close_sync_redis_client()
     await close_redis_client()
 
