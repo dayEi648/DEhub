@@ -58,7 +58,7 @@ def create_zone(db: Session, zone_in: ForumZoneCreate, manager_id: int) -> Forum
     Returns:
         ForumZone: 分区对象
     """
-    db_zone = ForumZone(**zone_in.model_dump(), manager_id=manager_id)
+    db_zone = ForumZone(**zone_in.model_dump(exclude={"manager_id"}), manager_id=manager_id)
     db.add(db_zone)
     db.commit()
     db.refresh(db_zone)
