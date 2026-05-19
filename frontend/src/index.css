@@ -1,0 +1,274 @@
+@import "tailwindcss";
+
+/* ============================================================
+   DE hub — Persona 4 风格全局样式
+   ============================================================ */
+
+/* ---- 字体定义 ---- */
+@font-face {
+  font-family: 'SF Display';
+  src: url('/fonts/SF-Pro-Display-Black.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SF Display';
+  src: url('/fonts/SF-Pro-Display-Heavy.otf') format('opentype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SF Display';
+  src: url('/fonts/SF-Pro-Display-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PingFang';
+  src: url('/fonts/PingFangSC-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PingFang';
+  src: url('/fonts/PingFangSC-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PingFang';
+  src: url('/fonts/PingFangSC-Semibold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Maple Mono';
+  src: url('/fonts/MapleMono-NF-CN-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---- 设计令牌（Design Tokens）---- */
+:root {
+  /* P4 色彩体系 */
+  --p4-base: #1A1612;
+  --p4-base-light: #2A2118;
+  --p4-primary: #F5A623;
+  --p4-primary-bright: #FAA622;
+  --p4-highlight: #FFE52C;
+  --p4-text: #FFF8EE;
+  --p4-text-inverse: #2A2118;
+  --p4-accent: #F7F3E8;
+  --p4-signal-blue: #7FE6EF;
+  --p4-signal-green: #C4D70C;
+  --p4-signal-red: #FF4D4D;
+  --p4-danger: #C22303;
+
+  /* 字体族 */
+  --font-display: 'SF Display', 'PingFang', 'Noto Sans SC', sans-serif;
+  --font-body: 'PingFang', 'Noto Sans SC', sans-serif;
+  --font-mono: 'Maple Mono', 'JetBrains Mono', monospace;
+
+  /* 缓动曲线 */
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-tv: cubic-bezier(0.87, 0, 0.13, 1);
+}
+
+/* ---- 全局重置 ---- */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--p4-base);
+  color: var(--p4-text);
+  font-family: var(--font-body);
+  line-height: 1.7;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  cursor: none; /* 隐藏默认光标，使用自定义光标 */
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* 移动端恢复默认光标 */
+@media (hover: none) and (pointer: coarse) {
+  body {
+    cursor: auto;
+  }
+}
+
+/* ---- 选中文字样式 ---- */
+::selection {
+  background-color: var(--p4-primary);
+  color: var(--p4-text-inverse);
+}
+
+/* ---- 滚动条 ---- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--p4-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--p4-primary);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--p4-highlight);
+}
+
+/* ---- 扫描线纹理（全局氛围层）---- */
+.scanlines-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.04;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
+  );
+}
+
+/* ---- 电视彩条动画 ---- */
+@keyframes colorBarsFlow {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+.color-bars-flow {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--p4-signal-red) 0px,
+    var(--p4-signal-red) 16px,
+    var(--p4-highlight) 16px,
+    var(--p4-highlight) 32px,
+    var(--p4-signal-green) 32px,
+    var(--p4-signal-green) 48px,
+    var(--p4-signal-blue) 48px,
+    var(--p4-signal-blue) 64px,
+    var(--p4-accent) 64px,
+    var(--p4-accent) 80px,
+    var(--p4-base) 80px,
+    var(--p4-base) 96px
+  );
+  background-size: 96px 100%;
+  animation: colorBarsFlow 8s linear infinite;
+}
+
+/* ---- 脉冲光晕 ---- */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 166, 35, 0); }
+  50% { box-shadow: 0 0 12px 2px rgba(245, 166, 35, 0.5); }
+}
+
+/* ---- 电视开机亮线展开 ---- */
+@keyframes tvBootLine {
+  0% {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  30% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  60% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(40);
+    opacity: 0;
+  }
+}
+
+/* ---- 雪花噪点（仅用于加载瞬间） ---- */
+@keyframes noiseFlash {
+  0% { opacity: 0.6; }
+  20% { opacity: 0.3; }
+  40% { opacity: 0.7; }
+  60% { opacity: 0.2; }
+  80% { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+
+/* ---- 轻微呼吸 ---- */
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* ---- 斜切角工具类 ---- */
+.chamfer {
+  clip-path: polygon(
+    12px 0%, 100% 0%, 100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 0% 100%, 0% 12px
+  );
+}
+.chamfer-sm {
+  clip-path: polygon(
+    6px 0%, 100% 0%, 100% calc(100% - 6px),
+    calc(100% - 6px) 100%, 0% 100%, 0% 6px
+  );
+}
+
+/* ---- 镜片反光效果 ---- */
+.lens-reflect {
+  position: relative;
+  overflow: hidden;
+}
+.lens-reflect::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 30%;
+  height: 200%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(247, 243, 232, 0.15),
+    transparent
+  );
+  transform: rotate(25deg);
+  transition: left 0.5s var(--ease-snap);
+  pointer-events: none;
+}
+.lens-reflect:hover::after {
+  left: 150%;
+}
+
+/* ---- 减少运动偏好 ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
