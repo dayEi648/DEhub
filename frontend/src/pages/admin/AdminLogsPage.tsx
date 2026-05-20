@@ -5,7 +5,7 @@ export default function AdminLogsPage() {
     <AdminPlaceholderPage
       page="logs"
       icon="📋"
-      title="SYSTEM LOGS"
+      title="系统日志"
       subtitle="日志管理功能开发中"
     />
   );

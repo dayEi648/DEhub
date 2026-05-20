@@ -16,7 +16,7 @@ import type { UserResponse } from '../api/types';
    左侧为用户档案面板，右侧为显像管内容屏幕。
    ============================================================ */
 
-type TabId = 'status' | 'profile' | 'security';
+type TabId = 'profile' | 'security';
 
 interface TabDef {
   id: TabId;
@@ -26,9 +26,8 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'status', label: '状态', labelEn: 'STATUS', color: '#F5A623' },
-  { id: 'profile', label: '资料', labelEn: 'PROFILE', color: '#FFE52C' },
-  { id: 'security', label: '安全', labelEn: 'SECURITY', color: '#FF4D4D' },
+  { id: 'profile', label: '个人资料', labelEn: 'PROFILE', color: '#FFE52C' },
+  { id: 'security', label: '账户安全', labelEn: 'SECURITY', color: '#FF4D4D' },
 ];
 
 /* ============================================================
@@ -52,54 +51,12 @@ function TVTransition({ children, tabKey }: { children: React.ReactNode; tabKey:
 }
 
 /* ============================================================
-   打字机文字效果
-   ============================================================ */
-function TypewriterText({ text, delay = 0, className = '', style = {} }: {
-  text: string;
-  delay?: number;
-  className?: string;
-  style?: React.CSSProperties;
-}) {
-  const [displayed, setDisplayed] = useState('');
-  useEffect(() => {
-    setDisplayed('');
-    let i = 0;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    const startTimer = setTimeout(() => {
-      intervalId = setInterval(() => {
-        i++;
-        if (i <= text.length) {
-          setDisplayed(text.slice(0, i));
-        } else if (intervalId) {
-          clearInterval(intervalId);
-          intervalId = null;
-        }
-      }, 40);
-    }, delay * 1000);
-    return () => {
-      clearTimeout(startTimer);
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [text, delay]);
-  return (
-    <span className={className} style={style}>
-      {displayed}
-      <motion.span
-        animate={{ opacity: [1, 0, 1] }}
-        transition={{ duration: 0.8, repeat: Infinity }}
-        style={{ display: 'inline-block', width: 6, height: '1em', backgroundColor: '#FFE52C', marginLeft: 2, verticalAlign: 'text-bottom' }}
-      />
-    </span>
-  );
-}
-
-/* ============================================================
    主页面
    ============================================================ */
 export default function ProfilePage() {
   const { user } = useAuth();
   const { handleLogout } = useLogout();
-  const [activeTab, setActiveTab] = useState<TabId>('status');
+  const [activeTab, setActiveTab] = useState<TabId>('profile');
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
@@ -205,7 +162,7 @@ function TopBar({ user, onLogout, booted }: { user: UserResponse | null; onLogou
           data-cursor-hover
         >
           <span style={{ fontSize: 14 }}>←</span>
-          <span className="hidden sm:inline">BACK</span>
+          <span className="hidden sm:inline">返回</span>
         </Link>
         <div className="hidden sm:block w-px h-4" style={{ backgroundColor: 'rgba(245,166,35,0.2)' }} />
         <div className="hidden sm:flex items-center gap-1.5">
@@ -238,12 +195,10 @@ function TopBar({ user, onLogout, booted }: { user: UserResponse | null; onLogou
           onClick={onLogout}
           data-cursor-hover
         >
-          EXIT
+          退出
         </motion.button>
       </div>
 
-      {/* 底部装饰线 */}
-      <div className="absolute bottom-0 left-0 right-0 h-px" style={{ backgroundColor: 'rgba(245, 166, 35, 0.2)' }} />
     </motion.header>
   );
 }
@@ -253,7 +208,7 @@ function TopBar({ user, onLogout, booted }: { user: UserResponse | null; onLogou
    ============================================================ */
 function ProfilePanel({ user }: { user: UserResponse | null }) {
   const perm = getPermissionInfo(user?.permission ?? 0);
-  const roleText = perm.labelEn;
+  const roleText = perm.label;
   const roleColor = user?.permission === 2 ? '#FFE52C' : user?.permission === 1 ? '#F5A623' : '#7FE6EF';
 
   return (
@@ -327,7 +282,7 @@ function ProfilePanel({ user }: { user: UserResponse | null }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.4 }}
           >
-            {user?.username ?? 'UNKNOWN'}
+            {user?.username ?? '未知用户'}
           </motion.h1>
 
           {/* 角色标签 */}
@@ -358,49 +313,12 @@ function ProfilePanel({ user }: { user: UserResponse | null }) {
 
           {/* 数据列表 */}
           <div className="w-full space-y-1.5 mb-4">
-            <DataRow label="USER ID" value={String(user?.id ?? '----')} delay={0.8} />
-            <DataRow label="EMAIL" value={user?.email ?? '----'} delay={0.86} />
-            <DataRow label="JOINED" value={formatDate(user?.created_at)} delay={0.92} />
-            <DataRow label="BIO" value={user?.personal_profile ? user.personal_profile.slice(0, 20) + (user.personal_profile.length > 20 ? '...' : '') : 'NO DATA'} delay={0.98} />
+            <DataRow label="邮箱" value={user?.email ?? '----'} delay={0.86} />
+            <DataRow label="注册时间" value={formatDate(user?.created_at)} delay={0.92} />
+            <DataRow label="个人简介" value={user?.personal_profile ? user.personal_profile.slice(0, 20) + (user.personal_profile.length > 20 ? '...' : '') : '暂无数据'} delay={0.98} />
           </div>
 
-          {/* 底部小面板：系统状态 */}
-          <motion.div
-            className="w-full mt-auto pt-4"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.05, duration: 0.4 }}
-          >
-            <div className="w-full h-px mb-3" style={{ background: 'linear-gradient(90deg, transparent, rgba(245,166,35,0.2), transparent)' }} />
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs tracking-widest" style={{ color: 'rgba(255,248,238,0.3)', fontFamily: 'var(--font-mono)' }}>
-                SYSTEM STATUS
-              </span>
-              <div className="flex items-center gap-1.5">
-                <motion.div
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: '#C4D70C' }}
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                />
-                <span className="text-xs" style={{ color: '#C4D70C', fontFamily: 'var(--font-mono)' }}>ONLINE</span>
-              </div>
-            </div>
-            {/* 进度条装饰 */}
-            <div className="w-full h-1.5 mb-1.5" style={{ backgroundColor: 'rgba(245,166,35,0.08)' }}>
-              <motion.div
-                className="h-full"
-                style={{ backgroundColor: '#F5A623' }}
-                initial={{ width: 0 }}
-                animate={{ width: '78%' }}
-                transition={{ delay: 1.2, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              />
-            </div>
-            <div className="flex justify-between">
-              <span className="text-xs" style={{ color: 'rgba(255,248,238,0.25)', fontFamily: 'var(--font-mono)' }}>STORAGE</span>
-              <span className="text-xs" style={{ color: 'rgba(255,248,238,0.35)', fontFamily: 'var(--font-mono)' }}>78%</span>
-            </div>
-          </motion.div>
+
         </div>
 
         {/* 屏幕边缘阴影 */}
@@ -505,7 +423,6 @@ function ContentScreen({ activeTab, setActiveTab, activeTabDef }: {
 
           {/* 内容 */}
           <TVTransition tabKey={activeTab}>
-            {activeTab === 'status' && <StatusTab />}
             {activeTab === 'profile' && <ProfileEditTab />}
             {activeTab === 'security' && <SecurityTab />}
           </TVTransition>
@@ -563,88 +480,6 @@ function TabBar({ activeTab, setActiveTab }: { activeTab: TabId; setActiveTab: (
         }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       />
-    </div>
-  );
-}
-
-/* ============================================================
-   STATUS — 状态概览
-   ============================================================ */
-function StatusTab() {
-  const { user } = useAuth();
-
-  const stats = useMemo(() => [
-    { label: 'USERNAME', value: user?.username ?? '----', icon: '●', color: '#F5A623' },
-    { label: 'EMAIL', value: user?.email ?? '----', icon: '●', color: '#7FE6EF' },
-    { label: 'ROLE', value: getPermissionInfo(user?.permission ?? 0).labelEn, icon: '●', color: '#FFE52C' },
-    { label: 'JOINED', value: formatDate(user?.created_at), icon: '●', color: '#C4D70C' },
-    { label: 'USER ID', value: String(user?.id ?? '----'), icon: '●', color: '#F5A623' },
-  ], [user]);
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* 欢迎语 */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-      >
-        <TypewriterText
-          text={`WELCOME BACK, ${(user?.username ?? 'USER').toUpperCase()}`}
-          delay={0.15}
-          className="text-base sm:text-lg font-bold tracking-wider"
-          style={{ color: '#FFF8EE', fontFamily: 'var(--font-mono)' }}
-        />
-      </motion.div>
-
-      {/* 状态卡片网格 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {stats.map((s, i) => (
-          <motion.div
-            key={s.label}
-            className="relative flex items-center gap-3 px-4 py-3 overflow-hidden"
-            style={{
-              backgroundColor: 'rgba(245, 166, 35, 0.05)',
-              border: '1px solid rgba(245, 166, 35, 0.1)',
-              clipPath: 'polygon(8px 0%, 100% 0%, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0% 100%, 0% 8px)',
-            }}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 + i * 0.07, duration: 0.4 }}
-            whileHover={{ backgroundColor: 'rgba(245, 166, 35, 0.1)', borderColor: 'rgba(245, 166, 35, 0.2)', scale: 1.01 }}
-          >
-            {/* 左侧色块 */}
-            <div
-              className="shrink-0 flex items-center justify-center w-8 h-8"
-              style={{ backgroundColor: `${s.color}15`, clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}
-            >
-              <span style={{ color: s.color, fontSize: 14 }}>{s.icon}</span>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs tracking-widest mb-1" style={{ color: 'rgba(255,248,238,0.35)', fontFamily: 'var(--font-mono)' }}>
-                {s.label}
-              </span>
-              <span className="text-sm sm:text-base font-semibold tracking-tight truncate" style={{ color: '#FFF8EE', fontFamily: 'var(--font-mono)' }}>
-                {s.value}
-              </span>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* 底部信息条 */}
-      <motion.div
-        className="flex items-center gap-2 mt-2 px-3 py-2"
-        style={{ backgroundColor: 'rgba(245, 166, 35, 0.04)' }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
-      >
-        <div className="w-1 h-1 rotate-45 shrink-0" style={{ backgroundColor: '#C4D70C' }} />
-        <span className="text-xs tracking-wider" style={{ color: 'rgba(255,248,238,0.3)', fontFamily: 'var(--font-mono)' }}>
-          ALL SYSTEMS OPERATIONAL
-        </span>
-      </motion.div>
     </div>
   );
 }
@@ -763,13 +598,13 @@ function ProfileEditTab() {
       {/* 表单 */}
       <div className="space-y-3">
         <FormField
-          label="USERNAME"
+          label="用户名"
           value={editUser.username}
           onChange={(v) => setEditUser((u) => (u ? { ...u, username: v } : u))}
           delay={0.15}
         />
         <FormField
-          label="EMAIL"
+          label="邮箱"
           value={editUser.email}
           onChange={(v) => setEditUser((u) => (u ? { ...u, email: v } : u))}
           delay={0.22}
@@ -779,7 +614,7 @@ function ProfileEditTab() {
             className="block text-xs tracking-widest mb-2 font-semibold"
             style={{ fontFamily: 'var(--font-mono)', color: 'rgba(255,248,238,0.5)' }}
           >
-            BIO
+            个人简介
           </label>
           <textarea
             value={editUser.personal_profile || ''}
@@ -815,7 +650,7 @@ function ProfileEditTab() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.36 }}
         >
-          {loading ? 'SAVING...' : 'SAVE CHANGES'}
+          {loading ? '保存中...' : '保存更改'}
         </motion.button>
       </div>
 
@@ -834,14 +669,13 @@ function ProfileEditTab() {
         <div className="flex items-center gap-2 mb-2">
           <div className="w-1 h-1 rotate-45 shrink-0" style={{ backgroundColor: '#7FE6EF' }} />
           <span className="text-xs tracking-widest font-semibold" style={{ color: 'rgba(255,248,238,0.4)', fontFamily: 'var(--font-mono)' }}>
-            ACCOUNT INFO
+            账户信息
           </span>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <InfoItem label="USER ID" value={String(user?.id ?? '----')} />
-          <InfoItem label="PERMISSION" value={getPermissionInfo(user?.permission ?? 0).labelEn} />
-          <InfoItem label="JOINED" value={formatDate(user?.created_at)} />
-          <InfoItem label="STATUS" value="ACTIVE" />
+          <InfoItem label="权限" value={getPermissionInfo(user?.permission ?? 0).label} />
+          <InfoItem label="注册时间" value={formatDate(user?.created_at)} />
+          <InfoItem label="状态" value="活跃" />
         </div>
       </motion.div>
     </div>
@@ -946,7 +780,7 @@ function SecurityTab() {
         <span className="text-sm shrink-0" style={{ color: '#FF4D4D' }}>▲</span>
         <div>
           <span className="text-sm font-bold block mb-1" style={{ color: '#FF4D4D', fontFamily: 'var(--font-mono)' }}>
-            SECURITY NOTICE
+            安全提示
           </span>
           <span className="text-xs" style={{ color: 'rgba(255,248,238,0.4)' }}>
             修改密码后需要重新登录
@@ -956,9 +790,9 @@ function SecurityTab() {
 
       {/* 表单 */}
       <form onSubmit={handleSubmit} className="space-y-3">
-        <PasswordField label="OLD PASSWORD" value={oldPassword} onChange={setOldPassword} error={errors.oldPassword} delay={0.1} />
-        <PasswordField label="NEW PASSWORD" value={newPassword} onChange={setNewPassword} error={errors.newPassword} delay={0.17} />
-        <PasswordField label="CONFIRM PASSWORD" value={confirmPassword} onChange={setConfirmPassword} error={errors.confirmPassword} delay={0.24} />
+        <PasswordField label="旧密码" value={oldPassword} onChange={setOldPassword} error={errors.oldPassword} delay={0.1} />
+        <PasswordField label="新密码" value={newPassword} onChange={setNewPassword} error={errors.newPassword} delay={0.17} />
+        <PasswordField label="确认密码" value={confirmPassword} onChange={setConfirmPassword} error={errors.confirmPassword} delay={0.24} />
 
         <motion.button
           type="submit"
@@ -977,7 +811,7 @@ function SecurityTab() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.31 }}
         >
-          {loading ? 'UPDATING...' : 'CHANGE PASSWORD'}
+          {loading ? '更新中...' : '修改密码'}
         </motion.button>
       </form>
 
@@ -996,7 +830,7 @@ function SecurityTab() {
         <div className="flex items-center gap-2 mb-2">
           <div className="w-1 h-1 rotate-45 shrink-0" style={{ backgroundColor: '#7FE6EF' }} />
           <span className="text-xs tracking-widest font-semibold" style={{ color: 'rgba(255,248,238,0.4)', fontFamily: 'var(--font-mono)' }}>
-            SECURITY TIPS
+            安全建议
           </span>
         </div>
         <ul className="space-y-1">

@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
 import AdminShell from './AdminShell';
-
-type AdminPage = 'users' | 'forum-zones' | 'logs';
+import type { AdminPage } from '../../api/types';
 
 interface AdminPlaceholderPageProps {
   page: AdminPage;
@@ -52,7 +51,7 @@ export default function AdminPlaceholderPage({ page, icon, title, subtitle }: Ad
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
         >
-          COMING SOON
+          即将上线
         </motion.p>
       </div>
     </AdminShell>

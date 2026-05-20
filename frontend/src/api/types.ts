@@ -87,3 +87,6 @@ export interface ApiError {
   message: string;
   detail?: unknown;
 }
+
+/** 管理后台页面标识 */
+export type AdminPage = 'users' | 'forum-zones' | 'logs';

@@ -14,7 +14,7 @@ import { useLogout } from '../hooks/useLogout';
 
 export default function HomePage() {
   const [activeChannel, setActiveChannel] = useState('home');
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const channelContent = useMemo(() => {
     switch (activeChannel) {
@@ -34,7 +34,6 @@ export default function HomePage() {
       {/* 全局 HUD：右上角 OSD 用户入口 */}
       <UserHud
         user={user}
-        isAuthenticated={isAuthenticated}
         isAdmin={isAdmin}
         onNavigate={navigate}
         onLogout={handleLogout}

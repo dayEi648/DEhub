@@ -4,7 +4,6 @@ import type { UserResponse } from '../../api/types';
 
 interface UserHudProps {
   user: UserResponse | null;
-  isAuthenticated: boolean;
   isAdmin: boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
@@ -15,7 +14,7 @@ interface UserHudProps {
    厚重塑料外壳 + 圆形实体按键 + 螺丝装饰 + 3D 厚度感。
    ============================================================ */
 
-export default function UserHud({ user, isAuthenticated, isAdmin, onNavigate, onLogout }: UserHudProps) {
+export default function UserHud({ user, isAdmin, onNavigate, onLogout }: UserHudProps) {
   const menuItems = useMemo(
     () => [
       { label: '空间', path: '/profile', color: '#F5A623' },
@@ -86,7 +85,7 @@ export default function UserHud({ user, isAuthenticated, isAdmin, onNavigate, on
               <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
             ) : (
               <span className="text-lg font-bold" style={{ color: '#F5A623', fontFamily: 'var(--font-mono)' }}>
-                {isAuthenticated ? user?.username?.charAt(0)?.toUpperCase() || '?' : '×'}
+                {user?.username?.charAt(0)?.toUpperCase() || '?'}
               </span>
             )}
           </div>
@@ -95,33 +94,29 @@ export default function UserHud({ user, isAuthenticated, isAdmin, onNavigate, on
           <span
             className="text-[10px] font-bold truncate max-w-[90px]"
             style={{
-              color: isAuthenticated ? '#F5A623' : 'rgba(247,243,232,0.25)',
+              color: '#F5A623',
               fontFamily: 'var(--font-mono)',
               letterSpacing: '0.1em',
             }}
           >
-            {isAuthenticated ? user?.username || 'USER' : 'OFFLINE'}
+            {user?.username || 'USER'}
           </span>
         </div>
 
         {/* ---- 条形实体按键区 ---- */}
         <div className="flex flex-col gap-2 items-center w-full px-1">
-          {isAuthenticated ? (
-            menuItems.map((item, i) => (
-              <RemoteButton
-                key={item.label}
-                label={item.label}
-                color={item.color}
-                index={i}
-                onClick={() => {
-                  if (item.path) onNavigate(item.path);
-                  else onLogout();
-                }}
-              />
-            ))
-          ) : (
-            <RemoteButton label="进入系统" color="#F5A623" index={0} onClick={() => onNavigate('/login')} />
-          )}
+          {menuItems.map((item, i) => (
+            <RemoteButton
+              key={item.label}
+              label={item.label}
+              color={item.color}
+              index={i}
+              onClick={() => {
+                if (item.path) onNavigate(item.path);
+                else onLogout();
+              }}
+            />
+          ))}
         </div>
 
         {/* 底部品牌刻字 */}

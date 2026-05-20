@@ -6,10 +6,6 @@ import type {
   UserCreate,
 } from './types';
 
-export async function getUser(userId: number): Promise<UserResponse> {
-  return apiFetch<UserResponse>(`/api/v1/users/${userId}`);
-}
-
 export async function listUsers(params?: {
   skip?: number;
   limit?: number;

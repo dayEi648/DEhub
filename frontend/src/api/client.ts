@@ -44,12 +44,12 @@ async function parseError(res: Response): Promise<ApiErrorException> {
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit & { skipAuth?: boolean } = {}
 ): Promise<T> {
   const url = buildUrl(path);
   const headers = new Headers(options.headers);
 
-  if (!headers.has('Authorization')) {
+  if (!options.skipAuth && !headers.has('Authorization')) {
     const token = getToken();
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
@@ -68,7 +68,6 @@ export async function apiFetch<T>(
   if (!res.ok) {
     const exc = await parseError(res);
     if (exc.code === 401) {
-      clearToken();
       window.dispatchEvent(new CustomEvent('auth:unauthorized'));
     }
     throw exc;

@@ -5,7 +5,7 @@ export default function AdminForumZonesPage() {
     <AdminPlaceholderPage
       page="forum-zones"
       icon="🌐"
-      title="FORUM ZONES"
+      title="论坛分区"
       subtitle="论坛分区管理功能开发中"
     />
   );

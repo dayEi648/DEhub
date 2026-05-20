@@ -4,8 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLogout } from '../../hooks/useLogout';
 import type { ReactNode } from 'react';
-
-type AdminPage = 'users' | 'forum-zones' | 'logs';
+import type { AdminPage } from '../../api/types';
 
 interface Beacon {
   id: AdminPage;
@@ -18,9 +17,9 @@ interface Beacon {
 }
 
 const beacons: Beacon[] = [
-  { id: 'users', label: '用户管理', labelEn: 'USERS', path: '/admin/users', icon: '👤', position: { top: '20%', left: '5%' }, curveFrom: { x: 5, y: 22 } },
-  { id: 'forum-zones', label: '论坛分区', labelEn: 'FORUM', path: '/admin/forum-zones', icon: '🌐', position: { top: '20%', right: '5%' }, curveFrom: { x: 95, y: 22 } },
-  { id: 'logs', label: '系统日志', labelEn: 'LOGS', path: '/admin/logs', icon: '📋', position: { bottom: '15%', left: '50%' }, curveFrom: { x: 50, y: 85 } },
+  { id: 'users', label: '用户管理', labelEn: '用户', path: '/admin/users', icon: '👤', position: { top: '20%', left: '5%' }, curveFrom: { x: 5, y: 22 } },
+  { id: 'forum-zones', label: '论坛分区', labelEn: '论坛', path: '/admin/forum-zones', icon: '🌐', position: { top: '20%', right: '5%' }, curveFrom: { x: 95, y: 22 } },
+  { id: 'logs', label: '系统日志', labelEn: '日志', path: '/admin/logs', icon: '📋', position: { bottom: '15%', left: '50%' }, curveFrom: { x: 50, y: 85 } },
 ];
 
 const CENTER = { x: 50, y: 52 };
@@ -106,7 +105,7 @@ export default function AdminShell({ activePage, children }: { activePage: Admin
           onClick={() => navigate('/')}
           data-cursor-hover
         >
-          <span>←</span> BACK
+          <span>←</span> 返回
         </button>
 
         <div className="flex items-center gap-3">
@@ -126,7 +125,7 @@ export default function AdminShell({ activePage, children }: { activePage: Admin
             onClick={handleLogout}
             data-cursor-hover
           >
-            EXIT
+            退出
           </motion.button>
         </div>
       </motion.header>
