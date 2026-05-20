@@ -10,27 +10,35 @@ interface TVFrameProps {
   onChannelChange: (id: string) => void;
 }
 
-const glowColors: Record<string, string> = {
-  home: 'rgba(245, 166, 35, 0.30)',
-  blog: 'rgba(255, 229, 44, 0.30)',
-  forum: 'rgba(127, 230, 239, 0.30)',
-  ai: 'rgba(196, 215, 12, 0.30)',
-  links: 'rgba(255, 77, 77, 0.30)',
-};
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
-const glowCoreColors: Record<string, string> = {
-  home: 'rgba(245, 166, 35, 0.12)',
-  blog: 'rgba(255, 229, 44, 0.12)',
-  forum: 'rgba(127, 230, 239, 0.12)',
-  ai: 'rgba(196, 215, 12, 0.12)',
-  links: 'rgba(255, 77, 77, 0.12)',
-};
+const glowColors: Record<string, string> = Object.fromEntries(
+  channels.map((c) => [c.id, hexToRgba(c.color, 0.30)])
+);
+
+const glowCoreColors: Record<string, string> = Object.fromEntries(
+  channels.map((c) => [c.id, hexToRgba(c.color, 0.12)])
+);
 
 export default function TVFrame({ children, activeChannel, onChannelChange }: TVFrameProps) {
   const screenRef = useRef<HTMLDivElement>(null);
+  const switchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [time, setTime] = useState('');
   const [switchKey, setSwitchKey] = useState(0);
   const [isSwitching, setIsSwitching] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (switchTimeoutRef.current) {
+        clearTimeout(switchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const update = () => {
@@ -50,7 +58,11 @@ export default function TVFrame({ children, activeChannel, onChannelChange }: TV
     setSwitchKey((k) => k + 1);
     onChannelChange(id);
     if (screenRef.current) screenRef.current.scrollTop = 0;
-    setTimeout(() => setIsSwitching(false), 900);
+    if (switchTimeoutRef.current) clearTimeout(switchTimeoutRef.current);
+    switchTimeoutRef.current = setTimeout(() => {
+      setIsSwitching(false);
+      switchTimeoutRef.current = null;
+    }, 900);
   };
 
   const activeCh = channels.find((c) => c.id === activeChannel);

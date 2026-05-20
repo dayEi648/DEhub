@@ -1,21 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import Scanlines from '../components/effects/Scanlines';
-import CustomCursor from '../components/effects/CustomCursor';
-import TVBootAnimation from '../components/effects/TVBootAnimation';
+import { useNavigate } from 'react-router-dom';
 import TVFrame from '../components/layout/TVFrame';
+import UserHud from '../components/layout/UserHud';
 import HeroSection from '../components/sections/HeroSection';
 import BlogPreview from '../components/sections/BlogPreview';
 import ForumPreview from '../components/sections/ForumPreview';
 import AIChatEntry from '../components/sections/AIChatEntry';
 import SiteLinks from '../components/sections/SiteLinks';
 import Footer from '../components/layout/Footer';
+import { useAuth } from '../contexts/AuthContext';
+import { useLogout } from '../hooks/useLogout';
 
 export default function HomePage() {
-  const [bootDone, setBootDone] = useState(false);
   const [activeChannel, setActiveChannel] = useState('home');
-
-  const renderChannelContent = () => {
+  const { user, isAuthenticated, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const channelContent = useMemo(() => {
     switch (activeChannel) {
       case 'home': return <HeroSection />;
       case 'blog': return <BlogPreview />;
@@ -24,28 +25,36 @@ export default function HomePage() {
       case 'links': return <SiteLinks />;
       default: return <HeroSection />;
     }
-  };
+  }, [activeChannel]);
+
+  const { handleLogout } = useLogout();
 
   return (
     <>
-      <CustomCursor />
-      <Scanlines />
-      {!bootDone && <TVBootAnimation onComplete={() => setBootDone(true)} />}
+      {/* 全局 HUD：右上角 OSD 用户入口 */}
+      <UserHud
+        user={user}
+        isAuthenticated={isAuthenticated}
+        isAdmin={isAdmin}
+        onNavigate={navigate}
+        onLogout={handleLogout}
+      />
 
+      {/* 胶片噪点 */}
       <FilmGrain />
       <SignalIndicator />
       <Timecode />
       <SafeFrameMarkers />
 
       <TVFrame activeChannel={activeChannel} onChannelChange={setActiveChannel}>
-        {renderChannelContent()}
+        {channelContent}
         {activeChannel === 'home' && <Footer />}
       </TVFrame>
     </>
   );
 }
 
-/** 胶片噪点 —— 给背景增加质地 */
+/** 胶片噪点 */
 function FilmGrain() {
   return (
     <div
@@ -132,7 +141,7 @@ function Timecode() {
   );
 }
 
-/** 安全框标记 —— 四角直角线 */
+/** 安全框标记 */
 function SafeFrameMarkers() {
   return (
     <div className="fixed inset-4 sm:inset-6 pointer-events-none z-[5]">
