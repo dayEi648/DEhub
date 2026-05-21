@@ -15,10 +15,24 @@ import {
   Shield,
   AlertCircle,
   CheckCircle2,
+  MessageSquare,
+  LayoutGrid,
+  Trash2,
+  BookOpen,
 } from 'lucide-react'
 import { getUserDetail, updateUser, changePassword } from '../api/users'
+import {
+  getFavoriteBlogPosts,
+  getFavoriteForumPosts,
+  getFollowedZones,
+  unfavoriteBlogPost,
+  unfavoriteForumPost,
+  unfollowZone,
+} from '../api/favorites'
 import { getUser as getStoredUser, setUser, clearAuth } from '../utils/auth'
 import type { User as UserType } from '../types/user'
+import type { BlogPostListItem } from '../types/blog'
+import type { ForumPost, ForumZone } from '../types/forum'
 
 /* ─── Helpers ─── */
 function formatDate(iso: string): string {
@@ -29,7 +43,8 @@ function formatDate(iso: string): string {
 const MAX_AVATAR_SIZE = 20 * 1024 * 1024 // 20MB
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-type TabKey = 'profile' | 'security'
+type TabKey = 'profile' | 'security' | 'favorites'
+type FavSubTab = 'zones' | 'posts' | 'blogs'
 
 /* ─── Components ─── */
 
@@ -43,6 +58,7 @@ function TabNav({
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'profile', label: '个人资料' },
     { key: 'security', label: '账户安全' },
+    { key: 'favorites', label: '我的收藏' },
   ]
 
   return (
@@ -270,6 +286,13 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
 
+  // Favorites state
+  const [favoriteBlogs, setFavoriteBlogs] = useState<BlogPostListItem[]>([])
+  const [favoritePosts, setFavoritePosts] = useState<ForumPost[]>([])
+  const [followedZones, setFollowedZones] = useState<ForumZone[]>([])
+  const [loadingFavorites, setLoadingFavorites] = useState(false)
+  const [favSubTab, setFavSubTab] = useState<FavSubTab>('zones')
+
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
@@ -415,6 +438,64 @@ export default function ProfilePage() {
       setToast({ message: msg || '密码修改失败，请重试', type: 'error' })
     } finally {
       setSavingPassword(false)
+    }
+  }
+
+  // Favorites
+  const fetchFavorites = async () => {
+    try {
+      setLoadingFavorites(true)
+      const [blogRes, postRes, zoneRes] = await Promise.all([
+        getFavoriteBlogPosts({ limit: 20 }),
+        getFavoriteForumPosts({ limit: 20 }),
+        getFollowedZones({ limit: 20 }),
+      ])
+      setFavoriteBlogs(blogRes.data.items || [])
+      setFavoritePosts(postRes.data.items || [])
+      setFollowedZones(zoneRes.data.items || [])
+    } catch {
+      // handled by interceptor
+    } finally {
+      setLoadingFavorites(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'favorites') {
+      fetchFavorites()
+    }
+  }, [activeTab])
+
+  const handleUnfavoriteBlog = async (postId: number) => {
+    try {
+      await unfavoriteBlogPost(postId)
+      setFavoriteBlogs((prev) => prev.filter((b) => b.id !== postId))
+      setToast({ message: '已取消收藏', type: 'success' })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setToast({ message: msg || '操作失败', type: 'error' })
+    }
+  }
+
+  const handleUnfavoritePost = async (postId: number) => {
+    try {
+      await unfavoriteForumPost(postId)
+      setFavoritePosts((prev) => prev.filter((p) => p.id !== postId))
+      setToast({ message: '已取消收藏', type: 'success' })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setToast({ message: msg || '操作失败', type: 'error' })
+    }
+  }
+
+  const handleUnfollowZone = async (zoneId: number) => {
+    try {
+      await unfollowZone(zoneId)
+      setFollowedZones((prev) => prev.filter((z) => z.id !== zoneId))
+      setToast({ message: '已取消关注', type: 'success' })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setToast({ message: msg || '操作失败', type: 'error' })
     }
   }
 
@@ -1017,6 +1098,386 @@ export default function ProfilePage() {
               <Lock size={15} />
               {savingPassword ? '保存中…' : '修改密码'}
             </button>
+          </div>
+        )}
+
+        {/* Tab: Favorites */}
+        {activeTab === 'favorites' && (
+          <div>
+            {/* Sub tabs */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 'var(--spacing-xs)',
+                marginBottom: 'var(--spacing-lg)',
+              }}
+            >
+              {([
+                { key: 'zones' as FavSubTab, label: `论坛分区 (${followedZones.length})` },
+                { key: 'posts' as FavSubTab, label: `论坛帖子 (${favoritePosts.length})` },
+                { key: 'blogs' as FavSubTab, label: `博客文章 (${favoriteBlogs.length})` },
+              ]).map((t) => {
+                const isActive = favSubTab === t.key
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => setFavSubTab(t.key)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 'var(--rounded-md)',
+                      backgroundColor: isActive ? 'var(--color-surface-card)' : 'transparent',
+                      color: isActive ? 'var(--color-ink)' : 'var(--color-muted)',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 150ms ease',
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {loadingFavorites ? (
+              <div style={{ textAlign: 'center', padding: 'var(--spacing-xl)', color: 'var(--color-muted)' }}>
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    border: '3px solid var(--color-hairline)',
+                    borderTopColor: 'var(--color-primary)',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite',
+                    margin: '0 auto var(--spacing-md)',
+                  }}
+                />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                <span style={{ fontSize: 14 }}>加载收藏中…</span>
+              </div>
+            ) : (
+              <div
+                style={{
+                  backgroundColor: 'var(--color-surface-card)',
+                  borderRadius: 'var(--rounded-lg)',
+                  padding: 'var(--spacing-xl)',
+                }}
+              >
+                {/* SubTab: Zones */}
+                {favSubTab === 'zones' && (
+                  <>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-sm)',
+                        marginBottom: 'var(--spacing-md)',
+                      }}
+                    >
+                      <LayoutGrid size={18} color="var(--color-primary)" />
+                      <h2
+                        style={{
+                          fontFamily: 'var(--font-display)',
+                          fontSize: 20,
+                          fontWeight: 400,
+                          letterSpacing: '-0.3px',
+                          color: 'var(--color-ink)',
+                          margin: 0,
+                        }}
+                      >
+                        收藏的论坛分区
+                      </h2>
+                    </div>
+                    {followedZones.length === 0 ? (
+                      <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: 0, textAlign: 'center', padding: 'var(--spacing-lg)' }}>
+                        暂无关注的分区
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                        {followedZones.map((zone) => (
+                          <div
+                            key={zone.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '12px 16px',
+                              borderRadius: 'var(--rounded-md)',
+                              backgroundColor: 'var(--color-canvas)',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+                              <div
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 'var(--rounded-md)',
+                                  backgroundColor: 'var(--color-surface-soft)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'var(--color-primary)',
+                                }}
+                              >
+                                <LayoutGrid size={16} />
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-body-strong)' }}>
+                                  {zone.zone_name}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--color-muted-soft)', marginTop: 2 }}>
+                                  {zone.description || '暂无描述'}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleUnfollowZone(zone.id)}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 'var(--rounded-full)',
+                                backgroundColor: 'transparent',
+                                border: '1px solid var(--color-hairline)',
+                                color: 'var(--color-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 150ms ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--color-error)'
+                                e.currentTarget.style.color = '#fff'
+                                e.currentTarget.style.borderColor = 'var(--color-error)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                                e.currentTarget.style.color = 'var(--color-muted)'
+                                e.currentTarget.style.borderColor = 'var(--color-hairline)'
+                              }}
+                              title="取消关注"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* SubTab: Posts */}
+                {favSubTab === 'posts' && (
+                  <>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-sm)',
+                        marginBottom: 'var(--spacing-md)',
+                      }}
+                    >
+                      <MessageSquare size={18} color="var(--color-primary)" />
+                      <h2
+                        style={{
+                          fontFamily: 'var(--font-display)',
+                          fontSize: 20,
+                          fontWeight: 400,
+                          letterSpacing: '-0.3px',
+                          color: 'var(--color-ink)',
+                          margin: 0,
+                        }}
+                      >
+                        收藏的论坛帖子
+                      </h2>
+                    </div>
+                    {favoritePosts.length === 0 ? (
+                      <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: 0, textAlign: 'center', padding: 'var(--spacing-lg)' }}>
+                        暂无收藏的帖子
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                        {favoritePosts.map((post) => (
+                          <div
+                            key={post.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '12px 16px',
+                              borderRadius: 'var(--rounded-md)',
+                              backgroundColor: 'var(--color-canvas)',
+                            }}
+                          >
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: 500,
+                                  color: 'var(--color-body-strong)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {post.title}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--color-muted-soft)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>{post.user.username}</span>
+                                <span>·</span>
+                                <span>{formatDate(post.created_at)}</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleUnfavoritePost(post.id)}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 'var(--rounded-full)',
+                                backgroundColor: 'transparent',
+                                border: '1px solid var(--color-hairline)',
+                                color: 'var(--color-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 150ms ease',
+                                flexShrink: 0,
+                                marginLeft: 'var(--spacing-sm)',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--color-error)'
+                                e.currentTarget.style.color = '#fff'
+                                e.currentTarget.style.borderColor = 'var(--color-error)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                                e.currentTarget.style.color = 'var(--color-muted)'
+                                e.currentTarget.style.borderColor = 'var(--color-hairline)'
+                              }}
+                              title="取消收藏"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* SubTab: Blogs */}
+                {favSubTab === 'blogs' && (
+                  <>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-sm)',
+                        marginBottom: 'var(--spacing-md)',
+                      }}
+                    >
+                      <BookOpen size={18} color="var(--color-primary)" />
+                      <h2
+                        style={{
+                          fontFamily: 'var(--font-display)',
+                          fontSize: 20,
+                          fontWeight: 400,
+                          letterSpacing: '-0.3px',
+                          color: 'var(--color-ink)',
+                          margin: 0,
+                        }}
+                      >
+                        收藏的博客文章
+                      </h2>
+                    </div>
+                    {favoriteBlogs.length === 0 ? (
+                      <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: 0, textAlign: 'center', padding: 'var(--spacing-lg)' }}>
+                        暂无收藏的文章
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                        {favoriteBlogs.map((blog) => (
+                          <div
+                            key={blog.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '12px 16px',
+                              borderRadius: 'var(--rounded-md)',
+                              backgroundColor: 'var(--color-canvas)',
+                            }}
+                          >
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: 500,
+                                  color: 'var(--color-body-strong)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {blog.title}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--color-muted-soft)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span
+                                  style={{
+                                    padding: '2px 8px',
+                                    borderRadius: 'var(--rounded-pill)',
+                                    backgroundColor: 'var(--color-surface-soft)',
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    color: 'var(--color-muted)',
+                                  }}
+                                >
+                                  {blog.category.name}
+                                </span>
+                                <span>{formatDate(blog.created_at)}</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleUnfavoriteBlog(blog.id)}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 'var(--rounded-full)',
+                                backgroundColor: 'transparent',
+                                border: '1px solid var(--color-hairline)',
+                                color: 'var(--color-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 150ms ease',
+                                flexShrink: 0,
+                                marginLeft: 'var(--spacing-sm)',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--color-error)'
+                                e.currentTarget.style.color = '#fff'
+                                e.currentTarget.style.borderColor = 'var(--color-error)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                                e.currentTarget.style.color = 'var(--color-muted)'
+                                e.currentTarget.style.borderColor = 'var(--color-hairline)'
+                              }}
+                              title="取消收藏"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
