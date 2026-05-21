@@ -13,6 +13,9 @@ import ProfilePage from './pages/ProfilePage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminForumZonesPage from './pages/admin/AdminForumZonesPage';
 import AdminLogsPage from './pages/admin/AdminLogsPage';
+import BlogListPage from './pages/BlogListPage';
+import BlogDetailPage from './pages/BlogDetailPage';
+import BlogEditPage from './pages/BlogEditPage';
 
 function GlobalEffects() {
   const [bootDone, setBootDone] = useState(false);
@@ -93,6 +96,38 @@ function App() {
               element={
                 <AuthGuard requireAdmin>
                   <AdminLogsPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/blog"
+              element={
+                <AuthGuard>
+                  <BlogListPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/blog/:slug"
+              element={
+                <AuthGuard>
+                  <BlogDetailPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/blog/create"
+              element={
+                <AuthGuard requireAdmin>
+                  <BlogEditPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/blog/edit/:id"
+              element={
+                <AuthGuard requireAdmin>
+                  <BlogEditPage />
                 </AuthGuard>
               }
             />

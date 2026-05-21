@@ -5,6 +5,10 @@ import { NOISE_SVG_URL } from '../../utils/noiseTexture';
 /**
  * 电视开机动画
  * 页面首次加载时：纯黑 → 水平亮线 → 垂直展开 → 内容显现
+ * 
+ * 注意：此组件由父组件控制挂载/卸载。当动画完成时，onComplete 回调通知父组件，
+ * 父组件应在短暂延迟（至少 200ms，等待 exit 动画播放完毕）后再卸载此组件，
+ * 以确保 AnimatePresence 的退出动画能够完整播放。
  */
 export default function TVBootAnimation({ onComplete }: { onComplete?: () => void }) {
   const [phase, setPhase] = useState<'line' | 'expand' | 'done'>('line');
@@ -13,7 +17,11 @@ export default function TVBootAnimation({ onComplete }: { onComplete?: () => voi
     const t1 = setTimeout(() => setPhase('expand'), 600);
     const t2 = setTimeout(() => {
       setPhase('done');
-      onComplete?.();
+      // 延迟调用 onComplete，等待 exit 动画（200ms）播放完毕
+      const t3 = setTimeout(() => {
+        onComplete?.();
+      }, 250);
+      return () => clearTimeout(t3);
     }, 1200);
     return () => {
       clearTimeout(t1);

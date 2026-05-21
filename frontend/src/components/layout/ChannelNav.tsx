@@ -11,7 +11,7 @@ export interface Channel {
 
 const channels: Channel[] = [
   { id: 'home', number: 'CH.00', label: '概览', labelEn: 'OVERVIEW', color: '#F5A623' },
-  { id: 'blog', number: 'CH.01', label: '日志', labelEn: 'BLOG', color: '#FFE52C' },
+  { id: 'blog', number: 'CH.01', label: '博客', labelEn: 'BLOG', color: '#FFE52C' },
   { id: 'forum', number: 'CH.02', label: '论坛', labelEn: 'FORUM', color: '#7FE6EF' },
   { id: 'ai', number: 'CH.03', label: 'AI', labelEn: 'AI CHAT', color: '#C4D70C' },
   { id: 'links', number: 'CH.04', label: '链接', labelEn: 'LINKS', color: '#FF4D4D' },

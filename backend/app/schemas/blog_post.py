@@ -3,6 +3,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.blog_category import BlogCategoryBrief
+from app.schemas.user import UserBriefInfo
 
 
 class BlogPostBase(BaseModel):
@@ -37,11 +38,13 @@ class BlogPostUpdate(BaseModel):
 class BlogPostResponse(BlogPostBase):
     """博客文章完整响应"""
     id: int
+    user_id: int
     view_count: int
     comment_count: int
     created_at: datetime
     updated_at: datetime
     category: BlogCategoryBrief
+    author: UserBriefInfo
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -49,6 +52,7 @@ class BlogPostResponse(BlogPostBase):
 class BlogPostListItem(BaseModel):
     """博客文章列表项（不包含正文，减少传输量）"""
     id: int
+    user_id: int
     title: str
     slug: str
     summary: Optional[str] = None
@@ -61,6 +65,7 @@ class BlogPostListItem(BaseModel):
     comment_count: int
     created_at: datetime
     updated_at: datetime
+    author: UserBriefInfo
 
     model_config = ConfigDict(from_attributes=True)
 

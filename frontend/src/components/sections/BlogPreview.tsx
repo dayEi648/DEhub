@@ -1,42 +1,68 @@
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { listBlogPosts } from '../../api/blog';
+import type { BlogPostListItem } from '../../api/types';
 import ChamferCard from '../ui/ChamferCard';
 
-const mockPosts = [
-  {
-    id: 1,
-    title: 'LangGraph 多 Agent 工作流编排实战',
-    category: 'AI',
-    date: '2026.05.12',
-    readTime: '12 min',
-    tags: ['LangGraph', 'Python', 'Agent'],
-    summary: '从零构建一个支持条件分支、循环与状态持久化的多 Agent 协作系统。',
-  },
-  {
-    id: 2,
-    title: 'PostgreSQL + pgvector 构建 RAG 向量检索',
-    category: '后端',
-    date: '2026.04.28',
-    readTime: '8 min',
-    tags: ['PostgreSQL', 'RAG', '向量检索'],
-    summary: '在自有数据库中实现 Embedding 存储与相似度搜索，告别外部向量库。',
-  },
-  {
-    id: 3,
-    title: 'FastAPI 项目结构最佳实践',
-    category: '后端',
-    date: '2026.04.15',
-    readTime: '6 min',
-    tags: ['FastAPI', 'Python', '架构'],
-    summary: '经过多个项目验证的目录组织方式与依赖注入模式。',
-  },
-];
-
-/**
- * 博客预览 —— CH.01 纪录片/科教频道
- *
- * 风格：节目播出表
- */
 export default function BlogPreview() {
+  const navigate = useNavigate();
+  const [hotPost, setHotPost] = useState<BlogPostListItem | null>(null);
+  const [latestPosts, setLatestPosts] = useState<BlogPostListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchPosts = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 获取最热1篇
+      const hotRes = await listBlogPosts({ limit: 1, sort_by: 'hot' });
+      const hot = hotRes.items[0] || null;
+      setHotPost(hot);
+
+      // 获取最新3篇，排除最热（避免重复）
+      const latestRes = await listBlogPosts({ limit: 4, sort_by: 'latest' });
+      const filteredLatest = hot
+        ? latestRes.items.filter((p) => p.id !== hot.id).slice(0, 3)
+        : latestRes.items.slice(0, 3);
+      setLatestPosts(filteredLatest);
+    } catch {
+      // 静默处理，保持空状态
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  if (loading) {
+    return (
+      <section className="relative py-8 sm:py-10 px-4 sm:px-8 lg:px-14" id="blog">
+        <div className="max-w-5xl mx-auto flex items-center justify-center py-16">
+          <motion.div
+            className="w-8 h-8 border-2 border-[#F5A623] border-t-transparent"
+            style={{ clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          />
+        </div>
+      </section>
+    );
+  }
+
+  if (!hotPost && latestPosts.length === 0) {
+    return (
+      <section className="relative py-8 sm:py-10 px-4 sm:px-8 lg:px-14" id="blog">
+        <div className="max-w-5xl mx-auto text-center py-12">
+          <p style={{ color: '#FFF8EE', opacity: 0.4, fontFamily: 'var(--font-body)' }}>
+            暂无博客文章
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="relative py-8 sm:py-10 px-4 sm:px-8 lg:px-14" id="blog">
       {/* 顶部频道标识 */}
@@ -54,69 +80,120 @@ export default function BlogPreview() {
           DOCUMENTARY CHANNEL
         </span>
         <div className="h-px flex-1 bg-[#FFE52C]/15" />
+        <button
+          onClick={() => navigate('/blog')}
+          className="text-[10px] tracking-wider font-bold px-2 py-1 transition-all duration-200 hover:bg-[#F5A623]/10"
+          style={{ color: '#F5A623', fontFamily: 'var(--font-mono)' }}
+          data-cursor-hover
+        >
+          VIEW ALL →
+        </button>
       </motion.div>
 
-      {/* 节目播出表 */}
-      <div className="max-w-5xl mx-auto space-y-3">
-        {mockPosts.map((post, index) => (
-          <motion.div
-            key={post.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.15 }}
-          >
-            <ChamferCard className="p-0 overflow-hidden lens-reflect" hoverable>
-              <div className="flex flex-col sm:flex-row">
-                {/* 左侧：时间轴信息 */}
-                <div
-                  className="flex flex-row sm:flex-col items-center sm:items-start justify-between sm:justify-center gap-2 sm:gap-1 px-4 sm:px-5 py-3 sm:py-4 min-w-[120px]"
-                  style={{ backgroundColor: 'rgba(255, 229, 44, 0.05)', borderRight: '1px solid rgba(255, 229, 44, 0.1)' }}
+      {/* 左右布局：左侧最热(大卡片) + 右侧最新(小卡片列表) */}
+      <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* 左侧：最热文章（大卡片，占7列） */}
+        {hotPost && (
+          <div className="lg:col-span-7">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-1.5 h-1.5 rotate-45" style={{ backgroundColor: '#FF4D4D' }} />
+                <span
+                  className="text-[10px] tracking-[0.3em] font-bold"
+                  style={{ color: '#FF4D4D', fontFamily: 'var(--font-mono)' }}
                 >
-                  <span
-                    className="text-xs font-bold"
-                    style={{ color: '#FFE52C', fontFamily: 'var(--font-mono)' }}
-                  >
-                    {post.date}
-                  </span>
-                  <span
-                    className="text-[10px] tracking-wider opacity-50"
-                    style={{ fontFamily: 'var(--font-mono)', color: '#FFF8EE' }}
-                  >
-                    {post.readTime}
-                  </span>
-                </div>
+                  TRENDING NOW
+                </span>
+                <div className="h-px flex-1 bg-[#FF4D4D]/15" />
+              </div>
 
-                {/* 右侧：内容 */}
-                <div className="flex-1 p-4 sm:p-5">
-                  <div className="flex items-center gap-2 mb-2">
+              <ChamferCard
+                className="p-0 overflow-hidden cursor-pointer h-full"
+                hoverable
+                onClick={() => navigate(`/blog/${hotPost.slug}`)}
+              >
+                {/* 大图封面 */}
+                <div
+                  className="h-48 sm:h-56 relative overflow-hidden"
+                  style={{ backgroundColor: 'rgba(255, 77, 77, 0.03)' }}
+                >
+                  {hotPost.cover_image_url ? (
+                    <img
+                      src={hotPost.cover_image_url}
+                      alt={hotPost.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span
+                        className="text-[10px] tracking-wider opacity-20"
+                        style={{ fontFamily: 'var(--font-mono)', color: '#FF4D4D' }}
+                      >
+                        NO SIGNAL
+                      </span>
+                    </div>
+                  )}
+                  {/* HOT 标识 */}
+                  <div className="absolute top-3 right-3">
                     <span
-                      className="text-[9px] tracking-wider px-1.5 py-0.5"
+                      className="text-[10px] tracking-wider px-2 py-1 font-bold"
                       style={{
-                        backgroundColor: 'rgba(255, 229, 44, 0.1)',
-                        color: '#FFE52C',
+                        backgroundColor: 'rgba(255, 77, 77, 0.9)',
+                        color: '#1A1612',
                         fontFamily: 'var(--font-mono)',
                       }}
                     >
-                      {post.category}
+                      HOT
+                    </span>
+                  </div>
+                </div>
+
+                {/* 内容 */}
+                <div className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span
+                      className="text-[10px] tracking-wider"
+                      style={{ fontFamily: 'var(--font-mono)', color: '#FFF8EE', opacity: 0.4 }}
+                    >
+                      {new Date(hotPost.created_at).toLocaleDateString('zh-CN')}
+                    </span>
+                    <span
+                      className="text-[10px]"
+                      style={{ fontFamily: 'var(--font-mono)', color: '#C4D70C', opacity: 0.5 }}
+                    >
+                      {hotPost.view_count} 阅读
+                    </span>
+                    <span
+                      className="text-[10px]"
+                      style={{ fontFamily: 'var(--font-mono)', color: '#7FE6EF', opacity: 0.5 }}
+                    >
+                      {hotPost.comment_count} 评论
                     </span>
                   </div>
 
                   <h3
-                    className="text-base sm:text-lg font-bold mb-2 leading-snug"
-                    style={{ color: '#FFF8EE', fontFamily: 'var(--font-body)' }}
+                    className="text-lg font-black mb-2 leading-tight"
+                    style={{ color: '#FFF8EE', fontFamily: 'var(--font-display)' }}
                   >
-                    {post.title}
+                    {hotPost.title}
                   </h3>
 
-                  <p
-                    className="text-xs sm:text-sm mb-3 leading-relaxed"
-                    style={{ color: '#FFF8EE', opacity: 0.55 }}
-                  >
-                    {post.summary}
-                  </p>
+                  {hotPost.summary && (
+                    <p
+                      className="text-sm leading-relaxed line-clamp-2"
+                      style={{ color: '#FFF8EE', opacity: 0.6 }}
+                    >
+                      {hotPost.summary}
+                    </p>
+                  )}
 
-                  <div className="flex flex-wrap gap-2">
-                    {post.tags.map((tag) => (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {hotPost.tags.map((tag) => (
                       <span
                         key={tag}
                         className="text-[9px] tracking-wider px-1.5 py-0.5"
@@ -132,10 +209,120 @@ export default function BlogPreview() {
                     ))}
                   </div>
                 </div>
-              </div>
-            </ChamferCard>
+              </ChamferCard>
+            </motion.div>
+          </div>
+        )}
+
+        {/* 右侧：最新文章（小卡片，占5列） */}
+        <div className={`${hotPost ? 'lg:col-span-5' : 'lg:col-span-12'}`}>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-1.5 h-1.5 rotate-45" style={{ backgroundColor: '#FFE52C' }} />
+              <span
+                className="text-[10px] tracking-[0.3em] font-bold"
+                style={{ color: '#FFE52C', fontFamily: 'var(--font-mono)' }}
+              >
+                LATEST RELEASE
+              </span>
+              <div className="h-px flex-1 bg-[#FFE52C]/15" />
+            </div>
+
+            <div className="space-y-3">
+              {latestPosts.map((post, index) => (
+                <motion.div
+                  key={post.id}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
+                >
+                  <ChamferCard
+                    className="p-0 overflow-hidden cursor-pointer"
+                    hoverable
+                    onClick={() => navigate(`/blog/${post.slug}`)}
+                  >
+                    <div className="flex flex-row">
+                      {/* 小图封面 */}
+                      <div
+                        className="w-20 h-20 shrink-0 relative overflow-hidden"
+                        style={{ backgroundColor: 'rgba(255, 229, 44, 0.03)' }}
+                      >
+                        {post.cover_image_url ? (
+                          <img
+                            src={post.cover_image_url}
+                            alt={post.title}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span
+                              className="text-[9px] tracking-wider opacity-20"
+                              style={{ fontFamily: 'var(--font-mono)', color: '#FFE52C' }}
+                            >
+                              NO SIGNAL
+                            </span>
+                          </div>
+                        )}
+                        {/* NEW 标识 */}
+                        <div className="absolute top-1.5 right-1.5">
+                          <span
+                            className="text-[8px] tracking-wider px-1 py-0.5"
+                            style={{
+                              backgroundColor: 'rgba(255, 229, 44, 0.9)',
+                              color: '#1A1612',
+                              fontFamily: 'var(--font-mono)',
+                            }}
+                          >
+                            NEW
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 内容 */}
+                      <div className="flex-1 p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className="text-[9px] tracking-wider"
+                            style={{ fontFamily: 'var(--font-mono)', color: '#FFF8EE', opacity: 0.4 }}
+                          >
+                            {new Date(post.created_at).toLocaleDateString('zh-CN')}
+                          </span>
+                        </div>
+
+                        <h4
+                          className="text-sm font-bold leading-snug line-clamp-2 mb-1"
+                          style={{ color: '#FFF8EE', fontFamily: 'var(--font-body)' }}
+                        >
+                          {post.title}
+                        </h4>
+
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-[9px]"
+                            style={{ fontFamily: 'var(--font-mono)', color: '#C4D70C', opacity: 0.5 }}
+                          >
+                            {post.view_count} 阅读
+                          </span>
+                          <span
+                            className="text-[9px]"
+                            style={{ fontFamily: 'var(--font-mono)', color: '#7FE6EF', opacity: 0.5 }}
+                          >
+                            {post.comment_count} 评论
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </ChamferCard>
+                </motion.div>
+              ))}
+            </div>
           </motion.div>
-        ))}
+        </div>
       </div>
     </section>
   );

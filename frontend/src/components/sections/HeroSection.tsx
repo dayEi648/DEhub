@@ -1,9 +1,11 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Hero 区域 —— CH.00 概览频道（新闻台风格）
  */
 export default function HeroSection() {
+  const navigate = useNavigate();
   const containerVariants = {
     hidden: {},
     visible: {
@@ -175,6 +177,7 @@ export default function HeroSection() {
               variants={itemVariants}
             >
               <button
+                onClick={() => navigate('/blog')}
                 className="chamfer px-6 py-2.5 text-xs sm:text-sm font-bold tracking-wider relative overflow-hidden lens-reflect"
                 style={{
                   backgroundColor: '#F5A623',
@@ -186,6 +189,7 @@ export default function HeroSection() {
                 进入博客
               </button>
               <button
+                onClick={() => navigate('/?channel=ai')}
                 className="chamfer px-6 py-2.5 text-xs sm:text-sm font-bold tracking-wider relative overflow-hidden"
                 style={{
                   backgroundColor: 'transparent',

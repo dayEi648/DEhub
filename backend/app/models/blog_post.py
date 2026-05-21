@@ -8,6 +8,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.blog_category import BlogCategory
     from app.models.blog_post_embedding import BlogPostEmbedding
+    from app.models.user import User
 
 
 class BlogPost(Base):
@@ -19,6 +20,8 @@ class BlogPost(Base):
     summary: Mapped[str | None] = mapped_column(TEXT)
     content_md: Mapped[str] = mapped_column(TEXT, nullable=False)
     cover_image_url: Mapped[str | None] = mapped_column(String(255))
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    user: Mapped["User"] = relationship("User", backref="blog_posts")
     category_id: Mapped[int] = mapped_column(Integer, ForeignKey("blog_categories.id"), nullable=False)
     category: Mapped["BlogCategory"] = relationship("BlogCategory", back_populates="posts")
     tags: Mapped[list[str]] = mapped_column(ARRAY(TEXT), default=list)
@@ -31,3 +34,8 @@ class BlogPost(Base):
     embedding: Mapped["BlogPostEmbedding | None"] = relationship(
         "BlogPostEmbedding", back_populates="post", uselist=False
     )
+
+    @property
+    def author(self):
+        """兼容 schema 中的 author 字段，映射到 user 关系"""
+        return self.user

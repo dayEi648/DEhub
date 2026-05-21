@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, buildQueryString } from './client';
 import type {
   UserResponse,
   UserListResponse,
@@ -14,15 +14,7 @@ export async function listUsers(params?: {
   email?: string;
   permission?: number;
 }): Promise<UserListResponse> {
-  const search = new URLSearchParams();
-  if (params?.skip !== undefined) search.set('skip', String(params.skip));
-  if (params?.limit !== undefined) search.set('limit', String(params.limit));
-  if (params?.include_deleted !== undefined) search.set('include_deleted', String(params.include_deleted));
-  if (params?.username) search.set('username', params.username);
-  if (params?.email) search.set('email', params.email);
-  if (params?.permission !== undefined) search.set('permission', String(params.permission));
-  const qs = search.toString();
-  return apiFetch<UserListResponse>(`/api/v1/users/${qs ? '?' + qs : ''}`);
+  return apiFetch<UserListResponse>(`/api/v1/users/${buildQueryString(params ?? {})}`);
 }
 
 export async function createUser(data: UserCreate): Promise<UserResponse> {

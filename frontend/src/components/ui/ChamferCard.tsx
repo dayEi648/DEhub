@@ -6,6 +6,7 @@ interface ChamferCardProps {
   className?: string;
   hoverable?: boolean;
   onClick?: () => void;
+  style?: React.CSSProperties;
 }
 
 /**
@@ -17,12 +18,14 @@ export default function ChamferCard({
   className = '',
   hoverable = true,
   onClick,
+  style,
 }: ChamferCardProps) {
   return (
     <motion.div
       className={`chamfer relative bg-[#2A2118]/80 backdrop-blur-sm ${className}`}
       style={{
         border: '1px solid rgba(245, 166, 35, 0.15)',
+        ...style,
       }}
       whileHover={
         hoverable

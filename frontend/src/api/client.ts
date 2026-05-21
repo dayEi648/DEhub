@@ -42,6 +42,20 @@ async function parseError(res: Response): Promise<ApiErrorException> {
   return new ApiErrorException(err);
 }
 
+/**
+ * 构建 URL query string，过滤 undefined / null / 空字符串
+ */
+export function buildQueryString(params: object): string {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      qs.append(key, String(value));
+    }
+  });
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit & { skipAuth?: boolean } = {}

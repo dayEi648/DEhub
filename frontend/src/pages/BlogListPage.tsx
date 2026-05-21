@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { listBlogPosts } from '../api/blog';
+import { useAuth } from '../contexts/AuthContext';
 import type { BlogPostListItem, BlogPostQueryParams, BlogPostSortBy } from '../api/types';
 import ArchiveHeader from '../components/archive/ArchiveHeader';
 import ArchiveSidebar from '../components/archive/ArchiveSidebar';
@@ -11,6 +13,8 @@ const PAGE_SIZE = 12;
 type SearchType = 'title' | 'tag';
 
 export default function BlogListPage() {
+  const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [posts, setPosts] = useState<BlogPostListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -19,7 +23,7 @@ export default function BlogListPage() {
   const [sortBy, setSortBy] = useState<BlogPostSortBy>('latest');
   const [searchType, setSearchType] = useState<SearchType>('title');
   const [submittedQuery, setSubmittedQuery] = useState('');
-  const [fetchVersion, setFetchVersion] = useState(0);
+
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -48,7 +52,7 @@ export default function BlogListPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, sortBy, searchType, submittedQuery, fetchVersion]);
+  }, [currentPage, sortBy, searchType, submittedQuery]);
 
   useEffect(() => {
     fetchPosts();
@@ -57,7 +61,6 @@ export default function BlogListPage() {
   const handleSearch = (query: string, type: SearchType) => {
     setSubmittedQuery(query);
     setSearchType(type);
-    setFetchVersion((v) => v + 1);
     setCurrentPage(1);
   };
 
@@ -82,7 +85,7 @@ export default function BlogListPage() {
         {/* 螺丝装饰 */}
         <div className="absolute top-2 left-2 w-1 h-1 rounded-full" style={{ backgroundColor: '#1A1612' }} />
         <div className="absolute top-2 right-2 w-1 h-1 rounded-full" style={{ backgroundColor: '#1A1612' }} />
-        <ArchiveHeader totalFiles={total} />
+        <ArchiveHeader totalFiles={total} backPath="/" />
       </header>
 
       {/* 左侧边栏 */}
@@ -129,6 +132,36 @@ export default function BlogListPage() {
             />
           </div>
 
+          {/* 管理员操作栏 */}
+          {isAdmin && (
+            <motion.div
+              className="flex items-center gap-3 mb-4 pt-4"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <span
+                className="text-[9px] tracking-wider font-bold"
+                style={{ color: '#FF4D4D', fontFamily: 'var(--font-mono)' }}
+              >
+                管理员
+              </span>
+              <button
+                onClick={() => navigate('/blog/create')}
+                className="px-4 py-2 text-xs font-bold tracking-wider chamfer-sm"
+                style={{
+                  backgroundColor: '#C4D70C',
+                  color: '#1A1612',
+                  fontFamily: 'var(--font-mono)',
+                }}
+                data-cursor-hover
+              >
+                + 新建文章
+              </button>
+              <div className="h-px flex-1 bg-[#F5A623]/15" />
+            </motion.div>
+          )}
+
           {/* 搜索结果头部 */}
           {hasActiveFilters && (
             <motion.div
@@ -140,7 +173,7 @@ export default function BlogListPage() {
                 className="text-[10px] tracking-[0.3em] font-bold"
                 style={{ color: '#F5A623', fontFamily: 'var(--font-mono)' }}
               >
-                SEARCH RESULTS
+                搜索结果
               </span>
               <span
                 className="text-[10px]"
@@ -182,7 +215,7 @@ export default function BlogListPage() {
                 className="text-base mb-2"
                 style={{ color: '#F5A623', opacity: 0.5, fontFamily: 'var(--font-mono)' }}
               >
-                EMPTY DRAWER
+                空抽屉
               </p>
               <p
                 className="text-sm"
@@ -231,7 +264,7 @@ export default function BlogListPage() {
                 className="text-[9px] tracking-[0.3em] opacity-25"
                 style={{ fontFamily: 'var(--font-mono)', color: '#F5A623' }}
               >
-                END OF ARCHIVE
+                档案结束
               </span>
               <div className="h-px flex-1 bg-[#F5A623]/10" />
             </div>
@@ -255,7 +288,7 @@ export default function BlogListPage() {
           className="text-[9px] tracking-wider"
           style={{ color: '#1A1612', fontFamily: 'var(--font-mono)' }}
         >
-          DE hub Documentary Archive
+          DE hub 文献档案馆
         </span>
         <span
           className="text-[9px] tracking-wider"
@@ -267,7 +300,7 @@ export default function BlogListPage() {
           className="text-[9px] tracking-wider"
           style={{ color: '#1A1612', fontFamily: 'var(--font-mono)' }}
         >
-          SECURE STORAGE
+          安全存储
         </span>
       </footer>
     </div>

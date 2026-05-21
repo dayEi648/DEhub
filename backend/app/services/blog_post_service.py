@@ -40,10 +40,10 @@ class BlogPostService:
             )
 
     def _build_visible_query(self, current_user: User):
-        """构建基于当前用户权限的可见文章查询基线（自动 join 分类信息）"""
+        """构建基于当前用户权限的可见文章查询基线（自动 join 分类与作者信息）"""
         query = (
             self.db.query(BlogPost)
-            .options(joinedload(BlogPost.category))
+            .options(joinedload(BlogPost.category), joinedload(BlogPost.user))
         )
         if current_user.permission < 2:
             query = query.filter(BlogPost.status == "published")
@@ -69,7 +69,7 @@ class BlogPostService:
             cover_url = await upload_blog_cover(file)
             post_in = post_in.model_copy(update={"cover_image_url": cover_url})
 
-        db_post = blog_post_crud.create_blog_post(self.db, post_in)
+        db_post = blog_post_crud.create_blog_post(self.db, post_in, current_user.id)
 
         # 若创建即发布，异步生成向量嵌入
         if db_post.status == "published":

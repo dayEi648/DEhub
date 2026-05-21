@@ -350,7 +350,10 @@ function UserCard({ user, index, onRefresh }: { user: UserResponse; index: numbe
           {!user.is_deleted && (
             <ActionButton label="注销" bg="transparent" color="#FF4D4D" onClick={() => setConfirmAction('soft')} />
           )}
-          <ActionButton label="删除" bg="transparent" color="#C22303" onClick={() => setConfirmAction('hard')} />
+          {/* 硬删除仅超级管理员可见 */}
+          {user.permission === 2 && (
+            <ActionButton label="删除" bg="transparent" color="#C22303" onClick={() => setConfirmAction('hard')} />
+          )}
         </div>
       </motion.div>
 

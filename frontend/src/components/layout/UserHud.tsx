@@ -49,8 +49,8 @@ export default function UserHud({ user, isAdmin, onNavigate, onLogout }: UserHud
         {/* 螺丝装饰 —— 四角 */}
         <Screw x={10} y={10} />
         <Screw x={110} y={10} />
-        <Screw x={10} y={270} />
-        <Screw x={110} y={270} />
+        <Screw x={10} y="calc(100% - 10px)" />
+        <Screw x={110} y="calc(100% - 10px)" />
 
         {/* ---- 屏幕区：头像 + 用户名 ---- */}
         <div
@@ -134,7 +134,7 @@ export default function UserHud({ user, isAdmin, onNavigate, onLogout }: UserHud
 /* ============================================================
    螺丝装饰
    ============================================================ */
-function Screw({ x, y }: { x: number; y: number }) {
+function Screw({ x, y }: { x: number; y: number | string }) {
   return (
     <div
       className="absolute w-1.5 h-1.5 rounded-full"

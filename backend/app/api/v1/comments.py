@@ -55,7 +55,7 @@ def delete_comment(
 def list_comments(
     target_type: str = Query(..., min_length=1, max_length=32),
     target_id: int = Query(..., ge=1),
-    parent_id: int | None = Query(default=None, ge=1),
+    parent_id: int | None = Query(default=None, ge=0),
     is_nested: bool | None = Query(default=None),
     nested_parent_id: int | None = Query(default=None, ge=1),
     sort_by: str = Query(default="time", pattern=r"^(time|hot)$"),

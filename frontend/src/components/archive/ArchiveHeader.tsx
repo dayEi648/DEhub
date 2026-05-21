@@ -4,6 +4,7 @@ interface ArchiveHeaderProps {
   totalFiles?: number;
   fileNumber?: string;
   mode?: 'list' | 'detail';
+  backPath?: string;
 }
 
 /**
@@ -14,15 +15,24 @@ export default function ArchiveHeader({
   totalFiles = 0,
   fileNumber,
   mode = 'list',
+  backPath,
 }: ArchiveHeaderProps) {
   const navigate = useNavigate();
+
+  const handleBack = () => {
+    if (backPath) {
+      navigate(backPath);
+    } else {
+      navigate(-1);
+    }
+  };
 
   return (
     <>
       {/* 左侧：返回按钮 + 档案柜标识 */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleBack}
           className="text-[11px] tracking-wider font-black px-3 py-1 transition-all duration-150 hover:brightness-110"
           style={{
             color: '#1A1612',
@@ -31,7 +41,7 @@ export default function ArchiveHeader({
           }}
           data-cursor-hover
         >
-          ← BACK
+          {backPath === '/' ? '← 首页' : '← 返回'}
         </button>
         <div className="w-px h-5 bg-[#1A1612]/20 hidden sm:block" />
         <div className="w-2 h-2 rotate-45" style={{ backgroundColor: '#1A1612' }} />
@@ -39,7 +49,7 @@ export default function ArchiveHeader({
           className="text-[12px] tracking-[0.35em] font-black"
           style={{ color: '#1A1612', fontFamily: 'var(--font-display)' }}
         >
-          ARCHIVE CABINET
+          档案柜
         </span>
       </div>
 
@@ -50,14 +60,14 @@ export default function ArchiveHeader({
             className="text-[10px] tracking-wider font-bold hidden sm:block"
             style={{ color: '#1A1612', fontFamily: 'var(--font-mono)' }}
           >
-            FILE: {fileNumber}
+            档案: {fileNumber}
           </span>
         ) : (
           <span
             className="text-[10px] tracking-wider font-bold hidden sm:block"
             style={{ color: '#1A1612', fontFamily: 'var(--font-mono)' }}
           >
-            {totalFiles} FILES
+            {totalFiles} 份档案
           </span>
         )}
         <div className="flex items-center gap-1">
@@ -75,7 +85,7 @@ export default function ArchiveHeader({
             className="text-[9px] tracking-wider ml-1 hidden sm:block"
             style={{ color: '#1A1612', fontFamily: 'var(--font-mono)', opacity: 0.7 }}
           >
-            STRONG
+            信号强
           </span>
         </div>
       </div>

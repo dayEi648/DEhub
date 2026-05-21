@@ -55,7 +55,10 @@ def get_comments(
     )
 
     if parent_id is not None:
-        query = query.filter(Comment.parent_id == parent_id)
+        if parent_id == 0:
+            query = query.filter(Comment.parent_id.is_(None))
+        else:
+            query = query.filter(Comment.parent_id == parent_id)
 
     if is_nested is not None:
         query = query.filter(Comment.is_nested == is_nested)

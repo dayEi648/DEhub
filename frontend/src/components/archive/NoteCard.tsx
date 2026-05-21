@@ -5,20 +5,38 @@ interface NoteCardProps {
   comment: CommentResponse;
   onLike?: () => void;
   onDelete?: () => void;
+  onReply?: () => void;
   index?: number;
+  showReplyButton?: boolean;
+  isReply?: boolean;
 }
 
 /**
  * 便签卡片（评论）
  * 像贴在文件夹上的便签
  */
-export default function NoteCard({ comment, onLike, onDelete, index = 0 }: NoteCardProps) {
+export default function NoteCard({
+  comment,
+  onLike,
+  onDelete,
+  onReply,
+  index = 0,
+  showReplyButton = false,
+  isReply = false,
+}: NoteCardProps) {
+  // 解析内容中的 @用户名：前缀
+  const atPrefixMatch = comment.content.match(/^@([^：:]+)[：:]\s*/);
+  const atPrefix = atPrefixMatch ? atPrefixMatch[0] : '';
+  const displayContent = atPrefixMatch
+    ? comment.content.slice(atPrefix.length)
+    : comment.content;
+
   return (
     <motion.div
       className="relative p-4"
       style={{
         backgroundColor: 'rgba(42, 33, 24, 0.8)',
-        borderLeft: '2px solid #F5A623',
+        borderLeft: `2px solid ${isReply ? '#C4D70C' : '#F5A623'}`,
         clipPath: 'polygon(6px 0%, 100% 0%, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0% 100%, 0% 6px)',
       }}
       initial={{ opacity: 0, y: -20, scale: 0.9 }}
@@ -30,23 +48,31 @@ export default function NoteCard({ comment, onLike, onDelete, index = 0 }: NoteC
       }}
     >
       <div className="flex items-start gap-3">
-        {/* 头像（印章效果） */}
+        {/* 头像 */}
         <div
-          className="w-8 h-8 shrink-0 flex items-center justify-center text-[10px] font-bold rounded-full"
+          className="w-8 h-8 shrink-0 flex items-center justify-center text-[10px] font-bold rounded-full overflow-hidden"
           style={{
             backgroundColor: '#1A1612',
-            color: '#F5A623',
+            color: isReply ? '#C4D70C' : '#F5A623',
             fontFamily: 'var(--font-mono)',
           }}
         >
-          {comment.user.username.charAt(0).toUpperCase()}
+          {comment.user.avatar_url ? (
+            <img
+              src={comment.user.avatar_url}
+              alt={comment.user.username}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            comment.user.username.charAt(0).toUpperCase()
+          )}
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span
               className="text-xs font-bold"
-              style={{ color: '#F5A623', fontFamily: 'var(--font-body)' }}
+              style={{ color: isReply ? '#C4D70C' : '#F5A623', fontFamily: 'var(--font-body)' }}
             >
               {comment.user.username}
             </span>
@@ -62,7 +88,10 @@ export default function NoteCard({ comment, onLike, onDelete, index = 0 }: NoteC
             className="text-sm leading-relaxed mb-2"
             style={{ color: '#FFF8EE', opacity: 0.85, fontFamily: 'var(--font-body)' }}
           >
-            {comment.content}
+            {atPrefix && (
+              <span style={{ color: '#C4D70C', opacity: 0.9 }}>{atPrefix}</span>
+            )}
+            {displayContent}
           </p>
 
           <div className="flex items-center gap-3">
@@ -77,6 +106,20 @@ export default function NoteCard({ comment, onLike, onDelete, index = 0 }: NoteC
             >
               {comment.is_liked ? '★' : '☆'} {comment.likecount}
             </button>
+
+            {showReplyButton && onReply && (
+              <button
+                onClick={onReply}
+                className="text-[9px] tracking-wider transition-all duration-200 hover:text-[#F5A623]"
+                style={{
+                  color: 'rgba(247, 243, 232, 0.4)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+                data-cursor-hover
+              >
+                回复
+              </button>
+            )}
 
             {onDelete && (
               <button

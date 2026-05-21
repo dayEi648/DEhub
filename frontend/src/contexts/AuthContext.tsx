@@ -84,16 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const refresh = localStorage.getItem('refresh_token');
       const userStr = sessionStorage.getItem('user');
 
-      if (token && userStr) {
-        try {
-          const user = JSON.parse(userStr) as UserResponse;
-          dispatch({ type: 'RESTORE', payload: { token, refreshToken: refresh, user } });
-          return;
-        } catch {
-          // parse error, fall through
-        }
-      }
-
+      // 优先尝试 refresh token，确保 token 有效性
       if (refresh) {
         try {
           const res = await refreshAccessToken(refresh);
@@ -104,7 +95,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionStorage.setItem('user', JSON.stringify(res.user));
           return;
         } catch {
-          // refresh failed, fall through
+          // refresh failed, clear stale refresh token
+          localStorage.removeItem('refresh_token');
+        }
+      }
+
+      // 无 refresh token 时，尝试用已有的 access token + user 恢复
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(userStr) as UserResponse;
+          dispatch({ type: 'RESTORE', payload: { token, refreshToken: refresh, user } });
+          return;
+        } catch {
+          // parse error, fall through
         }
       }
 

@@ -17,7 +17,7 @@ export default function FolderCard({ post, index }: FolderCardProps) {
 
   return (
     <motion.div
-      className="relative cursor-pointer overflow-hidden"
+      className="relative cursor-pointer overflow-hidden group"
       style={{
         width: 280,
         height: 200,
@@ -54,13 +54,11 @@ export default function FolderCard({ post, index }: FolderCardProps) {
           style={{ height: '60%' }}
         >
           {post.cover_image_url ? (
-            <motion.img
+            <img
               src={post.cover_image_url}
               alt={post.title}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
               loading="lazy"
-              whileHover={{ scale: 1.05 }}
-              transition={{ duration: 0.2 }}
               style={{
                 border: '1px solid rgba(245, 166, 35, 0.3)',
               }}

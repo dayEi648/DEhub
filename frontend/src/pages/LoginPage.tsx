@@ -25,6 +25,10 @@ export default function LoginPage() {
         setError('请填写账号和密码');
         return;
       }
+      if (account.trim().length < 3) {
+        setError('账号长度至少 3 个字符');
+        return;
+      }
       setIsSubmitting(true);
       try {
         const res = await login({ account, password, is_remember: isRemember });

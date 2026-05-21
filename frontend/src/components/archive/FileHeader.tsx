@@ -65,7 +65,7 @@ export default function FileHeader({
                 fontFamily: 'var(--font-mono)',
               }}
             >
-              ORIGINAL
+              原创
             </span>
           </div>
         </div>
@@ -78,8 +78,36 @@ export default function FileHeader({
           {post.title}
         </h1>
 
-        {/* 元信息行 */}
+        {/* 作者 + 元信息行 */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
+          {/* 作者头像+用户名 */}
+          <div className="flex items-center gap-2 mr-2">
+            <div
+              className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[9px] font-bold"
+              style={{
+                backgroundColor: '#1A1612',
+                color: '#F5A623',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              {post.author.avatar_url ? (
+                <img
+                  src={post.author.avatar_url}
+                  alt={post.author.username}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                post.author.username.charAt(0).toUpperCase()
+              )}
+            </div>
+            <span
+              className="text-[10px] font-bold"
+              style={{ fontFamily: 'var(--font-body)', color: '#1A1612', opacity: 0.85 }}
+            >
+              {post.author.username}
+            </span>
+          </div>
+
           <span
             className="text-[10px] tracking-wider"
             style={{ fontFamily: 'var(--font-mono)', color: '#1A1612', opacity: 0.7 }}
@@ -128,7 +156,7 @@ export default function FileHeader({
             whileTap={{ scale: 0.95 }}
             data-cursor-hover
           >
-            {isFavorited ? '★ ARCHIVED' : '☆ MARK'}
+            {isFavorited ? '★ 已归档' : '☆ 标记'}
           </motion.button>
         </div>
       </div>
