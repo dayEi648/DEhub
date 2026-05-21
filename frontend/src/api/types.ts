@@ -309,6 +309,31 @@ export interface BlogPostFavoriteListResponse {
   total: number;
 }
 
+/** 论坛帖子排序方式 */
+export type ForumPostSortBy = 'created' | 'view';
+
+/** 论坛帖子查询参数 */
+export interface ForumPostQueryParams {
+  zone_id?: number;
+  sort_by?: ForumPostSortBy;
+  skip?: number;
+  limit?: number;
+}
+
+/** 论坛帖子创建请求 */
+export interface ForumPostCreate {
+  title: string;
+  content: string;
+  zone_id: number;
+}
+
+/** 论坛帖子更新请求 */
+export interface ForumPostUpdate {
+  title?: string;
+  content?: string;
+  zone_id?: number;
+}
+
 /** 论坛帖子响应 */
 export interface ForumPostResponse {
   id: number;
@@ -327,6 +352,45 @@ export interface ForumPostResponse {
 export interface ForumPostListResponse {
   items: ForumPostResponse[];
   total: number;
+}
+
+/** 论坛回复响应 */
+export interface ForumReplyResponse {
+  id: number;
+  post_id: number;
+  content: string;
+  user_id: number;
+  user: UserBriefInfo;
+  likecount: number;
+  comment_count: number;
+  created_at: string;
+}
+
+/** 论坛回复列表响应 */
+export interface ForumReplyListResponse {
+  items: ForumReplyResponse[];
+  total: number;
+}
+
+/** 论坛回复内容请求 */
+export interface ForumReplyContent {
+  content: string;
+}
+
+/** 论坛分区创建请求 */
+export interface ForumZoneCreate {
+  slug?: string;
+  zone_name: string;
+  description?: string;
+  manager_id?: number;
+}
+
+/** 论坛分区更新请求 */
+export interface ForumZoneUpdate {
+  slug?: string;
+  zone_name?: string;
+  description?: string;
+  manager_id?: number;
 }
 
 /** 论坛帖子收藏列表响应 */
@@ -351,4 +415,10 @@ export interface ForumZoneResponse {
 export interface ZoneFollowListResponse {
   items: ForumZoneResponse[];
   total: number;
+}
+
+/** 论坛回复查询参数 */
+export interface ForumReplyQueryParams {
+  skip?: number;
+  limit?: number;
 }
