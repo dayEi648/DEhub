@@ -1,185 +1,66 @@
-import { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { ToastProvider } from './components/ui/Toast';
-import CustomCursor from './components/effects/CustomCursor';
-import Scanlines from './components/effects/Scanlines';
-import TVBootAnimation from './components/effects/TVBootAnimation';
-import AuthGuard from './components/auth/AuthGuard';
-import HomePage from './pages/HomePage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import ProfilePage from './pages/ProfilePage';
-import AdminUsersPage from './pages/admin/AdminUsersPage';
-import AdminForumZonesPage from './pages/admin/AdminForumZonesPage';
-import AdminLogsPage from './pages/admin/AdminLogsPage';
-import BlogListPage from './pages/BlogListPage';
-import BlogDetailPage from './pages/BlogDetailPage';
-import BlogEditPage from './pages/BlogEditPage';
-import ForumZoneListPage from './pages/ForumZoneListPage';
-import ForumZonePage from './pages/ForumZonePage';
-import ForumPostDetailPage from './pages/ForumPostDetailPage';
-import ForumPostEditPage from './pages/ForumPostEditPage';
+import { Routes, Route, Outlet } from 'react-router-dom'
+import MainLayout from '@/components/layout/MainLayout'
+import AdminLayout from '@/components/layout/AdminLayout'
 
-function GlobalEffects() {
-  const [bootDone, setBootDone] = useState(false);
-  return (
-    <>
-      <CustomCursor />
-      <Scanlines />
-      {!bootDone && <TVBootAnimation onComplete={() => setBootDone(true)} />}
-    </>
-  );
-}
+// Public pages
+import LoginPage from '@/pages/public/LoginPage'
+import RegisterPage from '@/pages/public/RegisterPage'
+
+// Main pages
+import DashboardPage from '@/pages/main/DashboardPage'
+import BlogListPage from '@/pages/main/BlogListPage'
+import BlogDetailPage from '@/pages/main/BlogDetailPage'
+import ForumHomePage from '@/pages/main/ForumHomePage'
+import ZonePostsPage from '@/pages/main/ZonePostsPage'
+import PostDetailPage from '@/pages/main/PostDetailPage'
+import AIChatPage from '@/pages/main/AIChatPage'
+import ProfilePage from '@/pages/main/ProfilePage'
+import FavoritesPage from '@/pages/main/FavoritesPage'
+import FollowsPage from '@/pages/main/FollowsPage'
+import SettingsPage from '@/pages/main/SettingsPage'
+
+// Admin pages
+import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
+import AdminUsersPage from '@/pages/admin/AdminUsersPage'
+import AdminBlogCategoriesPage from '@/pages/admin/AdminBlogCategoriesPage'
+import AdminBlogPostsPage from '@/pages/admin/AdminBlogPostsPage'
+import AdminForumZonesPage from '@/pages/admin/AdminForumZonesPage'
+import AdminSystemLogsPage from '@/pages/admin/AdminSystemLogsPage'
 
 function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <BrowserRouter>
-          <GlobalEffects />
-          <Routes>
-            <Route
-              path="/login"
-              element={
-                <AuthGuard>
-                  <LoginPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <AuthGuard>
-                  <RegisterPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/"
-              element={
-                <AuthGuard>
-                  <HomePage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <AuthGuard>
-                  <ProfilePage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <AuthGuard requireAdmin>
-                  <Navigate to="/admin/users" replace />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/admin/users"
-              element={
-                <AuthGuard requireAdmin>
-                  <AdminUsersPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/admin/forum-zones"
-              element={
-                <AuthGuard requireAdmin>
-                  <AdminForumZonesPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/admin/logs"
-              element={
-                <AuthGuard requireAdmin>
-                  <AdminLogsPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/blog"
-              element={
-                <AuthGuard>
-                  <BlogListPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/blog/:slug"
-              element={
-                <AuthGuard>
-                  <BlogDetailPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/blog/create"
-              element={
-                <AuthGuard requireAdmin>
-                  <BlogEditPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/blog/edit/:id"
-              element={
-                <AuthGuard requireAdmin>
-                  <BlogEditPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/forum"
-              element={
-                <AuthGuard>
-                  <ForumZoneListPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/forum/zones/:slug"
-              element={
-                <AuthGuard>
-                  <ForumZonePage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/forum/posts/:id"
-              element={
-                <AuthGuard>
-                  <ForumPostDetailPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/forum/create"
-              element={
-                <AuthGuard>
-                  <ForumPostEditPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/forum/edit/:id"
-              element={
-                <AuthGuard>
-                  <ForumPostEditPage />
-                </AuthGuard>
-              }
-            />
-          </Routes>
-        </BrowserRouter>
-      </ToastProvider>
-    </AuthProvider>
-  );
+    <Routes>
+      {/* Public routes */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+
+      {/* Main routes */}
+      <Route element={<MainLayout><Outlet /></MainLayout>}>
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/blog" element={<BlogListPage />} />
+        <Route path="/blog/:slug" element={<BlogDetailPage />} />
+        <Route path="/forum" element={<ForumHomePage />} />
+        <Route path="/forum/:zoneSlug" element={<ZonePostsPage />} />
+        <Route path="/forum/post/:postId" element={<PostDetailPage />} />
+        <Route path="/ai-chat" element={<AIChatPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/follows" element={<FollowsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+      </Route>
+
+      {/* Admin routes */}
+      <Route element={<AdminLayout><Outlet /></AdminLayout>}>
+        <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/admin/users" element={<AdminUsersPage />} />
+        <Route path="/admin/blog-categories" element={<AdminBlogCategoriesPage />} />
+        <Route path="/admin/blog-posts" element={<AdminBlogPostsPage />} />
+        <Route path="/admin/forum-zones" element={<AdminForumZonesPage />} />
+        <Route path="/admin/system-logs" element={<AdminSystemLogsPage />} />
+      </Route>
+    </Routes>
+  )
 }
 
-export default App;
+export default App

@@ -1,95 +1,61 @@
-import { motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import Button from './Button'
 
 interface PaginationProps {
-  current: number;
-  total: number;
-  pageSize?: number;
-  onChange: (page: number) => void;
+  currentPage: number
+  totalPages: number
+  onPageChange: (page: number) => void
 }
 
-export default function Pagination({ current, total, pageSize = 20, onChange }: PaginationProps) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const pages: number[] = [];
-
-  const add = (n: number) => {
-    if (n >= 1 && n <= totalPages && !pages.includes(n)) pages.push(n);
-  };
-
-  add(1);
-  add(totalPages);
-  add(current);
-  add(current - 1);
-  add(current + 1);
-  add(current - 2);
-  add(current + 2);
-  pages.sort((a, b) => a - b);
-
-  const items: (number | '...')[] = [];
-  let prev = 0;
-  for (const p of pages) {
-    if (p - prev > 1) items.push('...');
-    items.push(p);
-    prev = p;
+export default function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
+  const pages: (number | string)[] = []
+  
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i)
+  } else {
+    if (currentPage <= 3) {
+      pages.push(1, 2, 3, 4, '...', totalPages)
+    } else if (currentPage >= totalPages - 2) {
+      pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+    } else {
+      pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages)
+    }
   }
 
   return (
     <div className="flex items-center gap-1">
-      <button
-        className="px-2 py-1 text-[10px] font-bold tracking-wider"
-        style={{
-          color: current <= 1 ? 'rgba(247,243,232,0.2)' : '#FFF8EE',
-          fontFamily: 'var(--font-mono)',
-          cursor: current <= 1 ? 'not-allowed' : 'pointer',
-        }}
-        onClick={() => current > 1 && onChange(current - 1)}
-        disabled={current <= 1}
-        data-cursor-hover={current > 1 ? true : undefined}
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage <= 1}
       >
-        &lt;
-      </button>
-
-      {items.map((item, idx) =>
-        item === '...' ? (
-          <span
-            key={`dot-${idx}`}
-            className="px-1 text-[10px]"
-            style={{ color: 'rgba(247,243,232,0.3)', fontFamily: 'var(--font-mono)' }}
-          >
-            ...
-          </span>
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      {pages.map((page, i) => (
+        page === '...' ? (
+          <span key={`ellipsis-${i}`} className="px-2 text-sm text-muted-foreground">...</span>
         ) : (
-          <motion.button
-            key={item}
-            className="px-2.5 py-1 text-[10px] font-bold tracking-wider min-w-[28px]"
-            style={{
-              backgroundColor: current === item ? '#F5A623' : 'transparent',
-              color: current === item ? '#1A1612' : '#FFF8EE',
-              fontFamily: 'var(--font-mono)',
-              border: current === item ? 'none' : '1px solid rgba(247,243,232,0.1)',
-            }}
-            onClick={() => onChange(item)}
-            whileHover={current !== item ? { scale: 1.1, backgroundColor: 'rgba(245,166,35,0.15)' } : {}}
-            whileTap={{ scale: 0.95 }}
-            data-cursor-hover
+          <Button
+            key={page}
+            variant={currentPage === page ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => onPageChange(page as number)}
+            className={cn('min-w-[2rem]', currentPage === page && 'pointer-events-none')}
           >
-            {item}
-          </motion.button>
+            {page}
+          </Button>
         )
-      )}
-
-      <button
-        className="px-2 py-1 text-[10px] font-bold tracking-wider"
-        style={{
-          color: current >= totalPages ? 'rgba(247,243,232,0.2)' : '#FFF8EE',
-          fontFamily: 'var(--font-mono)',
-          cursor: current >= totalPages ? 'not-allowed' : 'pointer',
-        }}
-        onClick={() => current < totalPages && onChange(current + 1)}
-        disabled={current >= totalPages}
-        data-cursor-hover={current < totalPages ? true : undefined}
+      ))}
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage >= totalPages}
       >
-        &gt;
-      </button>
+        <ChevronRight className="h-4 w-4" />
+      </Button>
     </div>
-  );
+  )
 }

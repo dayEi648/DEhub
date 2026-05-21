@@ -1,497 +1,150 @@
 @import "tailwindcss";
 
-/* ============================================================
-   DE hub — Persona 4 风格全局样式
-   ============================================================ */
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 
-/* ---- 字体定义 ---- */
-@font-face {
-  font-family: 'SF Display';
-  src: url('/fonts/SF-Pro-Display-Black.otf') format('opentype');
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'SF Display';
-  src: url('/fonts/SF-Pro-Display-Heavy.otf') format('opentype');
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'SF Display';
-  src: url('/fonts/SF-Pro-Display-Bold.otf') format('opentype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'PingFang';
-  src: url('/fonts/PingFangSC-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'PingFang';
-  src: url('/fonts/PingFangSC-Medium.ttf') format('truetype');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'PingFang';
-  src: url('/fonts/PingFangSC-Semibold.ttf') format('truetype');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Maple Mono';
-  src: url('/fonts/MapleMono-NF-CN-Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
+  --font-sans: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-display: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* ---- 设计令牌（Design Tokens）---- */
 :root {
-  /* P4 色彩体系 */
-  --p4-base: #1A1612;
-  --p4-base-light: #2A2118;
-  --p4-primary: #F5A623;
-  --p4-primary-bright: #FAA622;
-  --p4-highlight: #FFE52C;
-  --p4-text: #FFF8EE;
-  --p4-text-inverse: #2A2118;
-  --p4-accent: #F7F3E8;
-  --p4-signal-blue: #7FE6EF;
-  --p4-signal-green: #C4D70C;
-  --p4-signal-red: #FF4D4D;
-  --p4-danger: #C22303;
-
-  /* 字体族 */
-  --font-display: 'SF Display', 'PingFang', 'Noto Sans SC', sans-serif;
-  --font-body: 'PingFang', 'Noto Sans SC', sans-serif;
-  --font-mono: 'Maple Mono', 'JetBrains Mono', monospace;
-
-  /* 缓动曲线 */
-  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-tv: cubic-bezier(0.87, 0, 0.13, 1);
+  --radius: 0.5rem;
+  --background: #f8f9fa;
+  --foreground: #1a1d21;
+  --card: #ffffff;
+  --card-foreground: #1a1d21;
+  --popover: #ffffff;
+  --popover-foreground: #1a1d21;
+  --primary: #0d9488;
+  --primary-foreground: #ffffff;
+  --secondary: #e9ecef;
+  --secondary-foreground: #1a1d21;
+  --muted: #e9ecef;
+  --muted-foreground: #6c757d;
+  --accent: #0d9488;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #dee2e6;
+  --input: #dee2e6;
+  --ring: #0d9488;
 }
 
-/* ---- 全局重置 ---- */
-*, *::before, *::after {
-  box-sizing: border-box;
+.dark {
+  --background: #0c0e12;
+  --foreground: #e8eaed;
+  --card: #14161b;
+  --card-foreground: #e8eaed;
+  --popover: #14161b;
+  --popover-foreground: #e8eaed;
+  --primary: #14b8a6;
+  --primary-foreground: #0c0e12;
+  --secondary: #1e2028;
+  --secondary-foreground: #e8eaed;
+  --muted: #1e2028;
+  --muted-foreground: #9aa0a6;
+  --accent: #14b8a6;
+  --accent-foreground: #0c0e12;
+  --destructive: #ef4444;
+  --destructive-foreground: #0c0e12;
+  --border: #2e303a;
+  --input: #2e303a;
+  --ring: #14b8a6;
 }
 
-html {
-  scroll-behavior: smooth;
+* {
+  border-color: var(--border);
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background-color: var(--p4-base);
-  color: var(--p4-text);
-  font-family: var(--font-body);
-  line-height: 1.7;
-  font-weight: 400;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-  cursor: none; /* 隐藏默认光标，使用自定义光标 */
 }
 
-#root {
-  width: 100%;
-  min-height: 100vh;
-}
-
-/* 移动端恢复默认光标 */
-@media (hover: none) and (pointer: coarse) {
-  body {
-    cursor: auto;
-  }
-}
-
-/* ---- 选中文字样式 ---- */
-::selection {
-  background-color: var(--p4-primary);
-  color: var(--p4-text-inverse);
-}
-
-/* ---- 滚动条 ---- */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
+
 ::-webkit-scrollbar-track {
-  background: var(--p4-base);
+  background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: var(--p4-primary);
-  border-radius: 0;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--p4-highlight);
-}
-
-/* ---- 扫描线纹理（全局氛围层）---- */
-.scanlines-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9998;
-  opacity: 0.04;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.15) 2px,
-    rgba(0, 0, 0, 0.15) 4px
-  );
-}
-
-/* ---- 电视彩条动画 ---- */
-@keyframes colorBarsFlow {
-  0% { background-position: 0% 0%; }
-  100% { background-position: 200% 0%; }
-}
-
-.color-bars-flow {
-  background: repeating-linear-gradient(
-    90deg,
-    var(--p4-signal-red) 0px,
-    var(--p4-signal-red) 16px,
-    var(--p4-highlight) 16px,
-    var(--p4-highlight) 32px,
-    var(--p4-signal-green) 32px,
-    var(--p4-signal-green) 48px,
-    var(--p4-signal-blue) 48px,
-    var(--p4-signal-blue) 64px,
-    var(--p4-accent) 64px,
-    var(--p4-accent) 80px,
-    var(--p4-base) 80px,
-    var(--p4-base) 96px
-  );
-  background-size: 96px 100%;
-  animation: colorBarsFlow 8s linear infinite;
-}
-
-/* ---- 斜切角工具类 ---- */
-.chamfer {
-  clip-path: polygon(
-    12px 0%, 100% 0%, 100% calc(100% - 12px),
-    calc(100% - 12px) 100%, 0% 100%, 0% 12px
-  );
-}
-.chamfer-sm {
-  clip-path: polygon(
-    6px 0%, 100% 0%, 100% calc(100% - 6px),
-    calc(100% - 6px) 100%, 0% 100%, 0% 6px
-  );
-}
-
-/* ---- 镜片反光效果 ---- */
-.lens-reflect {
-  position: relative;
-  overflow: hidden;
-}
-.lens-reflect::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 30%;
-  height: 200%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(247, 243, 232, 0.15),
-    transparent
-  );
-  transform: rotate(25deg);
-  transition: left 0.5s var(--ease-snap);
-  pointer-events: none;
-}
-.lens-reflect:hover::after {
-  left: 150%;
-}
-
-/* ---- 表单输入框聚焦样式（替代直接操作 DOM style） ---- */
-.input-focus-yellow {
-  border: 2px solid transparent;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.input-focus-yellow:focus {
-  border-color: #FFE52C;
-  box-shadow: 0 0 16px rgba(255, 229, 44, 0.3);
-  outline: none;
-}
-
-.input-focus-amber {
-  border: 2px solid transparent;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.input-focus-amber:focus {
-  border-color: #F5A623;
-  box-shadow: 0 0 12px rgba(245, 166, 35, 0.15);
-  outline: none;
-}
-
-.input-focus-yellow-error {
-  border: 2px solid #FF4D4D;
-}
-.input-focus-yellow-error:focus {
-  border-color: #FF4D4D;
-  outline: none;
-}
-
-.input-focus-amber-error {
-  border: 2px solid #FF4D4D;
-}
-.input-focus-amber-error:focus {
-  border-color: #FF4D4D;
-  outline: none;
-}
-
-/* ============================================================
-   档案柜抽屉风格 - 新增样式
-   ============================================================ */
-
-/* 档案柜框架 */
-.archive-frame {
-  background: linear-gradient(180deg, #F5A623 0%, #FAA622 50%, #F5A623 100%);
-  position: relative;
-}
-
-.archive-frame::before,
-.archive-frame::after {
-  content: '';
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background-color: #1A1612;
-}
-
-.archive-frame::before {
-  top: 8px;
-  left: 8px;
-}
-
-.archive-frame::after {
-  top: 8px;
-  right: 8px;
-}
-
-/* 文件夹卡片 */
-.folder-card {
-  background-color: rgba(26, 22, 18, 0.9);
-  border: 1px solid rgba(245, 166, 35, 0.2);
-  clip-path: polygon(8px 0%, 100% 0%, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0% 100%, 0% 8px);
-  transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.folder-card:hover {
-  transform: translateX(12px) scale(1.02);
-  background-color: #F5A623;
-  box-shadow: 0 8px 24px rgba(245, 166, 35, 0.2);
-}
-
-/* 便签卡片 */
-.note-card {
-  background-color: rgba(42, 33, 24, 0.8);
-  border-left: 2px solid #F5A623;
-  clip-path: polygon(6px 0%, 100% 0%, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0% 100%, 0% 6px);
-}
-
-/* 档案柜网格线背景 */
-.archive-grid {
-  background-image: 
-    linear-gradient(rgba(245, 166, 35, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(245, 166, 35, 0.04) 1px, transparent 1px);
-  background-size: 50px 50px;
-}
-
-/* 档案柜动画 */
-@keyframes drawerOpen {
-  from {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes pinNote {
-  0% { transform: translateY(-20px) scale(0.9); opacity: 0; }
-  60% { transform: translateY(2px) scale(1.02); opacity: 1; }
-  80% { transform: translateY(-2px); }
-  100% { transform: translateY(0) scale(1); }
-}
-
-@keyframes fileOpen {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
-/* ============================================================
-   Markdown 正文样式
-   ============================================================ */
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 {
-  color: #F5A623;
-  font-family: var(--font-display);
-  margin-top: 1.5em;
-  margin-bottom: 0.75em;
-  font-weight: 700;
-}
-
-.markdown-body h1 { font-size: 1.75rem; }
-.markdown-body h2 { font-size: 1.5rem; }
-.markdown-body h3 { font-size: 1.25rem; }
-
-.markdown-body p {
-  margin-bottom: 1em;
-  color: #FFF8EE;
-}
-
-.markdown-body a {
-  color: #7FE6EF;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.markdown-body a:hover {
-  color: #FFE52C;
-}
-
-.markdown-body strong {
-  color: #FFE52C;
-  font-weight: 700;
-}
-
-.markdown-body em {
-  color: #FFF8EE;
-  font-style: italic;
-}
-
-.markdown-body del {
-  color: rgba(255, 248, 238, 0.5);
-  text-decoration: line-through;
-}
-
-.markdown-body ul,
-.markdown-body ol {
-  margin-bottom: 1em;
-  padding-left: 1.5em;
-}
-
-.markdown-body li {
-  margin-bottom: 0.25em;
-  color: #FFF8EE;
-}
-
-.markdown-body ul li {
-  list-style-type: disc;
-}
-
-.markdown-body ol li {
-  list-style-type: decimal;
-}
-
-.markdown-body blockquote {
-  margin: 1em 0;
-  padding: 0.75em 1em;
-  border-left: 3px solid #F5A623;
-  background-color: rgba(42, 33, 24, 0.6);
-  color: #FFF8EE;
-  font-style: italic;
-}
-
-.markdown-body blockquote p {
-  margin: 0;
-}
-
-.markdown-body hr {
-  border: none;
-  border-top: 1px solid rgba(245, 166, 35, 0.2);
-  margin: 1.5em 0;
-}
-
-.markdown-body pre {
-  background-color: rgba(10, 8, 6, 0.8);
-  border: 1px solid rgba(245, 166, 35, 0.15);
+  background: var(--border);
   border-radius: 4px;
-  padding: 1em;
-  margin: 1em 0;
-  overflow-x: auto;
 }
 
-.markdown-body pre code {
-  background: none;
-  border: none;
-  padding: 0;
-  color: #C4D70C;
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* Selection color */
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+/* Code style */
+code, pre {
   font-family: var(--font-mono);
-  font-size: 0.875em;
-  line-height: 1.6;
 }
 
-.markdown-body code {
-  background-color: rgba(245, 166, 35, 0.1);
-  border: 1px solid rgba(245, 166, 35, 0.15);
-  border-radius: 3px;
-  padding: 0.15em 0.4em;
-  color: #FFE52C;
-  font-family: var(--font-mono);
-  font-size: 0.875em;
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
-.markdown-body table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 1em 0;
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.markdown-body th,
-.markdown-body td {
-  border: 1px solid rgba(245, 166, 35, 0.2);
-  padding: 0.5em 0.75em;
-  text-align: left;
-  color: #FFF8EE;
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
 }
 
-.markdown-body th {
-  background-color: rgba(245, 166, 35, 0.1);
-  color: #F5A623;
-  font-weight: 700;
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
-.markdown-body tr:nth-child(even) {
-  background-color: rgba(42, 33, 24, 0.3);
-}
-
-/* 减少运动偏好 */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out forwards;
 }
