@@ -1,0 +1,45 @@
+interface StatCardProps {
+  label: string
+  value: number
+  color?: string
+}
+
+export default function StatCard({ label, value, color }: StatCardProps) {
+  return (
+    <div
+      style={{
+        backgroundColor: 'var(--color-surface-card)',
+        borderRadius: 'var(--rounded-lg)',
+        padding: 'var(--spacing-xl)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--spacing-xs)',
+        minWidth: 160,
+        flex: 1,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 36,
+          fontWeight: 500,
+          lineHeight: 1.1,
+          color: color || 'var(--color-ink)',
+          letterSpacing: '-0.5px',
+        }}
+      >
+        {value.toLocaleString()}
+      </span>
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          color: 'var(--color-muted)',
+          lineHeight: 1.4,
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  )
+}

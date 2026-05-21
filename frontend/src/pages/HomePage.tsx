@@ -53,9 +53,9 @@ function TopNav({ onLogout }: { onLogout: () => void }) {
   const navigate = useNavigate()
 
   const navLinks = [
-    { label: '博客', href: '#blogs' },
-    { label: '论坛', href: '#forum' },
-    { label: '作品集', href: '#portfolio' },
+    { label: '博客', href: '/blogs' },
+    { label: '论坛', href: '/#forum' },
+    { label: '作品集', href: '/#portfolio' },
   ]
 
   const linkStyle: React.CSSProperties = {
@@ -145,7 +145,26 @@ function TopNav({ onLogout }: { onLogout: () => void }) {
         </button>
 
         {currentUser && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+          <button
+            onClick={() => navigate('/profile')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--spacing-sm)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              borderRadius: 'var(--rounded-md)',
+              transition: 'background-color 150ms ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-surface-soft)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }}
+          >
             <div
               style={{
                 width: 32,
@@ -163,7 +182,7 @@ function TopNav({ onLogout }: { onLogout: () => void }) {
             <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-body-strong)' }}>
               {currentUser.username}
             </span>
-          </div>
+          </button>
         )}
 
         <button
@@ -288,7 +307,7 @@ function HeroSection() {
 
           <div style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
             <a
-              href="#blogs"
+              href="/blogs"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -402,9 +421,12 @@ function HeroSection() {
 }
 
 function BlogCard({ blog }: { blog: BlogPostListItem }) {
+  const navigate = useNavigate()
   return (
     <article
+      onClick={() => navigate(`/blogs/${blog.slug}`)}
       style={{
+        cursor: 'pointer',
         backgroundColor: 'var(--color-surface-card)',
         borderRadius: 'var(--rounded-lg)',
         padding: 'var(--spacing-xl)',
@@ -412,7 +434,6 @@ function BlogCard({ blog }: { blog: BlogPostListItem }) {
         flexDirection: 'column',
         gap: 'var(--spacing-sm)',
         transition: 'transform 150ms ease, box-shadow 150ms ease',
-        cursor: 'pointer',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-2px)'
@@ -511,6 +532,7 @@ function BlogCard({ blog }: { blog: BlogPostListItem }) {
 }
 
 function BlogSection({ blogs }: { blogs: BlogPostListItem[] }) {
+  const navigate = useNavigate()
   return (
     <section
       id="blogs"
@@ -520,42 +542,72 @@ function BlogSection({ blogs }: { blogs: BlogPostListItem[] }) {
       }}
     >
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        <div style={{ marginBottom: 'var(--spacing-xl)' }}>
-          <div
+        <div style={{ marginBottom: 'var(--spacing-xl)', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
+          <div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 12px',
+                borderRadius: 'var(--rounded-pill)',
+                backgroundColor: 'var(--color-surface-card)',
+                fontSize: 12,
+                fontWeight: 500,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase' as const,
+                color: 'var(--color-primary)',
+                marginBottom: 'var(--spacing-md)',
+              }}
+            >
+              <BookOpen size={12} />
+              博客
+            </div>
+            <h2
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 'clamp(28px, 3.5vw, 36px)',
+                fontWeight: 400,
+                lineHeight: 1.15,
+                letterSpacing: '-0.5px',
+                color: 'var(--color-ink)',
+                margin: '0 0 var(--spacing-sm)',
+              }}
+            >
+              最新文章
+            </h2>
+            <p style={{ fontSize: 16, lineHeight: 1.55, color: 'var(--color-muted)', margin: 0, maxWidth: 520 }}>
+              技术探索、实战复盘与学习笔记，记录成长路上的每一步思考。
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/blogs')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              padding: '4px 12px',
-              borderRadius: 'var(--rounded-pill)',
-              backgroundColor: 'var(--color-surface-card)',
-              fontSize: 12,
+              padding: '10px 20px',
+              backgroundColor: 'var(--color-primary)',
+              color: 'var(--color-on-primary)',
+              borderRadius: 'var(--rounded-md)',
+              fontSize: 14,
               fontWeight: 500,
-              letterSpacing: '1.5px',
-              textTransform: 'uppercase' as const,
-              color: 'var(--color-primary)',
-              marginBottom: 'var(--spacing-md)',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'background-color 150ms ease',
+              flexShrink: 0,
+              height: 40,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-primary-active)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-primary)'
             }}
           >
-            <BookOpen size={12} />
-            博客
-          </div>
-          <h2
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 'clamp(28px, 3.5vw, 36px)',
-              fontWeight: 400,
-              lineHeight: 1.15,
-              letterSpacing: '-0.5px',
-              color: 'var(--color-ink)',
-              margin: '0 0 var(--spacing-sm)',
-            }}
-          >
-            最新文章
-          </h2>
-          <p style={{ fontSize: 16, lineHeight: 1.55, color: 'var(--color-muted)', margin: 0, maxWidth: 520 }}>
-            技术探索、实战复盘与学习笔记，记录成长路上的每一步思考。
-          </p>
+            查看全部
+            <ArrowRight size={14} />
+          </button>
         </div>
 
         <div

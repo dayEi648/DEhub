@@ -4,6 +4,20 @@ export interface BlogCategoryBrief {
   slug: string
 }
 
+export interface BlogCategoryWithPostCount {
+  id: number
+  name: string
+  slug: string
+  description: string | null
+  post_count: number
+}
+
+export interface BlogAuthor {
+  id: number
+  username: string
+  avatar_url: string | null
+}
+
 export interface BlogPostListItem {
   id: number
   title: string
@@ -16,6 +30,7 @@ export interface BlogPostListItem {
   status: string
   view_count: number
   comment_count: number
+  author: BlogAuthor
   created_at: string
   updated_at: string
 }
@@ -33,4 +48,10 @@ export interface BlogPostListParams {
   tag?: string
   q?: string
   include_unpublished?: boolean
+}
+
+export interface BlogPostDetailResponse extends BlogPostListItem {
+  content_md: string
+  prev_post: BlogPostListItem | null
+  next_post: BlogPostListItem | null
 }

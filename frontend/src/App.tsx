@@ -5,7 +5,9 @@ import AdminDashboard from './pages/admin/AdminDashboard'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import HomePage from './pages/HomePage'
-// import { isLoggedIn } from './utils/auth'
+import ProfilePage from './pages/ProfilePage'
+import BlogListPage from './pages/BlogListPage'
+import BlogDetailPage from './pages/BlogDetailPage'
 
 function App() {
   return (
@@ -17,6 +19,30 @@ function App() {
         element={
           <AuthGuard>
             <HomePage />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <AuthGuard>
+            <ProfilePage />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/blogs"
+        element={
+          <AuthGuard>
+            <BlogListPage />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/blogs/:slug"
+        element={
+          <AuthGuard>
+            <BlogDetailPage />
           </AuthGuard>
         }
       />

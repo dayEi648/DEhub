@@ -33,7 +33,7 @@ def _iqs_search_single(query: str) -> list[dict]:
         "numResults": settings.IQS_NUM_RESULTS,
         "contents": {
             "mainText": False,
-            "markdownText": False,
+            "markdownText": True,
             "richMainBody": False,
             "summary": False,
             "rerankScore": True,
@@ -62,13 +62,16 @@ def _format_web_search_results(results: list[dict]) -> str:
     for item in results:
         title = item.get("title", "")
         snippet = item.get("snippet", "")
+        markdown_text = item.get("markdownText", "")
         link = item.get("link", "")
         hostname = item.get("hostname", "")
 
         parts = [f"{_LABEL} {title}"]
         if hostname:
             parts.append(f"来源：{hostname}")
-        if snippet:
+        if markdown_text:
+            parts.append(markdown_text)
+        elif snippet:
             parts.append(snippet)
         if link:
             parts.append(f"链接：{link}")
@@ -83,13 +86,15 @@ def search_web(query: str) -> str:
     使用联网搜索获取实时、时效性或超出内置知识范围的最新信息。
 
     当用户询问以下情况时调用：
-    - 当前时事、新闻、股价、天气、赛事结果等时效性信息
+    - 时事新闻、最新技术动态、股价、天气等强时效性内容
     - 超出你训练数据截止日期的最新技术、产品、政策动态
     - 用户明确要求"搜索一下"、"上网查"、"联网搜索"
     - 你不确定答案或知识可能已过时
 
     Args:
         query: 用户的搜索关键词或问题描述
+    Returns:
+        str: 格式化后的相关网络搜索结果，包含标题、来源、正文（Markdown）、链接。
     """
     if not query or not query.strip():
         return "未提供有效的搜索关键词。"
