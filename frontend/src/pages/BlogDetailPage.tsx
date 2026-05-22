@@ -47,7 +47,7 @@ function TopNav({ onLogout }: { onLogout: () => void }) {
 
   const navLinks = [
     { label: '博客', href: '/blogs' },
-    { label: '论坛', href: '/#forum' },
+    { label: '论坛', href: '/forums' },
     { label: '作品集', href: '/#portfolio' },
   ]
 

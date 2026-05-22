@@ -627,6 +627,7 @@ function BlogSection({ blogs }: { blogs: BlogPostListItem[] }) {
 }
 
 function ForumSection({ posts, zones }: { posts: ForumPost[]; zones: ForumZone[] }) {
+  const navigate = useNavigate()
   return (
     <section
       id="forum"
@@ -708,6 +709,7 @@ function ForumSection({ posts, zones }: { posts: ForumPost[]; zones: ForumZone[]
               {zones.slice(0, 8).map((zone) => (
                 <div
                   key={zone.id}
+                  onClick={() => navigate(`/forums/z/${zone.slug}`)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -763,6 +765,7 @@ function ForumSection({ posts, zones }: { posts: ForumPost[]; zones: ForumZone[]
             {posts.map((post, idx) => (
               <div
                 key={post.id}
+                onClick={() => navigate(`/forums/p/${post.id}`)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

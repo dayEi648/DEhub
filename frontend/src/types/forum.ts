@@ -1,5 +1,18 @@
 import type { UserBriefInfo } from './user'
 
+/* ─── Forum Zone ─── */
+export interface ForumZone {
+  id: number
+  slug: string
+  zone_name: string
+  description: string | null
+  manager_id: number
+  manager: UserBriefInfo
+  view_count: number
+  created_at: string
+}
+
+/* ─── Forum Post ─── */
 export interface ForumPost {
   id: number
   title: string
@@ -25,13 +38,40 @@ export interface ForumPostListParams {
   limit?: number
 }
 
-export interface ForumZone {
+export interface ForumPostCreateData {
+  title: string
+  content: string
+  zone_id: number
+}
+
+export interface ForumPostUpdateData {
+  title?: string
+  content?: string
+  zone_id?: number
+}
+
+/* ─── Forum Reply ─── */
+export interface ForumReply {
   id: number
-  slug: string
-  zone_name: string
-  description: string | null
-  manager_id: number
-  manager: UserBriefInfo
-  view_count: number
+  post_id: number
+  content: string
+  user_id: number
+  user: UserBriefInfo
+  likecount: number
+  comment_count: number
   created_at: string
+}
+
+export interface ForumReplyListResponse {
+  items: ForumReply[]
+  total: number
+}
+
+export interface ForumReplyListParams {
+  skip?: number
+  limit?: number
+}
+
+export interface ForumReplyCreateData {
+  content: string
 }

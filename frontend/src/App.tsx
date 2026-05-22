@@ -8,6 +8,9 @@ import HomePage from './pages/HomePage'
 import ProfilePage from './pages/ProfilePage'
 import BlogListPage from './pages/BlogListPage'
 import BlogDetailPage from './pages/BlogDetailPage'
+import ForumZoneListPage from './pages/ForumZoneListPage'
+import ForumPostListPage from './pages/ForumPostListPage'
+import ForumPostDetailPage from './pages/ForumPostDetailPage'
 
 function App() {
   return (
@@ -43,6 +46,30 @@ function App() {
         element={
           <AuthGuard>
             <BlogDetailPage />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/forums"
+        element={
+          <AuthGuard>
+            <ForumZoneListPage />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/forums/z/:slug"
+        element={
+          <AuthGuard>
+            <ForumPostListPage />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/forums/p/:postId"
+        element={
+          <AuthGuard>
+            <ForumPostDetailPage />
           </AuthGuard>
         }
       />
