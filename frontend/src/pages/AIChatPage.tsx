@@ -9,6 +9,7 @@ import Footer from '../components/Footer'
 import { useLogout } from '../hooks/useLogout'
 import { chatWithAI, deleteConversation, getConversationList, getConversationMessages } from '../api/aiChat'
 import { formatDateTime } from '../utils/format'
+import { getUser } from '../utils/auth'
 import type { AIConversationItem, AIMessage } from '../types/aiChat'
 
 const CONVERSATION_PAGE_SIZE = 20
@@ -45,9 +46,10 @@ export default function AIChatPage() {
   const [sending, setSending] = useState(false)
   const [newConversationMode, setNewConversationMode] = useState(false)
   const [includeHidden, setIncludeHidden] = useState(false)
-  const [isEditMode, setIsEditMode] = useState(false)
   const [panelError, setPanelError] = useState('')
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const currentUser = getUser()
+  const canViewHiddenMessages = (currentUser?.permission ?? 0) >= 1
 
   const hasMoreConversations = conversations.length < conversationTotal
 
@@ -78,7 +80,7 @@ export default function AIChatPage() {
       const res = await getConversationMessages(conversationId, {
         skip: 0,
         limit: MESSAGE_PAGE_SIZE,
-        include_hidden: includeHidden,
+        include_hidden: canViewHiddenMessages ? includeHidden : false,
       })
       setMessages(res.data || [])
     } catch (error) {
@@ -89,7 +91,13 @@ export default function AIChatPage() {
     } finally {
       setMessagesLoading(false)
     }
-  }, [includeHidden])
+  }, [canViewHiddenMessages, includeHidden])
+
+  useEffect(() => {
+    if (!canViewHiddenMessages && includeHidden) {
+      setIncludeHidden(false)
+    }
+  }, [canViewHiddenMessages, includeHidden])
 
   useEffect(() => {
     void fetchConversations(true, 0)
@@ -149,7 +157,6 @@ export default function AIChatPage() {
       const res = await chatWithAI({
         conversation_id: activeConversationId ?? undefined,
         user_input: userInput,
-        is_edit: isEditMode,
       })
       const resolvedConversationId = res.data.conversation_id
       const optimisticAssistantMessage: AIMessage = {
@@ -299,22 +306,16 @@ export default function AIChatPage() {
             </div>
 
             <div className="ai-chat-panel__switches">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={includeHidden}
-                  onChange={(event) => setIncludeHidden(event.target.checked)}
-                />
-                包含隐藏消息
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={isEditMode}
-                  onChange={(event) => setIsEditMode(event.target.checked)}
-                />
-                作为编辑发送
-              </label>
+              {canViewHiddenMessages && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={includeHidden}
+                    onChange={(event) => setIncludeHidden(event.target.checked)}
+                  />
+                  包含隐藏消息
+                </label>
+              )}
             </div>
           </header>
 
