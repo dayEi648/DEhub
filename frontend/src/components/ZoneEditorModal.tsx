@@ -1,33 +1,39 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { ForumZone } from '../types/forum'
+import type { User } from '../types/user'
 
 interface ZoneEditorModalProps {
   zone: ForumZone | null
+  users: User[]
   onClose: () => void
   onSubmit: (data: {
     zone_name: string
     slug: string
     description: string
+    manager_id?: number
   }) => void
   submitting?: boolean
 }
 
-export default function ZoneEditorModal({ zone, onClose, onSubmit, submitting = false }: ZoneEditorModalProps) {
+export default function ZoneEditorModal({ zone, users, onClose, onSubmit, submitting = false }: ZoneEditorModalProps) {
   const isEdit = !!zone
   const [zoneName, setZoneName] = useState('')
   const [slug, setSlug] = useState('')
   const [description, setDescription] = useState('')
+  const [managerId, setManagerId] = useState<number | undefined>(undefined)
 
   useEffect(() => {
     if (zone) {
       setZoneName(zone.zone_name)
       setSlug(zone.slug)
       setDescription(zone.description || '')
+      setManagerId(zone.manager_id)
     } else {
       setZoneName('')
       setSlug('')
       setDescription('')
+      setManagerId(undefined)
     }
   }, [zone])
 
@@ -37,6 +43,7 @@ export default function ZoneEditorModal({ zone, onClose, onSubmit, submitting = 
       zone_name: zoneName.trim(),
       slug: slug.trim(),
       description: description.trim(),
+      manager_id: managerId,
     })
   }
 
@@ -144,6 +151,21 @@ export default function ZoneEditorModal({ zone, onClose, onSubmit, submitting = 
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+          <div>
+            <label style={labelStyle}>区主</label>
+            <select
+              style={inputStyle}
+              value={managerId ?? ''}
+              onChange={(e) => setManagerId(e.target.value ? Number(e.target.value) : undefined)}
+            >
+              <option value="">默认（当前用户）</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.username}（ID: {u.id}）
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

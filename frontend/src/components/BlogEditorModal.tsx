@@ -2,8 +2,12 @@ import { useState, useEffect } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
 import type { BlogCategoryWithPostCount, BlogPostListItem } from '../types/blog'
 
+interface BlogPostEditItem extends BlogPostListItem {
+  content_md?: string
+}
+
 interface BlogEditorModalProps {
-  post: BlogPostListItem | null
+  post: BlogPostEditItem | null
   categories: BlogCategoryWithPostCount[]
   onClose: () => void
   onSubmit: (data: {
@@ -11,7 +15,6 @@ interface BlogEditorModalProps {
     slug: string
     summary: string
     content_md: string
-    cover_image_url: string
     category_id: number
     tags: string[]
     status: 'draft' | 'published'
@@ -32,7 +35,6 @@ export default function BlogEditorModal({
   const [slug, setSlug] = useState('')
   const [summary, setSummary] = useState('')
   const [contentMd, setContentMd] = useState('')
-  const [coverUrl, setCoverUrl] = useState('')
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [categoryId, setCategoryId] = useState<number>(categories[0]?.id ?? 0)
   const [tagInput, setTagInput] = useState('')
@@ -44,8 +46,7 @@ export default function BlogEditorModal({
       setTitle(post.title)
       setSlug(post.slug)
       setSummary(post.summary || '')
-      setContentMd('')
-      setCoverUrl(post.cover_image_url || '')
+      setContentMd((post as unknown as { content_md?: string }).content_md || '')
       setCoverFile(null)
       setCategoryId(post.category_id)
       setTags(post.tags || [])
@@ -55,7 +56,6 @@ export default function BlogEditorModal({
       setSlug('')
       setSummary('')
       setContentMd('')
-      setCoverUrl('')
       setCoverFile(null)
       setCategoryId(categories[0]?.id ?? 0)
       setTags([])
@@ -80,7 +80,6 @@ export default function BlogEditorModal({
     const file = e.target.files?.[0]
     if (file) {
       setCoverFile(file)
-      setCoverUrl('')
     }
   }
 
@@ -91,7 +90,6 @@ export default function BlogEditorModal({
       slug: slug.trim(),
       summary: summary.trim(),
       content_md: contentMd.trim(),
-      cover_image_url: coverUrl.trim(),
       category_id: categoryId,
       tags,
       status,
@@ -292,16 +290,9 @@ export default function BlogEditorModal({
           <div>
             <label style={labelStyle}>封面图片</label>
             <div style={{ display: 'flex', gap: 'var(--spacing-xs)', alignItems: 'center' }}>
-              <input
-                type="text"
-                placeholder="封面图 URL（或上传文件）"
-                style={{ ...inputStyle, flex: 1 }}
-                value={coverUrl}
-                onChange={(e) => {
-                  setCoverUrl(e.target.value)
-                  setCoverFile(null)
-                }}
-              />
+              <span style={{ fontSize: 13, color: 'var(--color-muted)', flex: 1 }}>
+                {coverFile ? coverFile.name : '未选择文件'}
+              </span>
               <label
                 style={{
                   height: 40,
@@ -319,9 +310,26 @@ export default function BlogEditorModal({
                 }}
               >
                 <Plus size={14} />
-                {coverFile ? coverFile.name : '上传文件'}
+                选择文件
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
               </label>
+              {coverFile && (
+                <button
+                  onClick={() => setCoverFile(null)}
+                  style={{
+                    height: 40,
+                    padding: '0 14px',
+                    borderRadius: 'var(--rounded-md)',
+                    backgroundColor: 'var(--color-canvas)',
+                    border: '1px solid var(--color-hairline)',
+                    color: 'var(--color-error)',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                  }}
+                >
+                  清除
+                </button>
+              )}
             </div>
           </div>
 
