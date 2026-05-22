@@ -17,6 +17,7 @@ interface NavLinkItem {
 const defaultLinks: NavLinkItem[] = [
   { label: '博客', href: '/blogs' },
   { label: '论坛', href: '/forums' },
+  { label: 'AI 对话', href: '/ai-chat' },
   { label: '作品集', href: '/#portfolio' },
 ]
 

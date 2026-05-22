@@ -11,6 +11,7 @@ import BlogDetailPage from './pages/BlogDetailPage'
 import ForumZoneListPage from './pages/ForumZoneListPage'
 import ForumPostListPage from './pages/ForumPostListPage'
 import ForumPostDetailPage from './pages/ForumPostDetailPage'
+import AIChatPage from './pages/AIChatPage'
 
 function App() {
   return (
@@ -70,6 +71,14 @@ function App() {
         element={
           <AuthGuard>
             <ForumPostDetailPage />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/ai-chat"
+        element={
+          <AuthGuard>
+            <AIChatPage />
           </AuthGuard>
         }
       />
