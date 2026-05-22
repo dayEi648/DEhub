@@ -25,6 +25,18 @@ export function getForumZoneById(zoneId: number) {
   return request.get<ForumZone>(`/forum_zones/${zoneId}`)
 }
 
+export function createForumZone(data: { zone_name: string; slug?: string; description?: string; manager_id?: number }) {
+  return request.post<ForumZone>('/forum_zones/', data)
+}
+
+export function updateForumZone(zoneId: number, data: { zone_name?: string; slug?: string; description?: string; manager_id?: number }) {
+  return request.put<ForumZone>(`/forum_zones/${zoneId}`, data)
+}
+
+export function deleteForumZone(zoneId: number) {
+  return request.delete(`/forum_zones/${zoneId}`)
+}
+
 /* ─── Forum Posts ─── */
 export function getForumPostList(params: ForumPostListParams = {}) {
   return request.get<ForumPostListResponse>('/forum_posts/', { params })

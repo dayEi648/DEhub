@@ -6,8 +6,14 @@ import {
   User,
   Eye,
   MessageSquare,
+  Plus,
+  Edit3,
+  Trash2,
 } from 'lucide-react'
-import { getForumZoneList } from '../api/forum'
+import { toast } from 'sonner'
+import { getForumZoneList, createForumZone, updateForumZone, deleteForumZone } from '../api/forum'
+import { getUser } from '../utils/auth'
+import ZoneEditorModal from '../components/ZoneEditorModal'
 import AppTopNav from '../components/AppTopNav'
 import { useLogout } from '../hooks/useLogout'
 import type { ForumZone } from '../types/forum'
@@ -73,7 +79,17 @@ function HeroSection() {
 }
 
 /* ─── Zone Card ─── */
-function ZoneCard({ zone }: { zone: ForumZone }) {
+function ZoneCard({
+  zone,
+  isAdmin,
+  onEdit,
+  onDelete,
+}: {
+  zone: ForumZone
+  isAdmin: boolean
+  onEdit: (zone: ForumZone) => void
+  onDelete: (zone: ForumZone) => void
+}) {
   const navigate = useNavigate()
 
   return (
@@ -127,6 +143,44 @@ function ZoneCard({ zone }: { zone: ForumZone }) {
         >
           {zone.zone_name}
         </h3>
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => onEdit(zone)}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 'var(--rounded-md)',
+                backgroundColor: 'var(--color-canvas)',
+                border: '1px solid var(--color-hairline)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <Edit3 size={12} />
+            </button>
+            <button
+              onClick={() => onDelete(zone)}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 'var(--rounded-md)',
+                backgroundColor: 'var(--color-canvas)',
+                border: '1px solid var(--color-hairline)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-error)',
+                cursor: 'pointer',
+              }}
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        )}
       </div>
 
       <p
@@ -198,6 +252,11 @@ export default function ForumZoneListPage() {
   const [zones, setZones] = useState<ForumZone[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showEditor, setShowEditor] = useState(false)
+  const [editingZone, setEditingZone] = useState<ForumZone | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const currentUser = getUser()
+  const isAdmin = (currentUser?.permission ?? 0) >= 1
 
   const fetchZones = useCallback(async () => {
     setLoading(true)
@@ -218,6 +277,48 @@ export default function ForumZoneListPage() {
 
   const handleLogout = useLogout()
 
+  const handleCreate = async (data: { zone_name: string; slug: string; description: string }) => {
+    setSubmitting(true)
+    try {
+      await createForumZone(data)
+      toast.success('分区创建成功')
+      setShowEditor(false)
+      setEditingZone(null)
+      fetchZones()
+    } catch {
+      toast.error('分区创建失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleUpdate = async (data: { zone_name: string; slug: string; description: string }) => {
+    if (!editingZone) return
+    setSubmitting(true)
+    try {
+      await updateForumZone(editingZone.id, data)
+      toast.success('分区更新成功')
+      setShowEditor(false)
+      setEditingZone(null)
+      fetchZones()
+    } catch {
+      toast.error('分区更新失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (zone: ForumZone) => {
+    if (!window.confirm(`确定要删除分区「${zone.zone_name}」吗？此操作不可撤销。`)) return
+    try {
+      await deleteForumZone(zone.id)
+      toast.success('分区已删除')
+      fetchZones()
+    } catch {
+      toast.error('删除失败')
+    }
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
       <AppTopNav onLogout={handleLogout} />
@@ -225,6 +326,33 @@ export default function ForumZoneListPage() {
 
       <section style={{ flex: 1, padding: 'var(--spacing-xl) var(--spacing-xl)', backgroundColor: 'var(--color-canvas)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          {isAdmin && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--spacing-md)' }}>
+              <button
+                onClick={() => {
+                  setEditingZone(null)
+                  setShowEditor(true)
+                }}
+                style={{
+                  height: 40,
+                  padding: '0 18px',
+                  borderRadius: 'var(--rounded-md)',
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-on-primary)',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Plus size={14} />
+                新建分区
+              </button>
+            </div>
+          )}
           {loading ? (
             <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-muted)' }}>
               加载中...
@@ -247,7 +375,16 @@ export default function ForumZoneListPage() {
               }}
             >
               {zones.map((zone) => (
-                <ZoneCard key={zone.id} zone={zone} />
+                <ZoneCard
+                  key={zone.id}
+                  zone={zone}
+                  isAdmin={isAdmin}
+                  onEdit={(z) => {
+                    setEditingZone(z)
+                    setShowEditor(true)
+                  }}
+                  onDelete={handleDelete}
+                />
               ))}
             </div>
           )}
@@ -255,6 +392,18 @@ export default function ForumZoneListPage() {
       </section>
 
       <Footer />
+
+      {showEditor && (
+        <ZoneEditorModal
+          zone={editingZone}
+          onClose={() => {
+            setShowEditor(false)
+            setEditingZone(null)
+          }}
+          onSubmit={editingZone ? handleUpdate : handleCreate}
+          submitting={submitting}
+        />
+      )}
     </div>
   )
 }

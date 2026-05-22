@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   BookOpen,
   MessageSquare,
@@ -713,7 +714,7 @@ function PortfolioSection() {
             汇集了我的开源项目、技术实验与创意作品，每一个项目都是一次新的探索。
           </p>
           <button
-            onClick={() => alert('作品集页面即将开放，敬请期待！')}
+            onClick={() => toast.info('作品集页面即将开放，敬请期待！')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',

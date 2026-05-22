@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { UserCircle } from 'lucide-react'
 import { login } from '../api/users'
 import { setToken, setRefreshToken, setUser } from '../utils/auth'
@@ -14,7 +15,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!account.trim() || !password.trim()) {
-      alert('请填写账号和密码')
+      toast.error('请填写账号和密码')
       return
     }
     setLoading(true)

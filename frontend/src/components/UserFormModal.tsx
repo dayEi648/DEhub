@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { X } from 'lucide-react'
 import type { User, CreateUserData, UpdateUserData, UserPermission } from '../types/user'
 
@@ -36,11 +37,11 @@ export default function UserFormModal({ user, onClose, onSubmit }: UserFormModal
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!username.trim() || !email.trim()) {
-      alert('请填写用户名和邮箱')
+      toast.error('请填写用户名和邮箱')
       return
     }
     if (!isEdit && !password.trim()) {
-      alert('创建用户时必须填写密码')
+      toast.error('创建用户时必须填写密码')
       return
     }
     setLoading(true)

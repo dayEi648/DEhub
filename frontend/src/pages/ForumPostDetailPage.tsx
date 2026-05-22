@@ -26,6 +26,7 @@ import {
 } from '../api/forum'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
 import { favoriteForumPost, unfavoriteForumPost, getFavoriteForumPosts } from '../api/favorites'
+import { toast } from 'sonner'
 import { getUser } from '../utils/auth'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
@@ -62,7 +63,7 @@ function EditPostModal({
       onSuccess()
       onClose()
     } catch {
-      alert('编辑失败，请稍后重试')
+      toast.error('编辑失败，请稍后重试')
     } finally {
       setSubmitting(false)
     }
@@ -475,7 +476,7 @@ function ReplyCommentSection({
       setPage(1)
       fetchComments()
     } catch {
-      alert('评论发表失败')
+      toast.error('评论发表失败')
     } finally {
       setSubmitting(false)
     }
@@ -497,7 +498,7 @@ function ReplyCommentSection({
       setReplyingTo(null)
       fetchComments()
     } catch {
-      alert('回复失败')
+      toast.error('回复失败')
     } finally {
       setSubmitting(false)
     }
@@ -530,7 +531,7 @@ function ReplyCommentSection({
       await deleteComment(commentId)
       fetchComments()
     } catch {
-      alert('删除失败')
+      toast.error('删除失败')
     }
   }
 
@@ -895,7 +896,7 @@ function ForumReplyItem({
                     setShowReplyInput(false)
                     onRefreshReplies?.()
                   } catch {
-                    alert('回复发表失败')
+                    toast.error('回复发表失败')
                   }
                 }}
                 onCancel={() => setShowReplyInput(false)}
@@ -997,7 +998,7 @@ export default function ForumPostDetailPage() {
       await deleteForumPost(post.id)
       navigate(`/forums/z/${post.zone_id}`)
     } catch {
-      alert('删除失败')
+      toast.error('删除失败')
     }
   }
 
@@ -1006,7 +1007,7 @@ export default function ForumPostDetailPage() {
       await deleteForumReply(replyId)
       fetchReplies()
     } catch {
-      alert('删除失败')
+      toast.error('删除失败')
     }
   }
 
@@ -1180,7 +1181,7 @@ export default function ForumPostDetailPage() {
                     setIsFavorited(true)
                   }
                 } catch {
-                  alert(isFavorited ? '取消收藏失败' : '收藏失败')
+                  toast.error(isFavorited ? '取消收藏失败' : '收藏失败')
                 } finally {
                   setFavoriting(false)
                 }
@@ -1345,7 +1346,7 @@ export default function ForumPostDetailPage() {
                       setShowMainReplyInput(false)
                       fetchReplies()
                     } catch {
-                      alert('回复发表失败')
+                      toast.error('回复发表失败')
                     }
                   }}
                   onCancel={() => setShowMainReplyInput(false)}

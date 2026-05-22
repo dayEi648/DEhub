@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { UserPlus } from 'lucide-react'
 import { register } from '../api/users'
 
@@ -14,21 +15,21 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!username.trim() || !email.trim() || !password.trim()) {
-      alert('请填写所有必填项')
+      toast.error('请填写所有必填项')
       return
     }
     if (password !== confirmPassword) {
-      alert('两次输入的密码不一致')
+      toast.error('两次输入的密码不一致')
       return
     }
     if (password.length < 6) {
-      alert('密码长度至少为 6 位')
+      toast.error('密码长度至少为 6 位')
       return
     }
     setLoading(true)
     try {
       await register({ username, email, password })
-      alert('注册成功，请登录')
+      toast.success('注册成功，请登录')
       navigate('/login', { replace: true })
     } catch {
       // handled by interceptor

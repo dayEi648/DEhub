@@ -19,15 +19,27 @@ import {
   CalendarClock,
   ChevronDown,
   ChevronUp,
+  Edit3,
+  Plus,
+  Minus,
 } from 'lucide-react'
-import { getBlogPostBySlug } from '../api/blog'
+import {
+  getBlogPostBySlug,
+  getBlogCategories,
+  updateBlogPost,
+  deleteBlogPost,
+  publishBlogPost,
+  unpublishBlogPost,
+} from '../api/blog'
+import { getUser } from '../utils/auth'
+import BlogEditorModal from '../components/BlogEditorModal'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
 import { favoriteBlogPost, unfavoriteBlogPost, getFavoriteBlogPosts } from '../api/favorites'
-import { getUser } from '../utils/auth'
+import { toast } from 'sonner'
 import AppTopNav from '../components/AppTopNav'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate, formatDateTime } from '../utils/format'
-import type { BlogPostDetailResponse, BlogPostListItem } from '../types/blog'
+import type { BlogPostDetailResponse, BlogPostListItem, BlogCategoryWithPostCount } from '../types/blog'
 import type { CommentResponse } from '../types/comments'
 
 /* ─── Markdown Renderer ─── */
@@ -689,7 +701,7 @@ function SurfaceCommentItem({
       })
       fetchReplies()
     } catch {
-      alert('回复失败')
+      toast.error('回复失败')
     }
   }
 
@@ -708,7 +720,7 @@ function SurfaceCommentItem({
         setShowReplies(true)
       }
     } catch {
-      alert('回复失败')
+      toast.error('回复失败')
     }
   }
 
@@ -988,7 +1000,7 @@ function CommentSection({ postId, totalCommentCount }: { postId: number; totalCo
       setSortBy('time')
       fetchComments()
     } catch {
-      alert('评论发表失败')
+      toast.error('评论发表失败')
     } finally {
       setSubmitting(false)
     }
@@ -1021,7 +1033,7 @@ function CommentSection({ postId, totalCommentCount }: { postId: number; totalCo
       await deleteComment(commentId)
       fetchComments()
     } catch {
-      alert('删除失败')
+      toast.error('删除失败')
     }
   }
 
@@ -1274,6 +1286,11 @@ export default function BlogDetailPage() {
   const [error, setError] = useState('')
   const [isFavorited, setIsFavorited] = useState(false)
   const [favoriting, setFavoriting] = useState(false)
+  const [showEditor, setShowEditor] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [categories, setCategories] = useState<BlogCategoryWithPostCount[]>([])
+  const currentUser = getUser()
+  const isSuperAdmin = currentUser?.permission === 2
 
   const fetchPost = useCallback(async () => {
     if (!slug) return
@@ -1297,6 +1314,10 @@ export default function BlogDetailPage() {
     fetchPost()
     window.scrollTo(0, 0)
   }, [fetchPost])
+
+  useEffect(() => {
+    getBlogCategories().then((res) => setCategories(res.data)).catch(() => {})
+  }, [])
 
   const handleLogout = useLogout()
 
@@ -1433,6 +1454,90 @@ export default function BlogDetailPage() {
             {post.title}
           </h1>
 
+          {/* Admin Actions */}
+          {isSuperAdmin && (
+            <div style={{ display: 'flex', gap: 'var(--spacing-xs)', marginBottom: 'var(--spacing-md)', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setShowEditor(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '6px 12px',
+                  borderRadius: 'var(--rounded-md)',
+                  backgroundColor: 'var(--color-canvas)',
+                  border: '1px solid var(--color-hairline)',
+                  fontSize: 13,
+                  color: 'var(--color-muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Edit3 size={12} />
+                编辑
+              </button>
+              <button
+                onClick={async () => {
+                  if (!post) return
+                  try {
+                    if (post.status === 'published') {
+                      await unpublishBlogPost(post.id)
+                      toast.success('文章已下线')
+                    } else {
+                      await publishBlogPost(post.id)
+                      toast.success('文章已发布')
+                    }
+                    fetchPost()
+                  } catch {
+                    toast.error('操作失败')
+                  }
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '6px 12px',
+                  borderRadius: 'var(--rounded-md)',
+                  backgroundColor: 'var(--color-canvas)',
+                  border: '1px solid var(--color-hairline)',
+                  fontSize: 13,
+                  color: 'var(--color-muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                {post.status === 'published' ? <Minus size={12} /> : <Plus size={12} />}
+                {post.status === 'published' ? '下线' : '发布'}
+              </button>
+              <button
+                onClick={async () => {
+                  if (!post) return
+                  if (!window.confirm('确定要删除这篇文章吗？此操作不可撤销。')) return
+                  try {
+                    await deleteBlogPost(post.id)
+                    toast.success('文章已删除')
+                    navigate('/blogs')
+                  } catch {
+                    toast.error('删除失败')
+                  }
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '6px 12px',
+                  borderRadius: 'var(--rounded-md)',
+                  backgroundColor: 'var(--color-canvas)',
+                  border: '1px solid var(--color-hairline)',
+                  fontSize: 13,
+                  color: 'var(--color-error)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Trash2 size={12} />
+                删除
+              </button>
+            </div>
+          )}
+
           {/* Meta: Author + Date + Views + Comments */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)', fontSize: 14, color: 'var(--color-muted-soft)', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1484,7 +1589,7 @@ export default function BlogDetailPage() {
                     setIsFavorited(true)
                   }
                 } catch {
-                  alert(isFavorited ? '取消收藏失败' : '收藏失败')
+                  toast.error(isFavorited ? '取消收藏失败' : '收藏失败')
                 } finally {
                   setFavoriting(false)
                 }
@@ -1537,6 +1642,33 @@ export default function BlogDetailPage() {
       </section>
 
       <Footer />
+
+      {showEditor && post && (
+        <BlogEditorModal
+          post={post}
+          categories={categories}
+          onClose={() => setShowEditor(false)}
+          onSubmit={async (data) => {
+            setSubmitting(true)
+            try {
+              const res = await updateBlogPost(post.id, data, data.file)
+              toast.success('文章更新成功')
+              setShowEditor(false)
+              const newSlug = res.data.slug
+              if (newSlug && newSlug !== slug) {
+                navigate(`/blogs/${newSlug}`, { replace: true })
+              } else {
+                fetchPost()
+              }
+            } catch {
+              toast.error('文章更新失败')
+            } finally {
+              setSubmitting(false)
+            }
+          }}
+          submitting={submitting}
+        />
+      )}
     </div>
   )
 }

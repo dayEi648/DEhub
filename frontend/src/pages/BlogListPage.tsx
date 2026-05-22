@@ -7,8 +7,16 @@ import {
   MessageCircle,
   Clock,
   User,
+  Plus,
 } from 'lucide-react'
-import { getBlogPostList, getBlogCategories } from '../api/blog'
+import { toast } from 'sonner'
+import {
+  getBlogPostList,
+  getBlogCategories,
+  createBlogPost,
+} from '../api/blog'
+import { getUser } from '../utils/auth'
+import BlogEditorModal from '../components/BlogEditorModal'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import Pagination from '../components/Pagination'
@@ -402,6 +410,10 @@ export default function BlogListPage() {
   const [activeCategory, setActiveCategory] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showEditor, setShowEditor] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const currentUser = getUser()
+  const isSuperAdmin = currentUser?.permission === 2
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
@@ -453,6 +465,20 @@ export default function BlogListPage() {
     setPage(1)
   }
 
+  const handleCreateBlog = async (data: Parameters<typeof createBlogPost>[0] & { file?: File }) => {
+    setSubmitting(true)
+    try {
+      await createBlogPost(data, data.file)
+      toast.success('文章创建成功')
+      setShowEditor(false)
+      fetchBlogs()
+    } catch {
+      toast.error('文章创建失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
       <AppTopNav onLogout={handleLogout} />
@@ -469,6 +495,30 @@ export default function BlogListPage() {
       {/* Blog Grid */}
       <section style={{ flex: 1, padding: 'var(--spacing-xl) var(--spacing-xl)', backgroundColor: 'var(--color-canvas)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          {isSuperAdmin && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--spacing-md)' }}>
+              <button
+                onClick={() => setShowEditor(true)}
+                style={{
+                  height: 40,
+                  padding: '0 18px',
+                  borderRadius: 'var(--rounded-md)',
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-on-primary)',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Plus size={14} />
+                新建文章
+              </button>
+            </div>
+          )}
           {loading ? (
             <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-muted)' }}>
               加载中...
@@ -505,6 +555,16 @@ export default function BlogListPage() {
       </section>
 
       <Footer />
+
+      {showEditor && (
+        <BlogEditorModal
+          post={null}
+          categories={categories}
+          onClose={() => setShowEditor(false)}
+          onSubmit={handleCreateBlog}
+          submitting={submitting}
+        />
+      )}
     </div>
   )
 }

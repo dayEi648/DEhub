@@ -13,6 +13,7 @@ import {
   Send,
   X,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { getForumPostList, getForumZoneBySlug, createForumPost } from '../api/forum'
 import { followZone, unfollowZone, getFollowedZones } from '../api/favorites'
 import AppTopNav from '../components/AppTopNav'
@@ -50,7 +51,7 @@ function CreatePostModal({
       onSuccess()
       onClose()
     } catch {
-      alert('发帖失败，请稍后重试')
+      toast.error('发帖失败，请稍后重试')
     } finally {
       setSubmitting(false)
     }
@@ -484,7 +485,7 @@ export default function ForumPostListPage() {
                       setIsFollowed(true)
                     }
                   } catch {
-                    alert(isFollowed ? '取消关注失败' : '关注失败')
+                    toast.error(isFollowed ? '取消关注失败' : '关注失败')
                   } finally {
                     setFollowing(false)
                   }

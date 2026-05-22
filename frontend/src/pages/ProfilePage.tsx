@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   ArrowLeft,
   User as UserIcon,
@@ -13,8 +14,6 @@ import {
   X,
   Pencil,
   Shield,
-  AlertCircle,
-  CheckCircle2,
   MessageSquare,
   LayoutGrid,
   Trash2,
@@ -288,9 +287,6 @@ export default function ProfilePage() {
   const [loadingFavorites, setLoadingFavorites] = useState(false)
   const [favSubTab, setFavSubTab] = useState<FavSubTab>('zones')
 
-  // Toast
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
-
   const fetchUser = useCallback(async () => {
     if (!userId) return
     try {
@@ -312,13 +308,6 @@ export default function ProfilePage() {
     }
     fetchUser()
   }, [fetchUser, navigate, userId])
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [toast])
 
   const startEdit = () => {
     if (!user) return
@@ -346,11 +335,11 @@ export default function ProfilePage() {
     if (!file) return
 
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      setToast({ message: '仅支持 JPG、PNG、GIF、WebP 格式的图片', type: 'error' })
+      toast.error('仅支持 JPG、PNG、GIF、WebP 格式的图片')
       return
     }
     if (file.size > MAX_AVATAR_SIZE) {
-      setToast({ message: '图片大小不能超过 20MB', type: 'error' })
+      toast.error('图片大小不能超过 20MB')
       return
     }
 
@@ -363,11 +352,11 @@ export default function ProfilePage() {
   const saveProfile = async () => {
     if (!userId) return
     if (!editUsername.trim()) {
-      setToast({ message: '用户名不能为空', type: 'error' })
+      toast.error('用户名不能为空')
       return
     }
     if (!editEmail.trim()) {
-      setToast({ message: '邮箱不能为空', type: 'error' })
+      toast.error('邮箱不能为空')
       return
     }
 
@@ -390,10 +379,10 @@ export default function ProfilePage() {
       setIsEditing(false)
       setAvatarFile(null)
       setAvatarPreview(null)
-      setToast({ message: '个人资料已更新', type: 'success' })
+      toast.success('个人资料已更新')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setToast({ message: msg || '更新失败，请重试', type: 'error' })
+      toast.error(msg || '更新失败，请重试')
     } finally {
       setSavingProfile(false)
     }
@@ -401,26 +390,26 @@ export default function ProfilePage() {
 
   const savePassword = async () => {
     if (!oldPassword) {
-      setToast({ message: '请输入旧密码', type: 'error' })
+      toast.error('请输入旧密码')
       return
     }
     if (!newPassword || newPassword.length < 6) {
-      setToast({ message: '新密码至少 6 位', type: 'error' })
+      toast.error('新密码至少 6 位')
       return
     }
     if (newPassword === oldPassword) {
-      setToast({ message: '新密码不能与旧密码相同', type: 'error' })
+      toast.error('新密码不能与旧密码相同')
       return
     }
     if (newPassword !== confirmPassword) {
-      setToast({ message: '两次输入的新密码不一致', type: 'error' })
+      toast.error('两次输入的新密码不一致')
       return
     }
 
     setSavingPassword(true)
     try {
       await changePassword({ old_password: oldPassword, new_password: newPassword })
-      setToast({ message: '密码已修改，请重新登录', type: 'success' })
+      toast.success('密码已修改，请重新登录')
       setOldPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -430,7 +419,7 @@ export default function ProfilePage() {
       }, 1500)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setToast({ message: msg || '密码修改失败，请重试', type: 'error' })
+      toast.error(msg || '密码修改失败，请重试')
     } finally {
       setSavingPassword(false)
     }
@@ -465,10 +454,10 @@ export default function ProfilePage() {
     try {
       await unfavoriteBlogPost(postId)
       setFavoriteBlogs((prev) => prev.filter((b) => b.id !== postId))
-      setToast({ message: '已取消收藏', type: 'success' })
+      toast.success('已取消收藏')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setToast({ message: msg || '操作失败', type: 'error' })
+      toast.error(msg || '操作失败')
     }
   }
 
@@ -476,10 +465,10 @@ export default function ProfilePage() {
     try {
       await unfavoriteForumPost(postId)
       setFavoritePosts((prev) => prev.filter((p) => p.id !== postId))
-      setToast({ message: '已取消收藏', type: 'success' })
+      toast.success('已取消收藏')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setToast({ message: msg || '操作失败', type: 'error' })
+      toast.error(msg || '操作失败')
     }
   }
 
@@ -487,10 +476,10 @@ export default function ProfilePage() {
     try {
       await unfollowZone(zoneId)
       setFollowedZones((prev) => prev.filter((z) => z.id !== zoneId))
-      setToast({ message: '已取消关注', type: 'success' })
+      toast.success('已取消关注')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setToast({ message: msg || '操作失败', type: 'error' })
+      toast.error(msg || '操作失败')
     }
   }
 
@@ -544,32 +533,6 @@ export default function ProfilePage() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-canvas)' }}>
-      {/* Toast */}
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 20,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 100,
-            padding: '12px 20px',
-            borderRadius: 'var(--rounded-md)',
-            backgroundColor: toast.type === 'success' ? 'var(--color-success)' : 'var(--color-error)',
-            color: '#fff',
-            fontSize: 14,
-            fontWeight: 500,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            boxShadow: '0 4px 12px rgba(20,20,19,0.12)',
-          }}
-        >
-          {toast.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-          {toast.message}
-        </div>
-      )}
-
       {/* Top bar */}
       <header
         style={{
