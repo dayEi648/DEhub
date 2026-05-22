@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { validateImageFile, createImagePreview } from '../utils/upload'
+import { uploadImage } from '../api/upload'
 import type { BlogCategoryWithPostCount, BlogPostListItem } from '../types/blog'
 
 interface BlogPostEditItem extends BlogPostListItem {
@@ -86,7 +88,7 @@ export default function BlogEditorModal({
 
     const error = validateImageFile(file)
     if (error) {
-      alert(error)
+      toast.error(error)
       return
     }
 
@@ -97,6 +99,58 @@ export default function BlogEditorModal({
     } catch {
       // 预览失败不影响主流程
     }
+  }
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items
+    let imageFile: File | null = null
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          imageFile = file
+          break
+        }
+      }
+    }
+
+    if (!imageFile) return
+
+    e.preventDefault()
+    const error = validateImageFile(imageFile)
+    if (error) {
+      toast.error(error)
+      return
+    }
+
+    const textarea = e.currentTarget
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    toast.promise(
+      uploadImage(imageFile, 'generic').then((res) => {
+        const imageUrl = res.data.url
+        const alt = imageFile!.name.replace(/\.[^/.]+$/, '') || '图片'
+        const markdown = `![${alt}](${imageUrl})`
+        const newContent = contentMd.slice(0, start) + markdown + contentMd.slice(end)
+        setContentMd(newContent)
+        // 将光标移到插入内容之后
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + markdown.length
+          textarea.focus()
+        }, 0)
+      }),
+      {
+        loading: '正在上传图片...',
+        success: '图片上传成功',
+        error: (err: unknown) => {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          return msg || '图片上传失败'
+        },
+      }
+    )
   }
 
   const handleSubmit = () => {
@@ -379,6 +433,7 @@ export default function BlogEditorModal({
               }}
               value={contentMd}
               onChange={(e) => setContentMd(e.target.value)}
+              onPaste={handlePaste}
             />
           </div>
         </div>
