@@ -43,21 +43,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside
-      style={{
-        width: 240,
-        minWidth: 240,
-        height: '100vh',
-        backgroundColor: 'var(--color-surface-dark)',
-        color: 'var(--color-on-dark)',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        zIndex: 50,
-      }}
-    >
+    <aside className="admin-sidebar">
       {/* Logo / Brand */}
       <div
         style={{

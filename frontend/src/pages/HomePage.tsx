@@ -4,9 +4,6 @@ import {
   BookOpen,
   MessageSquare,
   Briefcase,
-  Settings,
-  LogOut,
-  User,
   ArrowRight,
   Eye,
   MessageCircle,
@@ -19,7 +16,8 @@ import {
 import { getBlogPostList } from '../api/blog'
 import { getForumPostList, getForumZoneList } from '../api/forum'
 import { logout } from '../api/users'
-import { clearAuth, getUser } from '../utils/auth'
+import AppTopNav from '../components/AppTopNav'
+import { clearAuth } from '../utils/auth'
 import type { BlogPostListItem } from '../types/blog'
 import type { ForumPost, ForumZone } from '../types/forum'
 
@@ -47,173 +45,6 @@ function useViewport() {
 }
 
 /* ─── Sub-components ─── */
-
-function TopNav({ onLogout }: { onLogout: () => void }) {
-  const currentUser = getUser()
-  const navigate = useNavigate()
-
-  const navLinks = [
-    { label: '博客', href: '/blogs' },
-    { label: '论坛', href: '/#forum' },
-    { label: '作品集', href: '/#portfolio' },
-  ]
-
-  const linkStyle: React.CSSProperties = {
-    fontSize: 14,
-    fontWeight: 500,
-    color: 'var(--color-ink)',
-    textDecoration: 'none',
-    lineHeight: 1.4,
-    transition: 'color 150ms ease',
-  }
-
-  return (
-    <header
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-        height: 64,
-        backgroundColor: 'var(--color-canvas)',
-        borderBottom: '1px solid var(--color-hairline-soft)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 var(--spacing-xl)',
-      }}
-    >
-      {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-        <Sparkles size={20} color="var(--color-primary)" />
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 20,
-            fontWeight: 500,
-            letterSpacing: '-0.3px',
-            color: 'var(--color-ink)',
-          }}
-        >
-          DE hub
-        </span>
-      </div>
-
-      {/* Center Nav */}
-      <nav style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
-        {navLinks.map((l) => (
-          <a
-            key={l.label}
-            href={l.href}
-            style={linkStyle}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--color-primary)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--color-ink)'
-            }}
-          >
-            {l.label}
-          </a>
-        ))}
-      </nav>
-
-      {/* Right cluster */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-        <button
-          onClick={() => navigate('/admin/logs')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 13,
-            fontWeight: 500,
-            color: 'var(--color-muted)',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            transition: 'color 150ms ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = 'var(--color-ink)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'var(--color-muted)'
-          }}
-        >
-          <Settings size={15} />
-          管理后台
-        </button>
-
-        {currentUser && (
-          <button
-            onClick={() => navigate('/profile')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--spacing-sm)',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              borderRadius: 'var(--rounded-md)',
-              transition: 'background-color 150ms ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--color-surface-soft)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 'var(--rounded-full)',
-                backgroundColor: 'var(--color-surface-card)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-primary)',
-              }}
-            >
-              <User size={14} />
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-body-strong)' }}>
-              {currentUser.username}
-            </span>
-          </button>
-        )}
-
-        <button
-          onClick={onLogout}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 'var(--rounded-full)',
-            backgroundColor: 'var(--color-canvas)',
-            border: '1px solid var(--color-hairline)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-ink)',
-            cursor: 'pointer',
-            transition: 'all 150ms ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-surface-card)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
-          }}
-          title="登出"
-        >
-          <LogOut size={15} />
-        </button>
-      </div>
-    </header>
-  )
-}
 
 function HeroSection() {
   return (
@@ -628,12 +459,15 @@ function BlogSection({ blogs }: { blogs: BlogPostListItem[] }) {
 
 function ForumSection({ posts, zones }: { posts: ForumPost[]; zones: ForumZone[] }) {
   const navigate = useNavigate()
+  const isMobile = useViewport() < 768
   return (
     <section
       id="forum"
       style={{
         backgroundColor: 'var(--color-canvas)',
-        padding: 'var(--spacing-section) var(--spacing-xl)',
+        padding: isMobile
+          ? 'var(--spacing-xxl) var(--spacing-lg)'
+          : 'var(--spacing-section) var(--spacing-xl)',
       }}
     >
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -678,8 +512,8 @@ function ForumSection({ posts, zones }: { posts: ForumPost[]; zones: ForumZone[]
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '300px 1fr',
-            gap: 'var(--spacing-xl)',
+            gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '300px minmax(0, 1fr)',
+            gap: isMobile ? 'var(--spacing-lg)' : 'var(--spacing-xl)',
           }}
         >
           {/* Left: Zones */}
@@ -687,8 +521,9 @@ function ForumSection({ posts, zones }: { posts: ForumPost[]; zones: ForumZone[]
             style={{
               backgroundColor: 'var(--color-surface-card)',
               borderRadius: 'var(--rounded-lg)',
-              padding: 'var(--spacing-xl)',
+              padding: isMobile ? 'var(--spacing-lg)' : 'var(--spacing-xl)',
               height: 'fit-content',
+              minWidth: 0,
             }}
           >
             <h3
@@ -742,10 +577,11 @@ function ForumSection({ posts, zones }: { posts: ForumPost[]; zones: ForumZone[]
             style={{
               backgroundColor: 'var(--color-surface-card)',
               borderRadius: 'var(--rounded-lg)',
-              padding: 'var(--spacing-xl)',
+              padding: isMobile ? 'var(--spacing-lg)' : 'var(--spacing-xl)',
               display: 'flex',
               flexDirection: 'column',
               gap: 'var(--spacing-sm)',
+              minWidth: 0,
             }}
           >
             <h3
@@ -957,7 +793,7 @@ function FooterSection() {
             导航
           </h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {['博客', '论坛', '作品集', '管理后台'].map((item) => (
+            {['博客', '论坛', '作品集'].map((item) => (
               <span key={item} style={{ fontSize: 14, color: 'var(--color-on-dark-soft)' }}>
                 {item}
               </span>
@@ -1055,7 +891,7 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-canvas)' }}>
-      <TopNav onLogout={handleLogout} />
+      <AppTopNav onLogout={handleLogout} forumHref="/#forum" />
 
       <HeroSection />
 

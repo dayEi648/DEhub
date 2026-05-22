@@ -224,6 +224,7 @@ __marimo__/
 
 # 个人开发环境
 .cursor/
+.codex/
 
 .kimi/
 AGENTS.md

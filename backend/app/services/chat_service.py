@@ -166,7 +166,9 @@ class ChatService:
         # 如果 checkpoint 存在但格式旧（无 SystemMessage），清理后重新初始化
         if state_before is not None:
             messages = state_before.values.get("messages", [])
-            if not messages or not isinstance(messages[0], SystemMessage):
+            if not messages:
+                state_before = None
+            elif not isinstance(messages[0], SystemMessage):
                 logger.info("检测到旧格式 checkpoint，清理后重新初始化")
                 await delete_checkpoint(str(conversation_id))
                 state_before = None

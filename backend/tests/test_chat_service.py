@@ -26,7 +26,7 @@ class TestChatServiceChat:
     @patch("app.services.chat_service.conv_crud.create_ai_conversation")
     @patch("app.services.chat_service.msg_crud.create_conversation_message")
     @patch.object(ChatService, "_ensure_title_async")
-    @patch.object(ChatService, "_maybe_sync_summary_async")
+    @patch.object(ChatService, "_maybe_update_profile_async")
     def test_chat_creates_new_conversation_when_no_id(
         self, mock_sync, mock_title, mock_create_msg, mock_create_conv
     ):

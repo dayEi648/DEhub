@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -296,22 +296,7 @@ export default function ProfilePage() {
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
-  useEffect(() => {
-    if (!userId) {
-      navigate('/login', { replace: true })
-      return
-    }
-    fetchUser()
-  }, [userId])
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [toast])
-
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     if (!userId) return
     try {
       setLoading(true)
@@ -323,7 +308,22 @@ export default function ProfilePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [userId])
+
+  useEffect(() => {
+    if (!userId) {
+      navigate('/login', { replace: true })
+      return
+    }
+    fetchUser()
+  }, [fetchUser, navigate, userId])
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [toast])
 
   const startEdit = () => {
     if (!user) return
@@ -442,7 +442,7 @@ export default function ProfilePage() {
   }
 
   // Favorites
-  const fetchFavorites = async () => {
+  const fetchFavorites = useCallback(async () => {
     try {
       setLoadingFavorites(true)
       const [blogRes, postRes, zoneRes] = await Promise.all([
@@ -458,13 +458,13 @@ export default function ProfilePage() {
     } finally {
       setLoadingFavorites(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'favorites') {
       fetchFavorites()
     }
-  }, [activeTab])
+  }, [activeTab, fetchFavorites])
 
   const handleUnfavoriteBlog = async (postId: number) => {
     try {

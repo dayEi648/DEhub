@@ -53,21 +53,16 @@ export default function RegisterPage() {
 
   return (
     <div
+      className="auth-page"
       style={{
-        minHeight: '100vh',
-        width: '100%',
-        display: 'flex',
       }}
     >
       {/* Left: Brand panel */}
       <div
+        className="auth-brand-panel"
         style={{
-          flex: 1,
           backgroundColor: 'var(--color-surface-dark)',
-          display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
           padding: 'var(--spacing-xxl)',
           position: 'relative',
           overflow: 'hidden',
@@ -157,13 +152,9 @@ export default function RegisterPage() {
 
       {/* Right: Form panel */}
       <div
+        className="auth-form-panel"
         style={{
-          width: 520,
-          minWidth: 520,
           backgroundColor: '#faf9f5',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           padding: 'var(--spacing-xl)',
         }}
       >

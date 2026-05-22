@@ -10,9 +10,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Sparkles,
-  LogOut,
   User,
-  Settings,
   ChevronLeft,
   Send,
   Heart,
@@ -26,6 +24,7 @@ import { getBlogPostBySlug } from '../api/blog'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
 import { logout } from '../api/users'
 import { clearAuth, getUser } from '../utils/auth'
+import AppTopNav from '../components/AppTopNav'
 import type { BlogPostDetailResponse, BlogPostListItem } from '../types/blog'
 import type { CommentResponse } from '../types/comments'
 
@@ -38,174 +37,6 @@ function formatDate(iso: string): string {
 function formatDateTime(iso: string): string {
   const d = new Date(iso)
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-/* ─── TopNav ─── */
-function TopNav({ onLogout }: { onLogout: () => void }) {
-  const currentUser = getUser()
-  const navigate = useNavigate()
-
-  const navLinks = [
-    { label: '博客', href: '/blogs' },
-    { label: '论坛', href: '/forums' },
-    { label: '作品集', href: '/#portfolio' },
-  ]
-
-  const linkStyle: React.CSSProperties = {
-    fontSize: 14,
-    fontWeight: 500,
-    color: 'var(--color-ink)',
-    textDecoration: 'none',
-    lineHeight: 1.4,
-    transition: 'color 150ms ease',
-  }
-
-  return (
-    <header
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-        height: 64,
-        backgroundColor: 'var(--color-canvas)',
-        borderBottom: '1px solid var(--color-hairline-soft)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 var(--spacing-xl)',
-      }}
-    >
-      <div
-        style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', cursor: 'pointer' }}
-        onClick={() => navigate('/')}
-      >
-        <Sparkles size={20} color="var(--color-primary)" />
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 20,
-            fontWeight: 500,
-            letterSpacing: '-0.3px',
-            color: 'var(--color-ink)',
-          }}
-        >
-          DE hub
-        </span>
-      </div>
-
-      <nav style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
-        {navLinks.map((l) => (
-          <a
-            key={l.label}
-            href={l.href}
-            style={linkStyle}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--color-primary)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--color-ink)'
-            }}
-          >
-            {l.label}
-          </a>
-        ))}
-      </nav>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-        <button
-          onClick={() => navigate('/admin/logs')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 13,
-            fontWeight: 500,
-            color: 'var(--color-muted)',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            transition: 'color 150ms ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = 'var(--color-ink)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'var(--color-muted)'
-          }}
-        >
-          <Settings size={15} />
-          管理后台
-        </button>
-
-        {currentUser && (
-          <button
-            onClick={() => navigate('/profile')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--spacing-sm)',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              borderRadius: 'var(--rounded-md)',
-              transition: 'background-color 150ms ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--color-surface-soft)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 'var(--rounded-full)',
-                backgroundColor: 'var(--color-surface-card)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-primary)',
-              }}
-            >
-              <User size={14} />
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-body-strong)' }}>
-              {currentUser.username}
-            </span>
-          </button>
-        )}
-
-        <button
-          onClick={onLogout}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 'var(--rounded-full)',
-            backgroundColor: 'var(--color-canvas)',
-            border: '1px solid var(--color-hairline)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-ink)',
-            cursor: 'pointer',
-            transition: 'all 150ms ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-surface-card)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
-          }}
-          title="登出"
-        >
-          <LogOut size={15} />
-        </button>
-      </div>
-    </header>
-  )
 }
 
 /* ─── Markdown Renderer ─── */
@@ -1486,7 +1317,7 @@ export default function BlogDetailPage() {
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
-        <TopNav onLogout={handleLogout} />
+        <AppTopNav onLogout={handleLogout} />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-muted)' }}>
           加载中...
         </div>
@@ -1498,7 +1329,7 @@ export default function BlogDetailPage() {
   if (error || !post) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
-        <TopNav onLogout={handleLogout} />
+        <AppTopNav onLogout={handleLogout} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-muted)', gap: 'var(--spacing-md)' }}>
           <BookOpen size={48} style={{ opacity: 0.3 }} />
           <p style={{ fontSize: 16, margin: 0 }}>{error || '文章不存在'}</p>
@@ -1529,7 +1360,7 @@ export default function BlogDetailPage() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
-      <TopNav onLogout={handleLogout} />
+      <AppTopNav onLogout={handleLogout} />
 
       {/* Article Header */}
       <section

@@ -76,7 +76,7 @@ function App() {
       <Route
         path="/admin/*"
         element={
-          <AuthGuard>
+          <AuthGuard requireAdmin>
             <AdminLayout>
               <AdminDashboard />
             </AdminLayout>
