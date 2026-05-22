@@ -34,8 +34,7 @@ import type { User as UserType } from '../types/user'
 import type { BlogPostListItem } from '../types/blog'
 import type { ForumPost, ForumZone } from '../types/forum'
 
-const MAX_AVATAR_SIZE = 20 * 1024 * 1024 // 20MB
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+import { validateImageFile, createImagePreview } from '../utils/upload'
 
 type TabKey = 'profile' | 'security' | 'favorites'
 type FavSubTab = 'zones' | 'posts' | 'blogs'
@@ -330,23 +329,23 @@ export default function ProfilePage() {
     fileInputRef.current?.click()
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      toast.error('仅支持 JPG、PNG、GIF、WebP 格式的图片')
-      return
-    }
-    if (file.size > MAX_AVATAR_SIZE) {
-      toast.error('图片大小不能超过 20MB')
+    const error = validateImageFile(file)
+    if (error) {
+      toast.error(error)
       return
     }
 
     setAvatarFile(file)
-    const reader = new FileReader()
-    reader.onload = () => setAvatarPreview(reader.result as string)
-    reader.readAsDataURL(file)
+    try {
+      const preview = await createImagePreview(file)
+      setAvatarPreview(preview)
+    } catch {
+      toast.error('图片预览生成失败')
+    }
   }
 
   const saveProfile = async () => {

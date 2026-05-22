@@ -4,6 +4,7 @@ import uuid
 import mimetypes
 import asyncio
 import filetype
+from enum import Enum
 from urllib.parse import urlparse
 from datetime import datetime
 from fastapi import HTTPException, UploadFile
@@ -15,6 +16,58 @@ bucket = oss2.Bucket(auth, settings.OSS_ENDPOINT, settings.OSS_BUCKET_NAME)
 
 # 允许的文件类型
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+
+
+class ImageUploadScene(str, Enum):
+    """图片上传场景枚举，决定保存到 OSS 的路径和压缩策略"""
+
+    avatar = "avatar"
+    cover = "cover"
+    generic = "generic"
+    forum_post = "forum_post"
+    forum_reply = "forum_reply"
+    comment = "comment"
+    chat = "chat"
+
+
+# 场景配置：映射每个场景到 OSS 目录、压缩最大边长
+SCENE_CONFIG: dict[ImageUploadScene, dict] = {
+    ImageUploadScene.avatar: {
+        "folder": settings.OSS_USERS_AVATAR_DIR,
+        "compress_max_dimension": 1024,
+        "description": "用户头像",
+    },
+    ImageUploadScene.cover: {
+        "folder": settings.OSS_BLOG_COVER_DIR,
+        "compress_max_dimension": 1920,
+        "description": "博客封面",
+    },
+    ImageUploadScene.generic: {
+        "folder": settings.OSS_UPLOADS_IMAGE_DIR,
+        "compress_max_dimension": 1920,
+        "description": "通用图片",
+    },
+    ImageUploadScene.forum_post: {
+        "folder": settings.OSS_FORUM_POST_IMAGE_DIR,
+        "compress_max_dimension": 1920,
+        "description": "论坛帖子内嵌图片",
+    },
+    ImageUploadScene.forum_reply: {
+        "folder": settings.OSS_FORUM_REPLY_IMAGE_DIR,
+        "compress_max_dimension": 1920,
+        "description": "论坛回复内嵌图片",
+    },
+    ImageUploadScene.comment: {
+        "folder": settings.OSS_COMMENT_IMAGE_DIR,
+        "compress_max_dimension": 1920,
+        "description": "评论内嵌图片",
+    },
+    ImageUploadScene.chat: {
+        "folder": settings.OSS_CHAT_IMAGE_DIR,
+        "compress_max_dimension": 1920,
+        "description": "AI对话内嵌图片",
+    },
+}
 
 
 def generate_file_path(content_type: str, folder: str) -> str:
@@ -32,18 +85,21 @@ def generate_file_path(content_type: str, folder: str) -> str:
     return f"{folder}/{date_str}/{unique_name}"
 
 
-def compress_image(content: bytes, max_size: int, max_dimension: int = 1024) -> bytes:
+def compress_image(content: bytes, max_size: int | None = None, max_dimension: int = 1024) -> bytes:
     """
     压缩图片，确保输出大小不超过 max_size
     Args:
         content: 原始图片字节
-        max_size: 允许的最大字节数
+        max_size: 允许的最大字节数，默认使用 settings.MAX_OSS_IMAGE_SIZE (5MB)
         max_dimension: 最大边长限制
     Returns:
         bytes: 压缩后的 JPEG 字节
     Raises:
         HTTPException: Pillow 未安装或压缩后仍超限
     """
+    if max_size is None:
+        max_size = settings.MAX_OSS_IMAGE_SIZE
+
     try:
         from PIL import Image
     except ImportError as exc:
@@ -182,6 +238,29 @@ async def upload_file_to_oss(
     return url
 
 
+async def upload_image(file: UploadFile, scene: ImageUploadScene) -> str:
+    """
+    统一图片上传入口，根据场景自动选择路径和压缩策略
+    Args:
+        file: 上传文件
+        scene: 上传场景枚举
+    Returns:
+        str: 文件访问 URL
+    """
+    config = SCENE_CONFIG.get(scene)
+    if not config:
+        raise HTTPException(status_code=400, detail=f"未知的上传场景: {scene}")
+
+    return await upload_file_to_oss(
+        file,
+        folder=config["folder"],
+        allowed_types=ALLOWED_IMAGE_TYPES,
+        max_size=settings.MAX_OSS_IMAGE_SIZE,
+        compress=True,
+        compress_max_dimension=config["compress_max_dimension"],
+    )
+
+
 async def delete_file_from_oss(file_path: str) -> None:
     """
     删除文件从OSS（异步版本）
@@ -230,6 +309,8 @@ def delete_file_from_oss_sync(file_path: str) -> None:
         raise HTTPException(status_code=500, detail=f"删除文件失败: {str(e)}")
 
 
+# ── 兼容层：旧便捷函数，内部调用统一的 upload_image ──
+
 async def upload_user_avatar(file: UploadFile) -> str:
     """
     上传用户头像（自动压缩后上传）
@@ -238,14 +319,7 @@ async def upload_user_avatar(file: UploadFile) -> str:
     Returns:
         str: 文件URL
     """
-    return await upload_file_to_oss(
-        file,
-        settings.OSS_USERS_AVATAR_DIR,
-        ALLOWED_IMAGE_TYPES,
-        settings.MAX_USER_AVATAR_SIZE,
-        compress=True,
-        compress_max_dimension=1024,
-    )
+    return await upload_image(file, ImageUploadScene.avatar)
 
 
 async def upload_blog_cover(file: UploadFile) -> str:
@@ -256,14 +330,7 @@ async def upload_blog_cover(file: UploadFile) -> str:
     Returns:
         str: 文件URL
     """
-    return await upload_file_to_oss(
-        file,
-        settings.OSS_BLOG_COVER_DIR,
-        ALLOWED_IMAGE_TYPES,
-        settings.MAX_BLOG_COVER_SIZE,
-        compress=True,
-        compress_max_dimension=1920,
-    )
+    return await upload_image(file, ImageUploadScene.cover)
 
 
 async def upload_generic_image(file: UploadFile) -> str:
@@ -274,14 +341,7 @@ async def upload_generic_image(file: UploadFile) -> str:
     Returns:
         str: 文件URL
     """
-    return await upload_file_to_oss(
-        file,
-        settings.OSS_UPLOADS_IMAGE_DIR,
-        ALLOWED_IMAGE_TYPES,
-        settings.MAX_UPLOAD_IMAGE_SIZE,
-        compress=True,
-        compress_max_dimension=1920,
-    )
+    return await upload_image(file, ImageUploadScene.generic)
 
 
 def convert_oss_url_to_file_path(oss_url: str) -> str:

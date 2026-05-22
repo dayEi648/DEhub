@@ -14,7 +14,7 @@ from fastapi import HTTPException, status, UploadFile
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
 from app.core.config import settings
 from app.core.permissions import require_admin
-from app.storage.oss import delete_file_from_oss_sync, upload_user_avatar, convert_oss_url_to_file_path, delete_file_from_oss
+from app.storage.oss import delete_file_from_oss_sync, upload_image, ImageUploadScene, convert_oss_url_to_file_path, delete_file_from_oss
 from app.redis_client import get_redis_client, get_sync_redis_client
 
 logger = logging.getLogger(__name__)
@@ -188,7 +188,7 @@ class UserService:
             if db_user.avatar_url:
                 await delete_file_from_oss(convert_oss_url_to_file_path(db_user.avatar_url))
             # 上传新头像
-            avatar_url = await upload_user_avatar(file)
+            avatar_url = await upload_image(file, ImageUploadScene.avatar)
             user_in.avatar_url = avatar_url
 
         return UserResponse.model_validate(user_crud.update_user(self.db, db_user, user_in))

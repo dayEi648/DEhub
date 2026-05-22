@@ -16,7 +16,7 @@ from app.schemas.blog_post import (
 )
 from app.crud import blog_post as blog_post_crud
 from app.utils.slug import generate_unique_slug
-from app.storage.oss import upload_blog_cover, delete_file_from_oss, convert_oss_url_to_file_path
+from app.storage.oss import upload_image, ImageUploadScene, delete_file_from_oss, convert_oss_url_to_file_path
 from app.infrastructure.llm_client import get_llm_small_client
 from app.services.blog_post_embedding_service import BlogPostEmbeddingService
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -66,7 +66,7 @@ class BlogPostService:
             self._ensure_slug_unique(post_in.slug)
 
         if file:
-            cover_url = await upload_blog_cover(file)
+            cover_url = await upload_image(file, ImageUploadScene.cover)
             post_in = post_in.model_copy(update={"cover_image_url": cover_url})
 
         db_post = blog_post_crud.create_blog_post(self.db, post_in, current_user.id)
@@ -134,7 +134,7 @@ class BlogPostService:
             # 删除旧封面
             if db_post.cover_image_url:
                 await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
-            cover_url = await upload_blog_cover(file)
+            cover_url = await upload_image(file, ImageUploadScene.cover)
             post_in = post_in.model_copy(update={"cover_image_url": cover_url})
 
         updated = blog_post_crud.update_blog_post(self.db, db_post, post_in)

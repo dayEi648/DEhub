@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
+import { validateImageFile, createImagePreview } from '../utils/upload'
 import type { BlogCategoryWithPostCount, BlogPostListItem } from '../types/blog'
 
 interface BlogPostEditItem extends BlogPostListItem {
@@ -36,6 +37,7 @@ export default function BlogEditorModal({
   const [summary, setSummary] = useState('')
   const [contentMd, setContentMd] = useState('')
   const [coverFile, setCoverFile] = useState<File | null>(null)
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState<number>(categories[0]?.id ?? 0)
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
@@ -48,6 +50,7 @@ export default function BlogEditorModal({
       setSummary(post.summary || '')
       setContentMd((post as unknown as { content_md?: string }).content_md || '')
       setCoverFile(null)
+      setCoverPreview(post.cover_image_url || null)
       setCategoryId(post.category_id)
       setTags(post.tags || [])
       setStatus(post.status as 'draft' | 'published')
@@ -57,6 +60,7 @@ export default function BlogEditorModal({
       setSummary('')
       setContentMd('')
       setCoverFile(null)
+      setCoverPreview(null)
       setCategoryId(categories[0]?.id ?? 0)
       setTags([])
       setStatus('draft')
@@ -76,10 +80,22 @@ export default function BlogEditorModal({
     setTags((prev) => prev.filter((x) => x !== t))
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setCoverFile(file)
+    if (!file) return
+
+    const error = validateImageFile(file)
+    if (error) {
+      alert(error)
+      return
+    }
+
+    setCoverFile(file)
+    try {
+      const preview = await createImagePreview(file)
+      setCoverPreview(preview)
+    } catch {
+      // 预览失败不影响主流程
     }
   }
 
@@ -311,11 +327,14 @@ export default function BlogEditorModal({
               >
                 <Plus size={14} />
                 选择文件
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{ display: 'none' }} onChange={handleFileChange} />
               </label>
-              {coverFile && (
+              {(coverFile || coverPreview) && (
                 <button
-                  onClick={() => setCoverFile(null)}
+                  onClick={() => {
+                    setCoverFile(null)
+                    setCoverPreview(null)
+                  }}
                   style={{
                     height: 40,
                     padding: '0 14px',
@@ -331,6 +350,21 @@ export default function BlogEditorModal({
                 </button>
               )}
             </div>
+            {coverPreview && (
+              <div style={{ marginTop: 'var(--spacing-xs)' }}>
+                <img
+                  src={coverPreview}
+                  alt="封面预览"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: 160,
+                    borderRadius: 'var(--rounded-md)',
+                    objectFit: 'cover',
+                    border: '1px solid var(--color-hairline)',
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div>

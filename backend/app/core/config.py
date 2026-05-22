@@ -77,14 +77,23 @@ class Settings(BaseSettings):
     OSS_ENDPOINT: str = Field(default="")
     OSS_BUCKET_NAME: str = Field(default="")
     OSS_DOMAIN: str = Field(default="")
+    # OSS 图片上传统一限制（5MB）
+    MAX_OSS_IMAGE_SIZE: int = Field(default=5 * 1024 * 1024)
+
     OSS_USERS_AVATAR_DIR: str = Field(default="users/avatar")
-    MAX_USER_AVATAR_SIZE: int = Field(default=2097152)
+    MAX_USER_AVATAR_SIZE: int = Field(default=5 * 1024 * 1024)
 
     OSS_BLOG_COVER_DIR: str = Field(default="blog/covers")
-    MAX_BLOG_COVER_SIZE: int = Field(default=5242880)
+    MAX_BLOG_COVER_SIZE: int = Field(default=5 * 1024 * 1024)
 
     OSS_UPLOADS_IMAGE_DIR: str = Field(default="uploads/images")
-    MAX_UPLOAD_IMAGE_SIZE: int = Field(default=5242880)
+    MAX_UPLOAD_IMAGE_SIZE: int = Field(default=5 * 1024 * 1024)
+
+    # 预留场景路径
+    OSS_FORUM_POST_IMAGE_DIR: str = Field(default="forum/posts")
+    OSS_FORUM_REPLY_IMAGE_DIR: str = Field(default="forum/replies")
+    OSS_COMMENT_IMAGE_DIR: str = Field(default="comments/images")
+    OSS_CHAT_IMAGE_DIR: str = Field(default="chat/images")
 
     # RAG 向量检索相似度阈值（低于此值的结果不会注入 AI 上下文）
     RAG_MIN_SIMILARITY: float = Field(default=0.6)
