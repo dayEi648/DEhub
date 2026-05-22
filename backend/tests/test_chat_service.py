@@ -1,6 +1,7 @@
 """chat_service 单元测试。"""
 
 import asyncio
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -128,6 +129,39 @@ class TestChatServiceChat:
         assert kwargs3["metadata"] is None
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
+    @patch("app.services.chat_service.msg_crud.create_conversation_message")
+    def test_chat_marks_tool_call_ai_with_content_as_displayable(
+        self, mock_create_msg, mock_get_conv
+    ):
+        """含 tool_calls 且有正文的 AIMessage 应标记为可展示。"""
+        mock_conv = MagicMock()
+        mock_conv.user_id = 1
+        mock_get_conv.return_value = mock_conv
+
+        intermediate_ai = AIMessage(
+            content="好的，我帮你联网搜索一下。",
+            tool_calls=[
+                {"id": "call_123", "name": "web_search", "args": {"query": "python"}}
+            ],
+        )
+        final_ai = AIMessage(content="根据联网搜索结果，我整理如下。")
+
+        self.service.graph.aget_state = AsyncMock(
+            return_value=MagicMock(values={"messages": []})
+        )
+        self.service.graph.ainvoke = AsyncMock(
+            return_value={"messages": [intermediate_ai, final_ai]}
+        )
+
+        chat_in = ChatRequest(user_input="查一下 Python", conversation_id=1)
+        result = asyncio.run(self.service.chat(chat_in, user_id=1))
+
+        assert result.response == "根据联网搜索结果，我整理如下。"
+        kwargs1 = mock_create_msg.call_args_list[1].kwargs
+        assert kwargs1["metadata"]["display"] is True
+        assert kwargs1["metadata"]["tool_calls"][0]["name"] == "web_search"
+
+    @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     def test_chat_rejects_nonexistent_conversation(self, mock_get_conv):
         """传入不存在的 conversation_id 时应抛出 404。"""
         mock_get_conv.return_value = None
@@ -147,23 +181,76 @@ class TestGetMessages:
         with patch("app.services.chat_service.get_chat_graph"):
             self.service = ChatService(self.mock_db)
 
+    @staticmethod
+    def _message(
+        message_id: int,
+        role: str,
+        content: str,
+        meta: dict | None = None,
+    ) -> MagicMock:
+        msg = MagicMock()
+        msg.id = message_id
+        msg.conversation_id = 1
+        msg.role = role
+        msg.content = content
+        msg.meta = meta
+        msg.created_at = datetime(2026, 5, 22, tzinfo=timezone.utc)
+        return msg
+
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.list_conversation_messages")
     def test_filters_hidden_by_default(self, mock_list, mock_get_conv):
-        """默认应过滤掉 meta.display=False 的消息。"""
+        """默认应过滤掉工具结果、系统消息和空内容工具决策消息。"""
         mock_conv = MagicMock()
         mock_conv.user_id = 1
         mock_get_conv.return_value = mock_conv
 
-        visible_msg = MagicMock()
-        visible_msg.meta = None
-        hidden_msg = MagicMock()
-        hidden_msg.meta = {"display": False}
-        mock_list.return_value = [visible_msg, hidden_msg]
+        visible_msg = self._message(1, "assistant", "最终回复")
+        hidden_ai = self._message(
+            2,
+            "assistant",
+            "",
+            {"display": False, "tool_calls": [{"name": "search_blog"}]},
+        )
+        tool_msg = self._message(3, "tool", "工具结果", {"display": False})
+        system_msg = self._message(4, "system", "系统提示")
+        mock_list.return_value = [visible_msg, hidden_ai, tool_msg, system_msg]
 
         result = asyncio.run(self.service.get_messages(1, 1))
         assert len(result) == 1
-        assert result[0] == visible_msg
+        assert result[0].id == visible_msg.id
+        assert result[0].content == "最终回复"
+
+    @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
+    @patch("app.services.chat_service.msg_crud.list_conversation_messages")
+    def test_keeps_tool_call_assistant_content_visible_by_default(
+        self, mock_list, mock_get_conv
+    ):
+        """带 tool_calls 但有正文的 assistant 消息应作为普通可见回复返回。"""
+        mock_conv = MagicMock()
+        mock_conv.user_id = 1
+        mock_get_conv.return_value = mock_conv
+
+        pre_tool_reply = self._message(
+            1,
+            "assistant",
+            "好的，我帮你联网搜索一下。",
+            {
+                "display": True,
+                "tool_calls": [{"id": "call_1", "name": "web_search"}],
+            },
+        )
+        tool_msg = self._message(2, "tool", "工具结果", {"display": False})
+        final_reply = self._message(3, "assistant", "根据联网搜索结果，我整理如下。")
+        mock_list.return_value = [pre_tool_reply, tool_msg, final_reply]
+
+        result = asyncio.run(self.service.get_messages(1, 1))
+
+        assert [msg.content for msg in result] == [
+            "好的，我帮你联网搜索一下。",
+            "根据联网搜索结果，我整理如下。",
+        ]
+        assert result[0].meta is None
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.list_conversation_messages")
@@ -173,14 +260,18 @@ class TestGetMessages:
         mock_conv.user_id = 1
         mock_get_conv.return_value = mock_conv
 
-        visible_msg = MagicMock()
-        visible_msg.meta = None
-        hidden_msg = MagicMock()
-        hidden_msg.meta = {"display": False}
+        visible_msg = self._message(1, "assistant", "最终回复")
+        hidden_msg = self._message(
+            2,
+            "tool",
+            "工具结果",
+            {"display": False, "tool_call_id": "call_1"},
+        )
         mock_list.return_value = [visible_msg, hidden_msg]
 
         result = asyncio.run(self.service.get_messages(1, 1, include_hidden=True))
         assert len(result) == 2
+        assert result[1].meta == {"display": False, "tool_call_id": "call_1"}
 
 
 class TestGetConversationIfOwned:

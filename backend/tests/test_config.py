@@ -1,7 +1,19 @@
 """配置模块单元测试。"""
 
+from pathlib import Path
+
 import pytest
 from app.core.config import Settings
+
+
+class TestEnvFilePath:
+    """测试配置文件读取路径。"""
+
+    def test_env_file_points_to_backend_env(self):
+        """Settings 应固定读取 backend/.env，不依赖进程当前工作目录。"""
+        env_file = Path(Settings.model_config["env_file"])
+        assert env_file.name == ".env"
+        assert env_file.parent.name == "backend"
 
 
 class TestDatabaseUrl:

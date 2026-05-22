@@ -13,6 +13,8 @@ from app.storage.oss import (
     upload_generic_image,
     compress_image,
     ALLOWED_IMAGE_TYPES,
+    _build_oss_file_url,
+    _normalize_oss_endpoint,
 )
 from app.core.config import settings
 
@@ -154,3 +156,25 @@ class TestCompressImageDefaults:
                     result = compress_image(b"fake", max_dimension=100)
 
                 assert result is not None
+
+
+class TestOssConfigHelpers:
+    """验证 OSS 配置兼容当前 .env 写法。"""
+
+    def test_normalize_oss_endpoint_adds_scheme(self):
+        assert (
+            _normalize_oss_endpoint("oss-cn-beijing.aliyuncs.com")
+            == "https://oss-cn-beijing.aliyuncs.com"
+        )
+
+    def test_normalize_oss_endpoint_keeps_existing_scheme(self):
+        assert (
+            _normalize_oss_endpoint("http://oss-cn-beijing.aliyuncs.com")
+            == "http://oss-cn-beijing.aliyuncs.com"
+        )
+
+    def test_build_file_url_uses_full_oss_domain(self):
+        with patch("app.storage.oss.settings.OSS_DOMAIN", "https://cdn.example.com/dehub/"):
+            assert _build_oss_file_url("chat/20260522/a.jpg") == (
+                "https://cdn.example.com/dehub/chat/20260522/a.jpg"
+            )

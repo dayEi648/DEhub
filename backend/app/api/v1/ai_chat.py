@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.permissions import require_admin
 from app.core.security import get_current_user
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
@@ -75,6 +76,9 @@ async def list_messages(
     默认过滤掉 AI 流程中的中间隐藏消息，供前端展示使用。
     设置 include_hidden=true 可查看完整消息流（供管理监控）。
     """
+    if include_hidden:
+        require_admin(current_user)
+
     service = ChatService(db)
     messages = await service.get_messages(
         conversation_id=conversation_id,

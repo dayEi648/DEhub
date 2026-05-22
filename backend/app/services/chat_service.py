@@ -14,7 +14,7 @@ from app.infrastructure.checkpoint_client import delete_checkpoint
 from app.infrastructure.llm_client import get_llm_small_client
 from app.models.ai_conversation import AIConversation
 from app.prompts.chat_prompts import CHAT_DEFAULT_SYSTEM_PROMPT, CONVERSATION_TITLE_PROMPT
-from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.chat import ChatRequest, ChatResponse, MessageResponse
 from app.services.user_profile_service import UserProfileService
 
 logger = logging.getLogger(__name__)
@@ -54,6 +54,33 @@ class ChatService:
         if not content:
             content = msg.additional_kwargs.get("reasoning_content", "") or ""
         return content
+
+    @staticmethod
+    def _has_displayable_content(message) -> bool:
+        """判断消息是否包含可直接展示给用户的正文。"""
+        content = getattr(message, "content", "") or ""
+        return bool(content.strip())
+
+    @classmethod
+    def _is_visible_message(cls, message) -> bool:
+        """默认消息列表中仅展示用户消息和有正文的 AI 回复。"""
+        if message.role == "user":
+            return True
+        if message.role == "assistant":
+            return cls._has_displayable_content(message)
+        return False
+
+    @staticmethod
+    def _to_message_response(message, include_hidden: bool) -> MessageResponse:
+        """转换为 API 响应对象，默认视图不暴露内部工具调用元数据。"""
+        return MessageResponse(
+            id=message.id,
+            conversation_id=message.conversation_id,
+            role=message.role,
+            content=message.content,
+            meta=message.meta if include_hidden else None,
+            created_at=message.created_at,
+        )
 
     def __init__(self, db: Session):
         self.db = db
@@ -258,7 +285,7 @@ class ChatService:
                             }
                             for tc in msg.tool_calls
                         ],
-                        "display": False,
+                        "display": bool(content.strip()),
                     }
                 await asyncio.to_thread(
                     msg_crud.create_conversation_message,
@@ -455,12 +482,12 @@ class ChatService:
         skip: int = 0,
         limit: int = 100,
         include_hidden: bool = False,
-    ) -> list:
+    ) -> list[MessageResponse]:
         """
         获取对话消息列表。
 
-        默认过滤掉 meta 中标记为 display=False 的中间消息（如 tool_calls 决策消息），
-        仅当 include_hidden=True 时返回完整消息流（供管理监控使用）。
+        默认只返回 user 和有正文的 assistant 消息，避免隐藏工具细节泄露给普通用户。
+        仅当 include_hidden=True 时返回完整消息流与元数据（供管理监控使用）。
 
         Args:
             conversation_id: 对话 ID
@@ -469,7 +496,7 @@ class ChatService:
             limit: 限制数量
             include_hidden: 是否包含隐藏的中间消息
         Returns:
-            list[ConversationMessage]
+            list[MessageResponse]
         """
         await asyncio.to_thread(
             self.get_conversation_if_owned, conversation_id, user_id
@@ -484,12 +511,12 @@ class ChatService:
         )
 
         if not include_hidden:
-            messages = [
-                m for m in messages
-                if not (m.meta and m.meta.get("display") is False)
-            ]
+            messages = [m for m in messages if self._is_visible_message(m)]
 
-        return messages
+        return [
+            self._to_message_response(m, include_hidden=include_hidden)
+            for m in messages
+        ]
 
     async def delete_conversation(self, conversation_id: int, user_id: int) -> None:
         """

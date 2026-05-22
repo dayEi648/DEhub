@@ -298,6 +298,12 @@
   gap: 6px;
 }
 
+.ai-chat-sidebar__new-button:disabled,
+.ai-chat-sidebar__delete:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .ai-chat-sidebar__list {
   padding: var(--spacing-sm);
   overflow-y: auto;
@@ -320,6 +326,11 @@
 
 .ai-chat-sidebar__item:hover {
   background-color: var(--color-canvas);
+}
+
+.ai-chat-sidebar__item[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .ai-chat-sidebar__item.is-active {

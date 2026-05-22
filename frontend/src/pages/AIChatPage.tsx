@@ -34,6 +34,14 @@ function roleLabel(role: AIMessage['role']) {
   return 'Tool'
 }
 
+function hasDisplayableContent(message: AIMessage) {
+  return message.content.trim().length > 0
+}
+
+function isDefaultVisibleMessage(message: AIMessage) {
+  return (message.role === 'user' || message.role === 'assistant') && hasDisplayableContent(message)
+}
+
 export default function AIChatPage() {
   const handleLogout = useLogout()
   const [conversations, setConversations] = useState<AIConversationItem[]>([])
@@ -127,6 +135,12 @@ export default function AIChatPage() {
     () => conversations.find((item) => item.id === activeConversationId) || null,
     [conversations, activeConversationId],
   )
+  const displayMessages = useMemo(() => {
+    if (canViewHiddenMessages && includeHidden) {
+      return messages.filter(hasDisplayableContent)
+    }
+    return messages.filter(isDefaultVisibleMessage)
+  }, [canViewHiddenMessages, includeHidden, messages])
 
   const handleSendMessage = async () => {
     const userInput = inputValue.trim()
@@ -218,7 +232,9 @@ export default function AIChatPage() {
             <button
               type="button"
               className="ai-chat-sidebar__new-button"
+              disabled={sending}
               onClick={() => {
+                if (sending) return
                 setNewConversationMode(true)
                 setActiveConversationId(null)
                 setMessages([])
@@ -237,11 +253,14 @@ export default function AIChatPage() {
                 <div
                   key={conversation.id}
                   className={`ai-chat-sidebar__item ${isActive ? 'is-active' : ''}`}
+                  aria-disabled={sending}
                   onClick={() => {
+                    if (sending) return
                     setNewConversationMode(false)
                     setActiveConversationId(conversation.id)
                   }}
                   onKeyDown={(event) => {
+                    if (sending) return
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
                       setNewConversationMode(false)
@@ -261,8 +280,10 @@ export default function AIChatPage() {
                   <button
                     type="button"
                     className="ai-chat-sidebar__delete"
+                    disabled={sending}
                     onClick={(event) => {
                       event.stopPropagation()
+                      if (sending) return
                       void handleDeleteConversation(conversation.id)
                     }}
                     aria-label={`删除对话 ${conversation.title}`}
@@ -283,8 +304,9 @@ export default function AIChatPage() {
             <button
               type="button"
               className="ai-chat-sidebar__loadmore"
-              disabled={conversationsLoading || !hasMoreConversations}
+              disabled={sending || conversationsLoading || !hasMoreConversations}
               onClick={() => {
+                if (sending) return
                 if (!hasMoreConversations) return
                 void fetchConversations(false, conversations.length)
               }}
@@ -327,10 +349,10 @@ export default function AIChatPage() {
                 <ShieldAlert size={16} />
                 {panelError}
               </div>
-            ) : messages.length === 0 ? (
+            ) : displayMessages.length === 0 ? (
               <div className="ai-chat-panel__status">暂无消息，开始提问吧。</div>
             ) : (
-              messages.map((message) => (
+              displayMessages.map((message) => (
                 <article
                   key={message.id}
                   className={`ai-chat-bubble ai-chat-bubble--${message.role}`}

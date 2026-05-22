@@ -10,12 +10,57 @@ from datetime import datetime
 from fastapi import HTTPException, UploadFile
 from app.core.config import settings
 
-# 初始化OSS客户端
-auth = oss2.Auth(settings.OSS_ACCESS_KEY_ID, settings.OSS_ACCESS_KEY_SECRET)
-bucket = oss2.Bucket(auth, settings.OSS_ENDPOINT, settings.OSS_BUCKET_NAME)
+_bucket: oss2.Bucket | None = None
 
 # 允许的文件类型
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
+
+
+def _normalize_oss_endpoint(endpoint: str) -> str:
+    """OSS SDK endpoint must include a URL scheme."""
+    endpoint = endpoint.strip()
+    if not endpoint:
+        return endpoint
+    parsed = urlparse(endpoint)
+    if parsed.scheme:
+        return endpoint
+    return f"https://{endpoint}"
+
+
+def _get_oss_bucket() -> oss2.Bucket:
+    """Create the OSS client lazily so imports do not depend on external config."""
+    global _bucket
+    if _bucket is not None:
+        return _bucket
+
+    required_config = {
+        "OSS_ACCESS_KEY_ID": settings.OSS_ACCESS_KEY_ID,
+        "OSS_ACCESS_KEY_SECRET": settings.OSS_ACCESS_KEY_SECRET,
+        "OSS_ENDPOINT": settings.OSS_ENDPOINT,
+        "OSS_BUCKET_NAME": settings.OSS_BUCKET_NAME,
+    }
+    missing = [name for name, value in required_config.items() if not value]
+    if missing:
+        raise HTTPException(
+            status_code=500,
+            detail=f"OSS配置缺失: {', '.join(missing)}",
+        )
+
+    auth = oss2.Auth(settings.OSS_ACCESS_KEY_ID, settings.OSS_ACCESS_KEY_SECRET)
+    _bucket = oss2.Bucket(
+        auth,
+        _normalize_oss_endpoint(settings.OSS_ENDPOINT),
+        settings.OSS_BUCKET_NAME,
+    )
+    return _bucket
+
+
+def _build_oss_file_url(file_path: str) -> str:
+    if settings.OSS_DOMAIN:
+        return f"{settings.OSS_DOMAIN.rstrip('/')}/{file_path}"
+
+    endpoint = _normalize_oss_endpoint(settings.OSS_ENDPOINT).rstrip("/")
+    return f"{endpoint}/{settings.OSS_BUCKET_NAME}/{file_path}"
 
 
 class ImageUploadScene(str, Enum):
@@ -214,6 +259,7 @@ async def upload_file_to_oss(
 
     # 上传文件
     try:
+        bucket = _get_oss_bucket()
         result = await asyncio.to_thread(
             bucket.put_object,
             file_path,
@@ -229,13 +275,7 @@ async def upload_file_to_oss(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"上传文件失败: {str(e)}")
 
-    # 构造访问URL
-    if settings.OSS_DOMAIN:
-        url = f"{settings.OSS_DOMAIN}/{file_path}"
-    else:
-        url = f"{settings.OSS_ENDPOINT}/{settings.OSS_BUCKET_NAME}/{file_path}"
-
-    return url
+    return _build_oss_file_url(file_path)
 
 
 async def upload_image(file: UploadFile, scene: ImageUploadScene) -> str:
@@ -272,6 +312,7 @@ async def delete_file_from_oss(file_path: str) -> None:
     if not file_path:
         return
     try:
+        bucket = _get_oss_bucket()
         result = await asyncio.to_thread(bucket.delete_object, file_path)
         if result.status != 204:
             raise HTTPException(status_code=500, detail="删除文件失败")
@@ -296,6 +337,7 @@ def delete_file_from_oss_sync(file_path: str) -> None:
     if not file_path:
         return
     try:
+        bucket = _get_oss_bucket()
         result = bucket.delete_object(file_path)
         if result.status != 204:
             raise HTTPException(status_code=500, detail="删除文件失败")

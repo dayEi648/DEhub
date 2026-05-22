@@ -22,6 +22,7 @@ test.describe('AI chat page', () => {
 
     const now = '2026-05-22T09:00:00'
     const capturedRequests: CapturedChatRequest[] = []
+    const capturedIncludeHiddenValues: string[] = []
     const conversations = [
       {
         id: 1,
@@ -51,6 +52,30 @@ test.describe('AI chat page', () => {
             meta: null,
             created_at: '2026-05-22T09:00:01',
           },
+          {
+            id: 3,
+            conversation_id: 1,
+            role: 'assistant',
+            content: '好的，我帮你联网搜索一下。',
+            meta: { tool_calls: [{ name: 'web_search' }] },
+            created_at: '2026-05-22T09:00:02',
+          },
+          {
+            id: 4,
+            conversation_id: 1,
+            role: 'tool',
+            content: '工具返回的原始搜索结果',
+            meta: { tool_name: 'web_search' },
+            created_at: '2026-05-22T09:00:03',
+          },
+          {
+            id: 5,
+            conversation_id: 1,
+            role: 'assistant',
+            content: '根据联网搜索结果，我整理如下。',
+            meta: null,
+            created_at: '2026-05-22T09:00:04',
+          },
         ],
       ],
     ])
@@ -74,6 +99,7 @@ test.describe('AI chat page', () => {
 
       const messageMatch = pathname.match(/^\/api\/v1\/ai_chat\/conversations\/(\d+)\/messages$/)
       if (method === 'GET' && messageMatch) {
+        capturedIncludeHiddenValues.push(url.searchParams.get('include_hidden') ?? '')
         const conversationId = Number(messageMatch[1])
         return replyJson(200, messageStore.get(conversationId) ?? [])
       }
@@ -150,7 +176,11 @@ test.describe('AI chat page', () => {
     await expect(page.locator('h1:has-text("AI 对话实验室")')).toBeVisible()
     await expect(page.locator('text=旧对话')).toBeVisible()
     await expect(page.locator('text=你好，我是 AI 助手。')).toBeVisible()
+    await expect(page.locator('text=好的，我帮你联网搜索一下。')).toBeVisible()
+    await expect(page.locator('text=根据联网搜索结果，我整理如下。')).toBeVisible()
+    await expect(page.locator('text=工具返回的原始搜索结果')).toHaveCount(0)
     await expect(page.locator('label:has-text("包含隐藏消息")')).toHaveCount(0)
+    expect(capturedIncludeHiddenValues).toContain('false')
 
     await page.fill('[data-testid="ai-chat-input"]', '请总结这次改动')
     await page.click('[data-testid="ai-chat-send"]')
