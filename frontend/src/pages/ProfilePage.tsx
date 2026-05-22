@@ -30,15 +30,10 @@ import {
   unfollowZone,
 } from '../api/favorites'
 import { getUser as getStoredUser, setUser, clearAuth } from '../utils/auth'
+import { formatDateCN } from '../utils/format'
 import type { User as UserType } from '../types/user'
 import type { BlogPostListItem } from '../types/blog'
 import type { ForumPost, ForumZone } from '../types/forum'
-
-/* ─── Helpers ─── */
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-}
 
 const MAX_AVATAR_SIZE = 20 * 1024 * 1024 // 20MB
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -1000,7 +995,7 @@ export default function ProfilePage() {
                     }}
                   >
                     <Calendar size={14} />
-                    {formatDate(user.created_at)}
+                    {formatDateCN(user.created_at)}
                   </div>
                 </div>
               </div>
@@ -1326,7 +1321,7 @@ export default function ProfilePage() {
                               <div style={{ fontSize: 12, color: 'var(--color-muted-soft)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span>{post.user.username}</span>
                                 <span>·</span>
-                                <span>{formatDate(post.created_at)}</span>
+                                <span>{formatDateCN(post.created_at)}</span>
                               </div>
                             </div>
                             <button
@@ -1436,7 +1431,7 @@ export default function ProfilePage() {
                                 >
                                   {blog.category.name}
                                 </span>
-                                <span>{formatDate(blog.created_at)}</span>
+                                <span>{formatDateCN(blog.created_at)}</span>
                               </div>
                             </div>
                             <button

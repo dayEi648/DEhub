@@ -8,9 +8,8 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import { getForumZoneList } from '../api/forum'
-import { logout } from '../api/users'
 import AppTopNav from '../components/AppTopNav'
-import { clearAuth } from '../utils/auth'
+import { useLogout } from '../hooks/useLogout'
 import type { ForumZone } from '../types/forum'
 
 /* ─── Helpers ─── */
@@ -196,7 +195,6 @@ function Footer() {
 
 /* ─── Main Page ─── */
 export default function ForumZoneListPage() {
-  const navigate = useNavigate()
   const [zones, setZones] = useState<ForumZone[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -218,17 +216,7 @@ export default function ForumZoneListPage() {
     fetchZones()
   }, [fetchZones])
 
-  const handleLogout = async () => {
-    try {
-      const refreshToken = localStorage.getItem('refresh_token')
-      await logout(refreshToken ? { refresh_token: refreshToken } : {})
-    } catch {
-      // ignore
-    } finally {
-      clearAuth()
-      navigate('/login', { replace: true })
-    }
-  }
+  const handleLogout = useLogout()
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>

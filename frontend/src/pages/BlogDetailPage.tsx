@@ -22,22 +22,13 @@ import {
 } from 'lucide-react'
 import { getBlogPostBySlug } from '../api/blog'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
-import { logout } from '../api/users'
-import { clearAuth, getUser } from '../utils/auth'
+import { favoriteBlogPost, unfavoriteBlogPost, getFavoriteBlogPosts } from '../api/favorites'
+import { getUser } from '../utils/auth'
 import AppTopNav from '../components/AppTopNav'
+import { useLogout } from '../hooks/useLogout'
+import { formatDate, formatDateTime } from '../utils/format'
 import type { BlogPostDetailResponse, BlogPostListItem } from '../types/blog'
 import type { CommentResponse } from '../types/comments'
-
-/* ─── Helpers ─── */
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
-}
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
 
 /* ─── Markdown Renderer ─── */
 function MarkdownContent({ content }: { content: string }) {
@@ -506,7 +497,7 @@ function InnerReplyItem({
   onLike: (id: number) => void
   onUnlike: (id: number) => void
   onDelete: (id: number) => void
-  onReply: (nestedParentId: number, username: string) => void
+  onReply: (nestedParentId: number, username: string, content: string) => void
 }) {
   const canDelete = currentUserId === comment.user_id || isAdmin
   const [showReplyInput, setShowReplyInput] = useState(false)
@@ -616,8 +607,8 @@ function InnerReplyItem({
           {showReplyInput && (
             <ReplyInput
               placeholder={`回复 @${comment.user.username}：`}
-              onSubmit={() => {
-                onReply(comment.id, comment.user.username)
+              onSubmit={(content) => {
+                onReply(comment.id, comment.user.username, content)
                 setShowReplyInput(false)
               }}
               onCancel={() => setShowReplyInput(false)}
@@ -888,11 +879,10 @@ function SurfaceCommentItem({
                       onLike={onLike}
                       onUnlike={onUnlike}
                       onDelete={onDelete}
-                      onReply={(nestedParentId, username) => {
-                        // 这里需要弹出一个输入框，让用户输入内容
-                        const content = prompt(`回复 @${username}：`)
-                        if (content && content.trim()) {
-                          handleReplyToInner(nestedParentId, username, content.trim())
+                      onReply={(nestedParentId, username, content) => {
+                        const rawContent = content || prompt(`回复 @${username}：`)
+                        if (rawContent && rawContent.trim()) {
+                          handleReplyToInner(nestedParentId, username, rawContent.trim())
                         }
                       }}
                     />
@@ -1282,14 +1272,20 @@ export default function BlogDetailPage() {
   const [post, setPost] = useState<BlogPostDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [isFavorited, setIsFavorited] = useState(false)
+  const [favoriting, setFavoriting] = useState(false)
 
   const fetchPost = useCallback(async () => {
     if (!slug) return
     setLoading(true)
     setError('')
     try {
-      const res = await getBlogPostBySlug(slug)
-      setPost(res.data)
+      const [postRes, favRes] = await Promise.all([
+        getBlogPostBySlug(slug),
+        getFavoriteBlogPosts({ limit: 100 }),
+      ])
+      setPost(postRes.data)
+      setIsFavorited(favRes.data.items.some((item) => item.id === postRes.data.id))
     } catch {
       setError('文章加载失败，请稍后重试')
     } finally {
@@ -1302,17 +1298,7 @@ export default function BlogDetailPage() {
     window.scrollTo(0, 0)
   }, [fetchPost])
 
-  const handleLogout = async () => {
-    try {
-      const refreshToken = localStorage.getItem('refresh_token')
-      await logout(refreshToken ? { refresh_token: refreshToken } : {})
-    } catch {
-      // ignore
-    } finally {
-      clearAuth()
-      navigate('/login', { replace: true })
-    }
-  }
+  const handleLogout = useLogout()
 
   if (loading) {
     return (
@@ -1485,6 +1471,41 @@ export default function BlogDetailPage() {
               <MessageCircle size={14} />
               {post.comment_count} 评论
             </span>
+            <button
+              onClick={async () => {
+                if (favoriting) return
+                setFavoriting(true)
+                try {
+                  if (isFavorited) {
+                    await unfavoriteBlogPost(post.id)
+                    setIsFavorited(false)
+                  } else {
+                    await favoriteBlogPost(post.id)
+                    setIsFavorited(true)
+                  }
+                } catch {
+                  alert(isFavorited ? '取消收藏失败' : '收藏失败')
+                } finally {
+                  setFavoriting(false)
+                }
+              }}
+              disabled={favoriting}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 14,
+                fontWeight: 500,
+                color: isFavorited ? 'var(--color-primary)' : 'var(--color-muted-soft)',
+                background: 'transparent',
+                border: 'none',
+                cursor: favoriting ? 'not-allowed' : 'pointer',
+                padding: 0,
+              }}
+            >
+              <Heart size={14} fill={isFavorited ? 'var(--color-primary)' : 'none'} />
+              {isFavorited ? '已收藏' : '收藏'}
+            </button>
           </div>
 
           {/* Cover Image */}

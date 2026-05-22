@@ -2,13 +2,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   MessageSquare,
-  Sparkles,
   User,
   Eye,
   MessageCircle,
   Clock,
-  ChevronLeft,
-  ChevronRight,
   ArrowLeft,
   Flame,
   CalendarClock,
@@ -17,123 +14,15 @@ import {
   X,
 } from 'lucide-react'
 import { getForumPostList, getForumZoneBySlug, createForumPost } from '../api/forum'
-import { logout } from '../api/users'
-import { clearAuth } from '../utils/auth'
+import { followZone, unfollowZone, getFollowedZones } from '../api/favorites'
 import AppTopNav from '../components/AppTopNav'
+import Footer from '../components/Footer'
+import Pagination from '../components/Pagination'
+import { useLogout } from '../hooks/useLogout'
+import { formatDate } from '../utils/format'
 import type { ForumPost, ForumZone } from '../types/forum'
 
-/* ─── Helpers ─── */
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
-}
-
 const PAGE_SIZE = 15
-
-/* ─── Pagination ─── */
-function Pagination({
-  current,
-  total,
-  onChange,
-}: {
-  current: number
-  total: number
-  onChange: (page: number) => void
-}) {
-  if (total <= 1) return null
-
-  const pages: (number | string)[] = []
-  const maxVisible = 5
-
-  if (total <= maxVisible + 2) {
-    for (let i = 1; i <= total; i++) pages.push(i)
-  } else {
-    pages.push(1)
-    if (current > 3) pages.push('...')
-    const start = Math.max(2, current - 1)
-    const end = Math.min(total - 1, current + 1)
-    for (let i = start; i <= end; i++) pages.push(i)
-    if (current < total - 2) pages.push('...')
-    pages.push(total)
-  }
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--spacing-xs)', marginTop: 'var(--spacing-xl)' }}>
-      <button
-        onClick={() => onChange(current - 1)}
-        disabled={current === 1}
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 'var(--rounded-md)',
-          border: '1px solid var(--color-hairline)',
-          backgroundColor: 'var(--color-canvas)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: current === 1 ? 'not-allowed' : 'pointer',
-          opacity: current === 1 ? 0.5 : 1,
-          color: 'var(--color-ink)',
-          transition: 'all 150ms ease',
-        }}
-      >
-        <ChevronLeft size={16} />
-      </button>
-
-      {pages.map((p, idx) =>
-        p === '...' ? (
-          <span key={`dot-${idx}`} style={{ padding: '0 8px', color: 'var(--color-muted-soft)', fontSize: 14 }}>
-            ...
-          </span>
-        ) : (
-          <button
-            key={p}
-            onClick={() => onChange(p as number)}
-            style={{
-              minWidth: 36,
-              height: 36,
-              borderRadius: 'var(--rounded-md)',
-              border: '1px solid',
-              borderColor: current === p ? 'var(--color-primary)' : 'var(--color-hairline)',
-              backgroundColor: current === p ? 'var(--color-primary)' : 'var(--color-canvas)',
-              color: current === p ? 'var(--color-on-primary)' : 'var(--color-ink)',
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 150ms ease',
-            }}
-          >
-            {p}
-          </button>
-        )
-      )}
-
-      <button
-        onClick={() => onChange(current + 1)}
-        disabled={current === total}
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 'var(--rounded-md)',
-          border: '1px solid var(--color-hairline)',
-          backgroundColor: 'var(--color-canvas)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: current === total ? 'not-allowed' : 'pointer',
-          opacity: current === total ? 0.5 : 1,
-          color: 'var(--color-ink)',
-          transition: 'all 150ms ease',
-        }}
-      >
-        <ChevronRight size={16} />
-      </button>
-    </div>
-  )
-}
 
 /* ─── Create Post Modal ─── */
 function CreatePostModal({
@@ -403,30 +292,6 @@ function PostCard({ post }: { post: ForumPost }) {
   )
 }
 
-/* ─── Footer ─── */
-function Footer() {
-  return (
-    <footer
-      style={{
-        backgroundColor: 'var(--color-surface-dark)',
-        color: 'var(--color-on-dark-soft)',
-        padding: 'var(--spacing-xl) var(--spacing-xl)',
-        marginTop: 'auto',
-      }}
-    >
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-          <Sparkles size={16} color="var(--color-on-dark)" />
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--color-on-dark)' }}>DE hub</span>
-        </div>
-        <span style={{ fontSize: 13, color: 'var(--color-on-dark-soft)' }}>
-          © {new Date().getFullYear()} Developer Space. All rights reserved.
-        </span>
-      </div>
-    </footer>
-  )
-}
-
 /* ─── Main Page ─── */
 export default function ForumPostListPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -439,14 +304,20 @@ export default function ForumPostListPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [isFollowed, setIsFollowed] = useState(false)
+  const [following, setFollowing] = useState(false)
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
   const fetchZone = useCallback(async () => {
     if (!slug) return
     try {
-      const res = await getForumZoneBySlug(slug)
-      setZone(res.data)
+      const [zoneRes, followRes] = await Promise.all([
+        getForumZoneBySlug(slug),
+        getFollowedZones({ limit: 100 }),
+      ])
+      setZone(zoneRes.data)
+      setIsFollowed(followRes.data.items.some((item) => item.id === zoneRes.data.id))
     } catch {
       setError('分区不存在')
     }
@@ -480,17 +351,7 @@ export default function ForumPostListPage() {
     fetchPosts()
   }, [fetchPosts])
 
-  const handleLogout = async () => {
-    try {
-      const refreshToken = localStorage.getItem('refresh_token')
-      await logout(refreshToken ? { refresh_token: refreshToken } : {})
-    } catch {
-      // ignore
-    } finally {
-      clearAuth()
-      navigate('/login', { replace: true })
-    }
-  }
+  const handleLogout = useLogout()
 
   if (error && !zone) {
     return (
@@ -609,6 +470,43 @@ export default function ForumPostListPage() {
               <User size={14} />
               区主：{zone?.manager.username || '-'}
             </span>
+            {zone && (
+              <button
+                onClick={async () => {
+                  if (following) return
+                  setFollowing(true)
+                  try {
+                    if (isFollowed) {
+                      await unfollowZone(zone.id)
+                      setIsFollowed(false)
+                    } else {
+                      await followZone(zone.id)
+                      setIsFollowed(true)
+                    }
+                  } catch {
+                    alert(isFollowed ? '取消关注失败' : '关注失败')
+                  } finally {
+                    setFollowing(false)
+                  }
+                }}
+                disabled={following}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: isFollowed ? 'var(--color-primary)' : 'var(--color-muted-soft)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: following ? 'not-allowed' : 'pointer',
+                  padding: 0,
+                }}
+              >
+                <Plus size={14} />
+                {isFollowed ? '已关注' : '关注'}
+              </button>
+            )}
           </div>
         </div>
       </section>

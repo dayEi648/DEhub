@@ -9,6 +9,10 @@ export function getFavoriteBlogPosts(params: { skip?: number; limit?: number } =
   return request.get<BlogPostListResponse>('/favorites/blog-posts', { params })
 }
 
+export function favoriteBlogPost(postId: number) {
+  return request.post(`/favorites/blog-posts/${postId}`)
+}
+
 export function unfavoriteBlogPost(postId: number) {
   return request.delete(`/favorites/blog-posts/${postId}`)
 }
@@ -17,6 +21,10 @@ export function unfavoriteBlogPost(postId: number) {
 
 export function getFavoriteForumPosts(params: { skip?: number; limit?: number } = {}) {
   return request.get<ForumPostListResponse>('/favorites/forum-posts', { params })
+}
+
+export function favoriteForumPost(postId: number) {
+  return request.post(`/favorites/forum-posts/${postId}`)
 }
 
 export function unfavoriteForumPost(postId: number) {
@@ -32,6 +40,10 @@ export interface ZoneFollowListResponse {
 
 export function getFollowedZones(params: { skip?: number; limit?: number } = {}) {
   return request.get<ZoneFollowListResponse>('/follows/zones', { params })
+}
+
+export function followZone(zoneId: number) {
+  return request.post(`/follows/zones/${zoneId}`)
 }
 
 export function unfollowZone(zoneId: number) {

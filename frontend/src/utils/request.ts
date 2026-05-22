@@ -1,5 +1,6 @@
 import axios from 'axios'
-import { clearAuth } from './auth'
+import { clearAuth, getRefreshToken } from './auth'
+import { refreshToken } from '../api/users'
 
 const request = axios.create({
   baseURL: '/api/v1',
@@ -17,19 +18,69 @@ request.interceptors.request.use((config) => {
   return config
 })
 
+let isRefreshing = false
+let refreshSubscribers: ((token: string) => void)[] = []
+
+function onRefreshed(token: string) {
+  refreshSubscribers.forEach((cb) => cb(token))
+  refreshSubscribers = []
+}
+
+function addRefreshSubscriber(cb: (token: string) => void) {
+  refreshSubscribers.push(cb)
+}
+
 request.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const originalRequest = error.config
+
+    // 401 时尝试刷新 token
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      const rt = getRefreshToken()
+      if (rt) {
+        originalRequest._retry = true
+
+        if (!isRefreshing) {
+          isRefreshing = true
+          try {
+            const res = await refreshToken({ refresh_token: rt })
+            const newToken = res.data.access_token
+            localStorage.setItem('token', newToken)
+            if (res.data.refresh_token) {
+              localStorage.setItem('refresh_token', res.data.refresh_token)
+            }
+            localStorage.setItem('user', JSON.stringify(res.data.user))
+            onRefreshed(newToken)
+            isRefreshing = false
+            originalRequest.headers.Authorization = `Bearer ${newToken}`
+            return request(originalRequest)
+          } catch {
+            isRefreshing = false
+            refreshSubscribers = []
+            clearAuth()
+            window.dispatchEvent(new CustomEvent('unauthorized'))
+            return Promise.reject(error)
+          }
+        }
+
+        // 正在刷新中，排队等待
+        return new Promise((resolve) => {
+          addRefreshSubscriber((token: string) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            resolve(request(originalRequest))
+          })
+        })
+      }
+
       clearAuth()
-      window.location.href = '/login'
-    } else if (error.response?.data?.message) {
-      alert(`请求失败：${error.response.data.message}`)
-    } else {
-      alert('网络错误，请稍后重试')
+      window.dispatchEvent(new CustomEvent('unauthorized'))
+      return Promise.reject(error)
     }
+
+    // 非 401 错误，静默处理（不再 alert 阻塞用户）
     return Promise.reject(error)
-  }
+  },
 )
 
 export default request

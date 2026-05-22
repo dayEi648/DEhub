@@ -36,7 +36,11 @@ export default function AppTopNav({ onLogout, forumHref = '/forums' }: AppTopNav
   const goTo = (href: string) => {
     setOpen(false)
     if (href.startsWith('/#')) {
-      window.location.href = href
+      navigate('/')
+      setTimeout(() => {
+        const el = document.getElementById(href.slice(2))
+        if (el) el.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
       return
     }
     navigate(href)

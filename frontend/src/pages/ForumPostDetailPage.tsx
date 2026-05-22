@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  Sparkles,
   User,
   Eye,
   MessageCircle,
@@ -26,22 +25,14 @@ import {
   getForumZoneById,
 } from '../api/forum'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
-import { logout } from '../api/users'
-import { clearAuth, getUser } from '../utils/auth'
+import { favoriteForumPost, unfavoriteForumPost, getFavoriteForumPosts } from '../api/favorites'
+import { getUser } from '../utils/auth'
 import AppTopNav from '../components/AppTopNav'
+import Footer from '../components/Footer'
+import { useLogout } from '../hooks/useLogout'
+import { formatDate, formatDateTime } from '../utils/format'
 import type { ForumPost, ForumReply, ForumZone } from '../types/forum'
 import type { CommentResponse } from '../types/comments'
-
-/* ─── Helpers ─── */
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
-}
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
 
 const REPLY_PAGE_SIZE = 10
 const COMMENT_PAGE_SIZE = 5
@@ -734,6 +725,7 @@ function ForumReplyItem({
   isAdmin,
   isZoneManager,
   onDelete,
+  onRefreshReplies,
 }: {
   reply: ForumReply
   index: number
@@ -742,6 +734,7 @@ function ForumReplyItem({
   isAdmin: boolean
   isZoneManager: boolean
   onDelete: (id: number) => void
+  onRefreshReplies?: () => void
 }) {
   const canDelete = currentUserId === reply.user_id || isAdmin || isZoneManager
   const [showComments, setShowComments] = useState(false)
@@ -900,7 +893,7 @@ function ForumReplyItem({
                   try {
                     await createForumReply(postId, { content })
                     setShowReplyInput(false)
-                    window.location.reload()
+                    onRefreshReplies?.()
                   } catch {
                     alert('回复发表失败')
                   }
@@ -920,30 +913,6 @@ function ForumReplyItem({
   )
 }
 
-/* ─── Footer ─── */
-function Footer() {
-  return (
-    <footer
-      style={{
-        backgroundColor: 'var(--color-surface-dark)',
-        color: 'var(--color-on-dark-soft)',
-        padding: 'var(--spacing-xl) var(--spacing-xl)',
-        marginTop: 'auto',
-      }}
-    >
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-          <Sparkles size={16} color="var(--color-on-dark)" />
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--color-on-dark)' }}>DE hub</span>
-        </div>
-        <span style={{ fontSize: 13, color: 'var(--color-on-dark-soft)' }}>
-          © {new Date().getFullYear()} Developer Space. All rights reserved.
-        </span>
-      </div>
-    </footer>
-  )
-}
-
 /* ─── Main Page ─── */
 export default function ForumPostDetailPage() {
   const { postId } = useParams<{ postId: string }>()
@@ -958,6 +927,8 @@ export default function ForumPostDetailPage() {
   const [error, setError] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
   const [showMainReplyInput, setShowMainReplyInput] = useState(false)
+  const [isFavorited, setIsFavorited] = useState(false)
+  const [favoriting, setFavoriting] = useState(false)
 
   const totalReplyPages = Math.ceil(totalReplies / REPLY_PAGE_SIZE)
 
@@ -972,11 +943,15 @@ export default function ForumPostDetailPage() {
     setLoading(true)
     setError('')
     try {
-      const res = await getForumPostById(id)
-      setPost(res.data)
+      const [postRes, favRes] = await Promise.all([
+        getForumPostById(id),
+        getFavoriteForumPosts({ limit: 100 }),
+      ])
+      setPost(postRes.data)
+      setIsFavorited(favRes.data.items.some((item) => item.id === postRes.data.id))
       // 获取分区信息以判断区主权限
       try {
-        const zoneRes = await getForumZoneById(res.data.zone_id)
+        const zoneRes = await getForumZoneById(postRes.data.zone_id)
         setZone(zoneRes.data)
       } catch {
         // ignore zone fetch error
@@ -1013,17 +988,7 @@ export default function ForumPostDetailPage() {
     fetchReplies()
   }, [fetchReplies])
 
-  const handleLogout = async () => {
-    try {
-      const refreshToken = localStorage.getItem('refresh_token')
-      await logout(refreshToken ? { refresh_token: refreshToken } : {})
-    } catch {
-      // ignore
-    } finally {
-      clearAuth()
-      navigate('/login', { replace: true })
-    }
-  }
+  const handleLogout = useLogout()
 
   const handleDeletePost = async () => {
     if (!post) return
@@ -1202,6 +1167,41 @@ export default function ForumPostDetailPage() {
               <MessageCircle size={14} />
               {post.reply_count} 回复
             </span>
+            <button
+              onClick={async () => {
+                if (favoriting) return
+                setFavoriting(true)
+                try {
+                  if (isFavorited) {
+                    await unfavoriteForumPost(post.id)
+                    setIsFavorited(false)
+                  } else {
+                    await favoriteForumPost(post.id)
+                    setIsFavorited(true)
+                  }
+                } catch {
+                  alert(isFavorited ? '取消收藏失败' : '收藏失败')
+                } finally {
+                  setFavoriting(false)
+                }
+              }}
+              disabled={favoriting}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 14,
+                fontWeight: 500,
+                color: isFavorited ? 'var(--color-primary)' : 'var(--color-muted-soft)',
+                background: 'transparent',
+                border: 'none',
+                cursor: favoriting ? 'not-allowed' : 'pointer',
+                padding: 0,
+              }}
+            >
+              <Heart size={14} fill={isFavorited ? 'var(--color-primary)' : 'none'} />
+              {isFavorited ? '已收藏' : '收藏'}
+            </button>
           </div>
 
           {(isPostAuthor || isAdmin || isZoneManager) && (
@@ -1378,6 +1378,7 @@ export default function ForumPostDetailPage() {
                     isAdmin={isAdmin}
                     isZoneManager={isZoneManager}
                     onDelete={handleDeleteReply}
+                    onRefreshReplies={fetchReplies}
                   />
                 ))}
               </div>

@@ -15,9 +15,9 @@ import {
 } from 'lucide-react'
 import { getBlogPostList } from '../api/blog'
 import { getForumPostList, getForumZoneList } from '../api/forum'
-import { logout } from '../api/users'
 import AppTopNav from '../components/AppTopNav'
-import { clearAuth } from '../utils/auth'
+import { useLogout } from '../hooks/useLogout'
+import { formatDate } from '../utils/format'
 import type { BlogPostListItem } from '../types/blog'
 import type { ForumPost, ForumZone } from '../types/forum'
 
@@ -26,12 +26,6 @@ interface HomeData {
   blogs: BlogPostListItem[]
   hotPosts: ForumPost[]
   zones: ForumZone[]
-}
-
-/* ─── Helpers ─── */
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
 function useViewport() {
@@ -844,7 +838,6 @@ function FooterSection() {
 /* ─── Main Page ─── */
 
 export default function HomePage() {
-  const navigate = useNavigate()
   const vw = useViewport()
   const isMobile = vw < 768
 
@@ -877,17 +870,7 @@ export default function HomePage() {
     fetchData()
   }, [fetchData])
 
-  const handleLogout = async () => {
-    try {
-      const refreshToken = localStorage.getItem('refresh_token')
-      await logout(refreshToken ? { refresh_token: refreshToken } : {})
-    } catch {
-      // ignore
-    } finally {
-      clearAuth()
-      navigate('/login', { replace: true })
-    }
-  }
+  const handleLogout = useLogout()
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-canvas)' }}>
