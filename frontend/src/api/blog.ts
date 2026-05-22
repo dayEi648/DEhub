@@ -4,6 +4,7 @@ import type {
   BlogPostListParams,
   BlogPostDetailResponse,
   BlogCategoryWithPostCount,
+  BlogCategoryCreateData,
 } from '../types/blog'
 
 export function getBlogPostList(params: BlogPostListParams = {}) {
@@ -16,6 +17,10 @@ export function getBlogPostBySlug(slug: string) {
 
 export function getBlogCategories() {
   return request.get<BlogCategoryWithPostCount[]>('/blog_categories/')
+}
+
+export function createBlogCategory(data: BlogCategoryCreateData) {
+  return request.post<BlogCategoryWithPostCount>('/blog_categories/', data)
 }
 
 /* ─── Blog Post Management (Super Admin) ─── */
@@ -74,4 +79,8 @@ export function publishBlogPost(postId: number) {
 
 export function unpublishBlogPost(postId: number) {
   return request.post<BlogPostDetailResponse>(`/blog_posts/${postId}/unpublish`)
+}
+
+export function generateBlogSummary(contentMd: string) {
+  return request.post<{ summary: string }>('/blog_posts/generate-summary', { content_md: contentMd })
 }

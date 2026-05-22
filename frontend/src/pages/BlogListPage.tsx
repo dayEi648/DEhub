@@ -14,6 +14,7 @@ import {
   getBlogPostList,
   getBlogCategories,
   createBlogPost,
+  createBlogCategory,
 } from '../api/blog'
 import { getUser } from '../utils/auth'
 import BlogEditorModal from '../components/BlogEditorModal'
@@ -399,6 +400,135 @@ function BlogCard({ blog }: { blog: BlogPostListItem }) {
   )
 }
 
+function CategoryCreateModal({
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  submitting: boolean
+  onClose: () => void
+  onSubmit: (data: { name: string; slug: string; description: string }) => void
+}) {
+  const [name, setName] = useState('')
+  const [slug, setSlug] = useState('')
+  const [description, setDescription] = useState('')
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    height: 40,
+    padding: '10px 14px',
+    borderRadius: 'var(--rounded-md)',
+    border: '1px solid var(--color-hairline)',
+    backgroundColor: 'var(--color-canvas)',
+    color: 'var(--color-ink)',
+    fontSize: 14,
+  }
+
+  const handleSubmit = () => {
+    if (!name.trim()) return
+    onSubmit({ name: name.trim(), slug: slug.trim(), description: description.trim() })
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        backgroundColor: 'rgba(20,20,19,0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'var(--spacing-xl)',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 480,
+          backgroundColor: 'var(--color-canvas)',
+          borderRadius: 'var(--rounded-lg)',
+          boxShadow: '0 8px 32px rgba(20,20,19,0.15)',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ padding: 'var(--spacing-lg) var(--spacing-xl)', borderBottom: '1px solid var(--color-hairline)' }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 500, margin: 0, color: 'var(--color-ink)' }}>
+            创建博客分类
+          </h2>
+        </div>
+        <div style={{ padding: 'var(--spacing-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+          <div>
+            <label style={modalLabelStyle}>分类名称 *</label>
+            <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：工程实践" />
+          </div>
+          <div>
+            <label style={modalLabelStyle}>Slug</label>
+            <input style={inputStyle} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="留空自动生成" />
+          </div>
+          <div>
+            <label style={modalLabelStyle}>描述</label>
+            <textarea
+              style={{ ...inputStyle, height: 96, resize: 'vertical', fontFamily: 'var(--font-body)' }}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="分类说明"
+            />
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', padding: 'var(--spacing-md) var(--spacing-xl)', borderTop: '1px solid var(--color-hairline)' }}>
+          <button
+            onClick={onClose}
+            style={{
+              height: 40,
+              padding: '0 20px',
+              borderRadius: 'var(--rounded-md)',
+              backgroundColor: 'var(--color-canvas)',
+              color: 'var(--color-ink)',
+              border: '1px solid var(--color-hairline)',
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            取消
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !name.trim()}
+            style={{
+              height: 40,
+              padding: '0 20px',
+              borderRadius: 'var(--rounded-md)',
+              backgroundColor: submitting ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              color: 'var(--color-on-primary)',
+              border: 'none',
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: submitting || !name.trim() ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {submitting ? '创建中…' : '创建'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const modalLabelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  fontWeight: 500,
+  color: 'var(--color-muted)',
+  marginBottom: 'var(--spacing-xs)',
+  textTransform: 'uppercase',
+  letterSpacing: '1px',
+}
+
 /* ─── Main Page ─── */
 export default function BlogListPage() {
   const [blogs, setBlogs] = useState<BlogPostListItem[]>([])
@@ -411,7 +541,9 @@ export default function BlogListPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showEditor, setShowEditor] = useState(false)
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [categorySubmitting, setCategorySubmitting] = useState(false)
   const currentUser = getUser()
   const isSuperAdmin = currentUser?.permission === 2
 
@@ -479,6 +611,24 @@ export default function BlogListPage() {
     }
   }
 
+  const handleCreateCategory = async (data: { name: string; slug: string; description: string }) => {
+    setCategorySubmitting(true)
+    try {
+      await createBlogCategory({
+        name: data.name,
+        slug: data.slug || undefined,
+        description: data.description || undefined,
+      })
+      toast.success('分类创建成功')
+      setShowCategoryEditor(false)
+      fetchCategories()
+    } catch {
+      toast.error('分类创建失败')
+    } finally {
+      setCategorySubmitting(false)
+    }
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
       <AppTopNav onLogout={handleLogout} />
@@ -496,7 +646,27 @@ export default function BlogListPage() {
       <section style={{ flex: 1, padding: 'var(--spacing-xl) var(--spacing-xl)', backgroundColor: 'var(--color-canvas)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           {isSuperAdmin && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--spacing-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-md)' }}>
+              <button
+                onClick={() => setShowCategoryEditor(true)}
+                style={{
+                  height: 40,
+                  padding: '0 18px',
+                  borderRadius: 'var(--rounded-md)',
+                  backgroundColor: 'var(--color-surface-card)',
+                  color: 'var(--color-ink)',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  border: '1px solid var(--color-hairline)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Plus size={14} />
+                创建分类
+              </button>
               <button
                 onClick={() => setShowEditor(true)}
                 style={{
@@ -563,6 +733,14 @@ export default function BlogListPage() {
           onClose={() => setShowEditor(false)}
           onSubmit={handleCreateBlog}
           submitting={submitting}
+        />
+      )}
+
+      {showCategoryEditor && (
+        <CategoryCreateModal
+          submitting={categorySubmitting}
+          onClose={() => setShowCategoryEditor(false)}
+          onSubmit={handleCreateCategory}
         />
       )}
     </div>

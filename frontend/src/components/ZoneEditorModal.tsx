@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
+import { getUserList } from '../api/users'
 import type { ForumZone } from '../types/forum'
 import type { User } from '../types/user'
 
 interface ZoneEditorModalProps {
   zone: ForumZone | null
-  users: User[]
   onClose: () => void
   onSubmit: (data: {
     zone_name: string
@@ -16,12 +16,16 @@ interface ZoneEditorModalProps {
   submitting?: boolean
 }
 
-export default function ZoneEditorModal({ zone, users, onClose, onSubmit, submitting = false }: ZoneEditorModalProps) {
+export default function ZoneEditorModal({ zone, onClose, onSubmit, submitting = false }: ZoneEditorModalProps) {
   const isEdit = !!zone
   const [zoneName, setZoneName] = useState('')
   const [slug, setSlug] = useState('')
   const [description, setDescription] = useState('')
   const [managerId, setManagerId] = useState<number | undefined>(undefined)
+  const [managerQuery, setManagerQuery] = useState('')
+  const [managerOptions, setManagerOptions] = useState<User[]>([])
+  const [managerLoading, setManagerLoading] = useState(false)
+  const [managerError, setManagerError] = useState('')
 
   useEffect(() => {
     if (zone) {
@@ -29,16 +33,59 @@ export default function ZoneEditorModal({ zone, users, onClose, onSubmit, submit
       setSlug(zone.slug)
       setDescription(zone.description || '')
       setManagerId(zone.manager_id)
+      setManagerQuery(zone.manager.username)
+      setManagerOptions([])
+      setManagerError('')
     } else {
       setZoneName('')
       setSlug('')
       setDescription('')
       setManagerId(undefined)
+      setManagerQuery('')
+      setManagerOptions([])
+      setManagerError('')
     }
   }, [zone])
 
+  useEffect(() => {
+    const query = managerQuery.trim()
+    if (!query) {
+      setManagerOptions([])
+      setManagerError('')
+      return
+    }
+
+    let ignore = false
+    const timer = window.setTimeout(() => {
+      setManagerLoading(true)
+      getUserList({ username: query, limit: 8 })
+        .then((res) => {
+          if (ignore) return
+          setManagerOptions(res.data.items)
+          setManagerError('')
+        })
+        .catch(() => {
+          if (ignore) return
+          setManagerOptions([])
+          setManagerError('用户搜索失败')
+        })
+        .finally(() => {
+          if (!ignore) setManagerLoading(false)
+        })
+    }, 300)
+
+    return () => {
+      ignore = true
+      window.clearTimeout(timer)
+    }
+  }, [managerQuery])
+
   const handleSubmit = () => {
     if (!zoneName.trim()) return
+    if (managerQuery.trim() && managerId === undefined) {
+      setManagerError('请从搜索结果中选择区主，或清空输入使用默认区主')
+      return
+    }
     onSubmit({
       zone_name: zoneName.trim(),
       slug: slug.trim(),
@@ -154,18 +201,50 @@ export default function ZoneEditorModal({ zone, users, onClose, onSubmit, submit
           </div>
           <div>
             <label style={labelStyle}>区主</label>
-            <select
+            <input
+              type="text"
+              placeholder="输入用户名搜索；留空默认当前用户"
               style={inputStyle}
-              value={managerId ?? ''}
-              onChange={(e) => setManagerId(e.target.value ? Number(e.target.value) : undefined)}
-            >
-              <option value="">默认（当前用户）</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
+              value={managerQuery}
+              onChange={(e) => {
+                setManagerQuery(e.target.value)
+                setManagerId(undefined)
+                setManagerError('')
+              }}
+            />
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {managerLoading && (
+                <span style={{ fontSize: 12, color: 'var(--color-muted-soft)' }}>搜索中...</span>
+              )}
+              {!managerLoading && managerOptions.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => {
+                    setManagerId(u.id)
+                    setManagerQuery(u.username)
+                    setManagerOptions([])
+                    setManagerError('')
+                  }}
+                  style={{
+                    minHeight: 36,
+                    padding: '8px 12px',
+                    borderRadius: 'var(--rounded-md)',
+                    border: managerId === u.id ? '1px solid var(--color-primary)' : '1px solid var(--color-hairline)',
+                    backgroundColor: managerId === u.id ? 'var(--color-surface-cream-strong)' : 'var(--color-surface-card)',
+                    color: 'var(--color-ink)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                  }}
+                >
                   {u.username}（ID: {u.id}）
-                </option>
+                </button>
               ))}
-            </select>
+              {managerError && (
+                <span style={{ fontSize: 12, color: 'var(--color-error)' }}>{managerError}</span>
+              )}
+            </div>
           </div>
         </div>
 

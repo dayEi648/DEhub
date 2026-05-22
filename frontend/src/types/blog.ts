@@ -12,6 +12,12 @@ export interface BlogCategoryWithPostCount {
   post_count: number
 }
 
+export interface BlogCategoryCreateData {
+  name: string
+  slug?: string
+  description?: string
+}
+
 export interface BlogAuthor {
   id: number
   username: string

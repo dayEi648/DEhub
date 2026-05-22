@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { X, Plus, Trash2, Sparkles } from 'lucide-react'
 import { validateImageFile, createImagePreview } from '../utils/upload'
 import { uploadImage } from '../api/upload'
+import { generateBlogSummary } from '../api/blog'
 import type { BlogCategoryWithPostCount, BlogPostListItem } from '../types/blog'
 
 interface BlogPostEditItem extends BlogPostListItem {
@@ -44,6 +45,7 @@ export default function BlogEditorModal({
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [status, setStatus] = useState<'draft' | 'published'>('draft')
+  const [generatingSummary, setGeneratingSummary] = useState(false)
 
   useEffect(() => {
     if (post) {
@@ -167,6 +169,24 @@ export default function BlogEditorModal({
     })
   }
 
+  const handleGenerateSummary = async () => {
+    const content = contentMd.trim()
+    if (content.length < 100) {
+      toast.error('正文至少 100 字符后才能生成摘要')
+      return
+    }
+    setGeneratingSummary(true)
+    try {
+      const res = await generateBlogSummary(content)
+      setSummary(res.data.summary)
+      toast.success('摘要已生成')
+    } catch {
+      toast.error('摘要生成失败，请稍后重试')
+    } finally {
+      setGeneratingSummary(false)
+    }
+  }
+
   const inputStyle: React.CSSProperties = {
     width: '100%',
     height: 40,
@@ -262,7 +282,33 @@ export default function BlogEditorModal({
           </div>
 
           <div>
-            <label style={labelStyle}>摘要</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--spacing-sm)' }}>
+              <label style={labelStyle}>摘要</label>
+              <button
+                type="button"
+                onClick={handleGenerateSummary}
+                disabled={generatingSummary || submitting || contentMd.trim().length < 100}
+                style={{
+                  height: 30,
+                  padding: '0 12px',
+                  borderRadius: 'var(--rounded-pill)',
+                  border: '1px solid var(--color-hairline)',
+                  backgroundColor: 'var(--color-surface-card)',
+                  color: 'var(--color-ink)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: generatingSummary || submitting || contentMd.trim().length < 100 ? 'not-allowed' : 'pointer',
+                  opacity: generatingSummary || submitting || contentMd.trim().length < 100 ? 0.55 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginBottom: 'var(--spacing-xs)',
+                }}
+              >
+                <Sparkles size={13} />
+                {generatingSummary ? '生成中…' : '轻量 AI 生成'}
+              </button>
+            </div>
             <input type="text" placeholder="文章摘要" style={inputStyle} value={summary} onChange={(e) => setSummary(e.target.value)} />
           </div>
 

@@ -289,7 +289,7 @@ class BlogPostService:
         self._require_super_admin(current_user)
 
         prompt = (
-            "请根据以下 Markdown 格式的文章正文，生成一段 100~200 字的中文摘要。"
+            "请根据以下 Markdown 格式的文章正文，生成一段 20~200 字的中文摘要。"
             "摘要应准确概括文章核心内容，语言简洁流畅，不要包含 Markdown 标记。"
             "只输出摘要正文，不要添加任何前缀、标题或解释。\n\n"
             f"{content_md}"

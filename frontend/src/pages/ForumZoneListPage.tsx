@@ -12,13 +12,11 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getForumZoneList, createForumZone, updateForumZone, deleteForumZone } from '../api/forum'
-import { getUserList } from '../api/users'
 import { getUser } from '../utils/auth'
 import ZoneEditorModal from '../components/ZoneEditorModal'
 import AppTopNav from '../components/AppTopNav'
 import { useLogout } from '../hooks/useLogout'
 import type { ForumZone } from '../types/forum'
-import type { User as UserType } from '../types/user'
 
 /* ─── Helpers ─── */
 
@@ -257,7 +255,6 @@ export default function ForumZoneListPage() {
   const [showEditor, setShowEditor] = useState(false)
   const [editingZone, setEditingZone] = useState<ForumZone | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [users, setUsers] = useState<UserType[]>([])
   const currentUser = getUser()
   const isAdmin = (currentUser?.permission ?? 0) >= 1
 
@@ -277,12 +274,6 @@ export default function ForumZoneListPage() {
   useEffect(() => {
     fetchZones()
   }, [fetchZones])
-
-  useEffect(() => {
-    getUserList({ limit: 100 })
-      .then((res) => setUsers(res.data.items))
-      .catch(() => {})
-  }, [])
 
   const handleLogout = useLogout()
 
@@ -405,7 +396,6 @@ export default function ForumZoneListPage() {
       {showEditor && (
         <ZoneEditorModal
           zone={editingZone}
-          users={users}
           onClose={() => {
             setShowEditor(false)
             setEditingZone(null)
