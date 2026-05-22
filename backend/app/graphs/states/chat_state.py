@@ -1,7 +1,7 @@
-from langgraph.graph import MessagesState
+from langchain.agents.middleware.types import AgentState
 
 
-class ChatState(MessagesState):
+class ChatState(AgentState):
     """LangGraph 对话状态。"""
 
     user_id: int | None = None
