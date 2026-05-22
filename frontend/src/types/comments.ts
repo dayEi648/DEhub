@@ -30,7 +30,7 @@ export interface CommentListParams {
   parent_id?: number
   is_nested?: boolean
   nested_parent_id?: number
-  sort_by?: 'time' | 'hot'
+  sort_by?: 'time' | 'time_asc' | 'hot'
   skip?: number
   limit?: number
 }

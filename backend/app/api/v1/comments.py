@@ -58,7 +58,7 @@ def list_comments(
     parent_id: int | None = Query(default=None, ge=0),
     is_nested: bool | None = Query(default=None),
     nested_parent_id: int | None = Query(default=None, ge=1),
-    sort_by: str = Query(default="time", pattern=r"^(time|hot)$"),
+    sort_by: str = Query(default="time", pattern=r"^(time|time_asc|hot)$"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -77,7 +77,7 @@ def list_comments(
         parent_id: 父级ID
         is_nested: 是否嵌套回复
         nested_parent_id: 嵌套父级ID
-        sort_by: 排序方式，"time" 或 "hot"
+        sort_by: 排序方式，"time"（倒序）、"time_asc"（正序）或 "hot"
         skip: 跳过数量
         limit: 限制数量
         db: 数据库会话

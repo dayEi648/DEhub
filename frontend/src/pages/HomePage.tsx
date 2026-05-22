@@ -891,7 +891,7 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-canvas)' }}>
-      <AppTopNav onLogout={handleLogout} forumHref="/#forum" />
+      <AppTopNav onLogout={handleLogout} forumHref="/forums" />
 
       <HeroSection />
 

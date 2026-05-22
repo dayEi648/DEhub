@@ -68,6 +68,8 @@ def get_comments(
 
     if sort_by == "hot":
         query = query.order_by(desc(Comment.likecount), desc(Comment.created_at))
+    elif sort_by == "time_asc":
+        query = query.order_by(Comment.created_at)
     else:
         query = query.order_by(desc(Comment.created_at))
 

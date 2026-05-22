@@ -444,6 +444,7 @@ function ReplyCommentSection({
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [replyingTo, setReplyingTo] = useState<{ id: number; username: string } | null>(null)
+  const [showCommentInput, setShowCommentInput] = useState(false)
 
   const totalPages = Math.ceil(total / COMMENT_PAGE_SIZE)
 
@@ -453,7 +454,7 @@ function ReplyCommentSection({
       const res = await getCommentList({
         target_type: 'forum_reply',
         target_id: replyId,
-        sort_by: 'time',
+        sort_by: 'time_asc',
         skip: (page - 1) * COMMENT_PAGE_SIZE,
         limit: COMMENT_PAGE_SIZE,
       })
@@ -550,58 +551,101 @@ function ReplyCommentSection({
         borderLeft: '2px solid var(--color-hairline-soft)',
       }}
     >
-      {/* Input */}
-      <div
-        style={{
-          backgroundColor: 'var(--color-canvas)',
-          borderRadius: 'var(--rounded-md)',
-          padding: 'var(--spacing-md)',
-          marginBottom: 'var(--spacing-md)',
-        }}
-      >
-        <textarea
-          placeholder={currentUser ? '写下你的评论...' : '请先登录后评论'}
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          disabled={!currentUser || submitting}
-          style={{
-            width: '100%',
-            minHeight: 60,
-            padding: 'var(--spacing-sm)',
-            borderRadius: 'var(--rounded-md)',
-            border: '1px solid var(--color-hairline)',
-            backgroundColor: 'var(--color-surface-soft)',
-            fontSize: 14,
-            lineHeight: 1.6,
-            color: 'var(--color-ink)',
-            resize: 'vertical',
-            outline: 'none',
-            fontFamily: 'var(--font-body)',
-          }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--spacing-sm)' }}>
+      {/* Input toggle */}
+      {!showCommentInput ? (
+        <div style={{ marginBottom: 'var(--spacing-md)' }}>
           <button
-            onClick={handleSubmit}
-            disabled={!currentUser || submitting || !newComment.trim()}
+            onClick={() => setShowCommentInput(true)}
+            disabled={!currentUser}
             style={{
               padding: '8px 16px',
-              backgroundColor: !currentUser || !newComment.trim() ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
-              color: !currentUser || !newComment.trim() ? 'var(--color-muted)' : 'var(--color-on-primary)',
+              backgroundColor: 'transparent',
+              color: !currentUser ? 'var(--color-muted)' : 'var(--color-primary)',
               borderRadius: 'var(--rounded-md)',
               fontSize: 13,
               fontWeight: 500,
-              border: 'none',
-              cursor: !currentUser || !newComment.trim() ? 'not-allowed' : 'pointer',
+              border: '1px solid var(--color-hairline)',
+              cursor: !currentUser ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 4,
             }}
           >
-            <Send size={12} />
-            {submitting ? '发表中...' : '发表评论'}
+            <MessageCircle size={12} />
+            {currentUser ? '写评论' : '请先登录后评论'}
           </button>
         </div>
-      </div>
+      ) : (
+        <div
+          style={{
+            backgroundColor: 'var(--color-canvas)',
+            borderRadius: 'var(--rounded-md)',
+            padding: 'var(--spacing-md)',
+            marginBottom: 'var(--spacing-md)',
+          }}
+        >
+          <textarea
+            placeholder='写下你的评论...'
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            disabled={submitting}
+            style={{
+              width: '100%',
+              minHeight: 60,
+              padding: 'var(--spacing-sm)',
+              borderRadius: 'var(--rounded-md)',
+              border: '1px solid var(--color-hairline)',
+              backgroundColor: 'var(--color-surface-soft)',
+              fontSize: 14,
+              lineHeight: 1.6,
+              color: 'var(--color-ink)',
+              resize: 'vertical',
+              outline: 'none',
+              fontFamily: 'var(--font-body)',
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-sm)' }}>
+            <button
+              onClick={() => {
+                setShowCommentInput(false)
+                setNewComment('')
+              }}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: 'transparent',
+                color: 'var(--color-muted)',
+                borderRadius: 'var(--rounded-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                border: '1px solid var(--color-hairline)',
+                cursor: 'pointer',
+              }}
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || !newComment.trim()}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: !newComment.trim() ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+                color: !newComment.trim() ? 'var(--color-muted)' : 'var(--color-on-primary)',
+                borderRadius: 'var(--rounded-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                border: 'none',
+                cursor: !newComment.trim() ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <Send size={12} />
+              {submitting ? '发表中...' : '发表评论'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* List */}
       {loading ? (
@@ -684,6 +728,7 @@ function ReplyCommentSection({
 /* ─── Forum Reply Item ─── */
 function ForumReplyItem({
   reply,
+  index,
   postId,
   currentUserId,
   isAdmin,
@@ -691,6 +736,7 @@ function ForumReplyItem({
   onDelete,
 }: {
   reply: ForumReply
+  index: number
   postId: number
   currentUserId: number | null
   isAdmin: boolean
@@ -704,10 +750,30 @@ function ForumReplyItem({
   return (
     <div
       style={{
+        backgroundColor: 'var(--color-surface-soft)',
+        borderRadius: 'var(--rounded-lg)',
+        border: '1px solid var(--color-hairline-soft)',
         padding: 'var(--spacing-lg)',
-        borderBottom: '1px solid var(--color-hairline-soft)',
+        position: 'relative',
       }}
     >
+      {/* Floor badge */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 12,
+          right: 16,
+          fontSize: 12,
+          fontWeight: 600,
+          color: 'var(--color-primary)',
+          backgroundColor: 'rgba(204, 120, 92, 0.08)',
+          padding: '2px 10px',
+          borderRadius: 'var(--rounded-pill)',
+        }}
+      >
+        #{index}楼
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--spacing-md)' }}>
         {/* Avatar */}
         <div
@@ -765,14 +831,14 @@ function ForumReplyItem({
               style={{
                 fontSize: 13,
                 fontWeight: 500,
-                color: 'var(--color-muted-soft)',
+                color: showReplyInput ? 'var(--color-primary)' : 'var(--color-muted-soft)',
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
                 padding: 0,
               }}
             >
-              回复
+              {showReplyInput ? '取消回复' : '回复'}
             </button>
 
             <button
@@ -891,6 +957,7 @@ export default function ForumPostDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showMainReplyInput, setShowMainReplyInput] = useState(false)
 
   const totalReplyPages = Math.ceil(totalReplies / REPLY_PAGE_SIZE)
 
@@ -1232,27 +1299,60 @@ export default function ForumPostDetailPage() {
             </div>
 
             {/* Reply Input */}
-            <div
-              style={{
-                backgroundColor: 'var(--color-surface-card)',
-                borderRadius: 'var(--rounded-lg)',
-                padding: 'var(--spacing-lg)',
-                marginBottom: 'var(--spacing-lg)',
-              }}
-            >
-              <TextInput
-                placeholder="发表你的回复..."
-                onSubmit={async (content) => {
-                  try {
-                    await createForumReply(post.id, { content })
-                    fetchReplies()
-                  } catch {
-                    alert('回复发表失败')
-                  }
+            {!showMainReplyInput ? (
+              <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+                <button
+                  onClick={() => setShowMainReplyInput(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 20px',
+                    backgroundColor: 'var(--color-primary)',
+                    color: 'var(--color-on-primary)',
+                    borderRadius: 'var(--rounded-md)',
+                    fontSize: 14,
+                    fontWeight: 500,
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background-color 150ms ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-primary-active)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-primary)'
+                  }}
+                >
+                  <MessageCircle size={14} />
+                  发表回复
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  backgroundColor: 'var(--color-surface-card)',
+                  borderRadius: 'var(--rounded-lg)',
+                  padding: 'var(--spacing-lg)',
+                  marginBottom: 'var(--spacing-lg)',
                 }}
-                submitText="发表回复"
-              />
-            </div>
+              >
+                <TextInput
+                  placeholder="发表你的回复..."
+                  onSubmit={async (content) => {
+                    try {
+                      await createForumReply(post.id, { content })
+                      setShowMainReplyInput(false)
+                      fetchReplies()
+                    } catch {
+                      alert('回复发表失败')
+                    }
+                  }}
+                  onCancel={() => setShowMainReplyInput(false)}
+                  submitText="发表回复"
+                />
+              </div>
+            )}
 
             {/* Reply List */}
             {replies.length === 0 ? (
@@ -1263,15 +1363,16 @@ export default function ForumPostDetailPage() {
             ) : (
               <div
                 style={{
-                  backgroundColor: 'var(--color-surface-card)',
-                  borderRadius: 'var(--rounded-lg)',
-                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--spacing-md)',
                 }}
               >
-                {replies.map((reply) => (
+                {replies.map((reply, idx) => (
                   <ForumReplyItem
                     key={reply.id}
                     reply={reply}
+                    index={(replyPage - 1) * REPLY_PAGE_SIZE + idx + 1}
                     postId={post.id}
                     currentUserId={currentUser?.id ?? null}
                     isAdmin={isAdmin}
