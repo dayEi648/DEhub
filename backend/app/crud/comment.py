@@ -140,7 +140,9 @@ def delete_comment(db: Session, comment_id: int) -> int:
     return result
 
 
-def delete_comments_by_ids(db: Session, comment_ids: list[int]) -> int:
+def delete_comments_by_ids(
+    db: Session, comment_ids: list[int], auto_commit: bool = True
+) -> int:
     """
     按评论 ID 列表批量删除评论
     Args:
@@ -156,7 +158,8 @@ def delete_comments_by_ids(db: Session, comment_ids: list[int]) -> int:
         .filter(Comment.id.in_(comment_ids))
         .delete(synchronize_session=False)
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result
 
 
@@ -255,7 +258,7 @@ def delete_user_comment_like(db: Session, comment_id: int, user_id: int) -> int:
 
 
 def delete_comment_likes_by_comment_ids(
-    db: Session, comment_ids: list[int]
+    db: Session, comment_ids: list[int], auto_commit: bool = True
 ) -> int:
     """
     按评论 ID 列表批量删除点赞记录
@@ -272,5 +275,33 @@ def delete_comment_likes_by_comment_ids(
         .filter(UserCommentLike.comment_id.in_(comment_ids))
         .delete(synchronize_session=False)
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result
+
+
+def get_user_liked_comment_ids(
+    db: Session,
+    user_id: int,
+    comment_ids: list[int],
+) -> set[int]:
+    """
+    批量查询用户已点赞的评论 ID。
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+        comment_ids: 评论 ID 列表
+    Returns:
+        set[int]: 已点赞评论 ID 集合
+    """
+    if not comment_ids:
+        return set()
+    rows = (
+        db.query(UserCommentLike.comment_id)
+        .filter(
+            UserCommentLike.user_id == user_id,
+            UserCommentLike.comment_id.in_(comment_ids),
+        )
+        .all()
+    )
+    return {row[0] for row in rows}

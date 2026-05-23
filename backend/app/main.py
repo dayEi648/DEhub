@@ -17,6 +17,7 @@ from app.infrastructure.llm_client import (
 )
 from app.infrastructure.embedding_client import init_embedding_client, close_embedding_client
 from app.infrastructure.checkpoint_client import init_checkpoint_client, close_checkpoint_client
+from app.core.config import settings
 from contextlib import asynccontextmanager
 
 
@@ -50,7 +51,7 @@ async def lifespan(app: FastAPI):
     await close_checkpoint_redis_client()
     await close_redis_client()
 
-app = FastAPI(title="DE个人网站", version="0.0.1", lifespan=lifespan)
+app = FastAPI(title="DE个人网站", version=settings.APP_VERSION, lifespan=lifespan)
 
 # 注册全局异常处理器
 app.add_exception_handler(HTTPException, http_exception_handler)

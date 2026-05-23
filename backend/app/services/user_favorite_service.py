@@ -2,6 +2,8 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.user import User
+from app.models.blog_post import BlogPost
+from app.core.permission_levels import PermissionLevel
 from app.crud import user_favorite as favorite_crud
 from app.crud import blog_post as blog_post_crud
 from app.crud import forum_zone as forum_zone_crud
@@ -27,7 +29,7 @@ class UserFavoriteService:
 
     # ---------- 博客文章收藏 ----------
 
-    def _get_visible_blog_post(self, post_id: int, current_user: User):
+    def _get_visible_blog_post(self, post_id: int, current_user: User) -> BlogPost:
         """
         获取当前用户可见的单篇博客文章
         Args:
@@ -45,7 +47,7 @@ class UserFavoriteService:
                 detail="文章不存在",
             )
         # 普通用户只能看到已发布的文章
-        if current_user.permission < 2:
+        if current_user.permission < PermissionLevel.SUPER_ADMIN:
             if db_post.status != "published":
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -104,7 +106,7 @@ class UserFavoriteService:
         Returns:
             BlogPostFavoriteListResponse: 收藏列表
         """
-        effective_status = "published" if current_user.permission < 2 else None
+        effective_status = "published" if current_user.permission < PermissionLevel.SUPER_ADMIN else None
         items, total = favorite_crud.get_user_blog_post_favorites(
             self.db,
             user_id=current_user.id,

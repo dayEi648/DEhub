@@ -84,7 +84,9 @@ def delete_reply(db: Session, reply_id: int) -> int:
     return result
 
 
-def delete_replies_by_post_ids(db: Session, post_ids: list[int]) -> int:
+def delete_replies_by_post_ids(
+    db: Session, post_ids: list[int], auto_commit: bool = True
+) -> int:
     """
     按帖子 ID 批量删除回复
     Args:
@@ -100,11 +102,14 @@ def delete_replies_by_post_ids(db: Session, post_ids: list[int]) -> int:
         .filter(ForumReply.post_id.in_(post_ids))
         .delete(synchronize_session=False)
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result
 
 
-def delete_replies_by_user_id(db: Session, user_id: int) -> int:
+def delete_replies_by_user_id(
+    db: Session, user_id: int, auto_commit: bool = True
+) -> int:
     """
     按用户 ID 批量删除回复
     Args:
@@ -118,7 +123,7 @@ def delete_replies_by_user_id(db: Session, user_id: int) -> int:
         .filter(ForumReply.user_id == user_id)
         .delete(synchronize_session=False)
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result
-
 

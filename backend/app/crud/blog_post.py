@@ -4,7 +4,7 @@ from app.schemas.blog_post import BlogPostCreate, BlogPostUpdate
 
 def get_blog_post_by_id(db: Session, post_id: int) -> BlogPost | None:
     """
-    根据文章ID获取文章（排除已删除，自动 join 分类与作者信息）
+    根据文章ID获取文章（自动 join 分类与作者信息）
     Args:
         db: 数据库会话
         post_id: 文章ID
@@ -22,7 +22,7 @@ def get_blog_post_by_id(db: Session, post_id: int) -> BlogPost | None:
 
 def get_blog_post_by_slug(db: Session, slug: str) -> BlogPost | None:
     """
-    根据文章 slug 获取文章（排除已删除，自动 join 分类与作者信息）
+    根据文章 slug 获取文章（自动 join 分类与作者信息）
     Args:
         db: 数据库会话
         slug: 文章 slug
@@ -48,7 +48,7 @@ def get_blog_posts(
     q: str | None = None
 ) -> list[BlogPost]:
     """
-    获取文章列表（排除已删除，支持过滤与分页，自动 join 分类与作者信息）
+    获取文章列表（支持过滤与分页，自动 join 分类与作者信息）
     Args:
         db: 数据库会话
         skip: 跳过数量

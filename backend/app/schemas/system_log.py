@@ -47,3 +47,9 @@ class BatchResolveRequest(BaseModel):
     """批量标记已处理请求"""
 
     ids: list[int] = Field(min_length=1)
+
+
+class BatchResolveResponse(BaseModel):
+    """批量标记已处理响应。"""
+
+    resolved_count: int

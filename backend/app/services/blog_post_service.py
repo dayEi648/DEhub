@@ -1,8 +1,10 @@
 import asyncio
+import logging
 
 from fastapi import HTTPException, status, UploadFile
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.permission_levels import PermissionLevel
 from app.models.user import User
 from app.models.blog_post import BlogPost
 from app.core.permissions import require_super_admin
@@ -20,6 +22,8 @@ from app.storage.oss import upload_image, ImageUploadScene, delete_file_from_oss
 from app.infrastructure.llm_client import get_llm_small_client
 from app.services.blog_post_embedding_service import BlogPostEmbeddingService
 from langchain_core.messages import SystemMessage, HumanMessage
+
+logger = logging.getLogger(__name__)
 
 
 class BlogPostService:
@@ -45,7 +49,7 @@ class BlogPostService:
             self.db.query(BlogPost)
             .options(joinedload(BlogPost.category), joinedload(BlogPost.user))
         )
-        if current_user.permission < 2:
+        if current_user.permission < PermissionLevel.SUPER_ADMIN:
             query = query.filter(BlogPost.status == "published")
         return query
 
@@ -80,7 +84,7 @@ class BlogPostService:
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
         return refreshed
 
-    def publish_blog_post(self, post_id: int, current_user: User) -> BlogPost:
+    async def publish_blog_post(self, post_id: int, current_user: User) -> BlogPost:
         self._require_super_admin(current_user)
         db_post = blog_post_crud.get_blog_post_by_id(self.db, post_id)
         if not db_post:
@@ -93,13 +97,13 @@ class BlogPostService:
 
         # 发布后同步生成向量嵌入
         embed_service = BlogPostEmbeddingService(self.db)
-        embed_service.sync_post_embedding(post_id)
+        await asyncio.to_thread(embed_service.sync_post_embedding, post_id)
 
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
         return refreshed
 
-    def unpublish_blog_post(self, post_id: int, current_user: User) -> BlogPost:
+    async def unpublish_blog_post(self, post_id: int, current_user: User) -> BlogPost:
         self._require_super_admin(current_user)
         db_post = blog_post_crud.get_blog_post_by_id(self.db, post_id)
         if not db_post:
@@ -112,7 +116,7 @@ class BlogPostService:
 
         # 下架后同步清理向量嵌入
         embed_service = BlogPostEmbeddingService(self.db)
-        embed_service.delete_post_embedding(post_id)
+        await asyncio.to_thread(embed_service.delete_post_embedding, post_id)
 
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
@@ -133,7 +137,11 @@ class BlogPostService:
         if file:
             # 删除旧封面
             if db_post.cover_image_url:
-                await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
+                try:
+                    await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
+                except Exception:
+                    # 旧图删除失败不影响本次更新，避免用户更新请求整体失败
+                    logger.exception("删除旧博客封面失败: post_id=%s", db_post.id)
             cover_url = await upload_image(file, ImageUploadScene.cover)
             post_in = post_in.model_copy(update={"cover_image_url": cover_url})
 
@@ -158,7 +166,7 @@ class BlogPostService:
 
         # 硬删除前先清理向量嵌入（显式删除，不依赖数据库 CASCADE）
         embed_service = BlogPostEmbeddingService(self.db)
-        embed_service.delete_post_embedding(post_id)
+        await asyncio.to_thread(embed_service.delete_post_embedding, post_id)
 
         result = blog_post_crud.hard_delete_blog_post(self.db, post_id)
         if result == 0:
@@ -169,9 +177,32 @@ class BlogPostService:
     def _get_visible_post(self, current_user: User):
         """获取当前用户可见的单篇文章查询"""
         query = self.db.query(BlogPost)
-        if current_user.permission < 2:
+        if current_user.permission < PermissionLevel.SUPER_ADMIN:
             query = query.filter(BlogPost.status == "published")
         return query
+
+    def _build_detail_response(self, db_post: BlogPost, current_user: User) -> BlogPostDetailResponse:
+        """组装博客详情响应（含相邻文章信息）。"""
+        prev_post = (
+            self._build_visible_query(current_user)
+            .filter(BlogPost.created_at < db_post.created_at)
+            .order_by(BlogPost.created_at.desc())
+            .first()
+        )
+        next_post = (
+            self._build_visible_query(current_user)
+            .filter(BlogPost.created_at > db_post.created_at)
+            .order_by(BlogPost.created_at.asc())
+            .first()
+        )
+        response_data = BlogPostResponse.model_validate(db_post).model_dump()
+        response_data["prev_post"] = (
+            BlogPostListItem.model_validate(prev_post) if prev_post else None
+        )
+        response_data["next_post"] = (
+            BlogPostListItem.model_validate(next_post) if next_post else None
+        )
+        return BlogPostDetailResponse.model_validate(response_data)
 
     def get_blog_post(self, post_id: int, current_user: User) -> BlogPostDetailResponse:
         query = self._build_visible_query(current_user)
@@ -182,28 +213,7 @@ class BlogPostService:
         # 增加浏览量
         blog_post_crud.increment_view_count(self.db, post_id)
 
-        # 查询相邻文章（基于当前用户可见范围）
-        prev_post = (
-            self._build_visible_query(current_user)
-            .filter(BlogPost.created_at < db_post.created_at)
-            .order_by(BlogPost.created_at.desc())
-            .first()
-        )
-        next_post = (
-            self._build_visible_query(current_user)
-            .filter(BlogPost.created_at > db_post.created_at)
-            .order_by(BlogPost.created_at.asc())
-            .first()
-        )
-
-        response_data = BlogPostResponse.model_validate(db_post).model_dump()
-        response_data["prev_post"] = (
-            BlogPostListItem.model_validate(prev_post) if prev_post else None
-        )
-        response_data["next_post"] = (
-            BlogPostListItem.model_validate(next_post) if next_post else None
-        )
-        return BlogPostDetailResponse.model_validate(response_data)
+        return self._build_detail_response(db_post, current_user)
 
     def get_blog_post_by_slug(self, slug: str, current_user: User) -> BlogPostDetailResponse:
         query = self._build_visible_query(current_user)
@@ -214,28 +224,7 @@ class BlogPostService:
         # 增加浏览量
         blog_post_crud.increment_view_count(self.db, db_post.id)
 
-        # 查询相邻文章
-        prev_post = (
-            self._build_visible_query(current_user)
-            .filter(BlogPost.created_at < db_post.created_at)
-            .order_by(BlogPost.created_at.desc())
-            .first()
-        )
-        next_post = (
-            self._build_visible_query(current_user)
-            .filter(BlogPost.created_at > db_post.created_at)
-            .order_by(BlogPost.created_at.asc())
-            .first()
-        )
-
-        response_data = BlogPostResponse.model_validate(db_post).model_dump()
-        response_data["prev_post"] = (
-            BlogPostListItem.model_validate(prev_post) if prev_post else None
-        )
-        response_data["next_post"] = (
-            BlogPostListItem.model_validate(next_post) if next_post else None
-        )
-        return BlogPostDetailResponse.model_validate(response_data)
+        return self._build_detail_response(db_post, current_user)
 
     def list_blog_posts(
         self,
@@ -248,7 +237,7 @@ class BlogPostService:
         include_unpublished: bool,
         current_user: User,
     ) -> BlogPostListResponse:
-        if current_user.permission != 2:
+        if current_user.permission != PermissionLevel.SUPER_ADMIN:
             effective_status = "published"
         else:
             effective_status = status if include_unpublished else "published"

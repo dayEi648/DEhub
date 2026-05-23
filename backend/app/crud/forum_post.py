@@ -91,7 +91,7 @@ def update_post(
     return db_post
 
 
-def delete_post(db: Session, post_id: int) -> int:
+def delete_post(db: Session, post_id: int, auto_commit: bool = True) -> int:
     """
     删除帖子（物理删除）
     Args:
@@ -105,7 +105,8 @@ def delete_post(db: Session, post_id: int) -> int:
         .filter(ForumPost.id == post_id)
         .delete(synchronize_session=False)
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result
 
 

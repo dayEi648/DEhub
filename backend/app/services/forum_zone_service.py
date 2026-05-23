@@ -2,15 +2,15 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.user import User
-from app.models.forum_zone import ForumZone
 from app.core.permissions import require_admin
-from app.schemas.forum_zone import ForumZoneCreate, ForumZoneUpdate, ForumZoneResponse
+from app.core.permission_levels import PermissionLevel
+from app.schemas.forum_zone import ForumZoneCreate, ForumZoneUpdate
 from app.crud import forum_zone as forum_zone_crud
 from app.crud import forum_post as forum_post_crud
 from app.crud import user as user_crud
 from app.utils.slug import generate_unique_slug
 from app.core.zone_manager import (
-    get_zone_manager_id,
+    is_zone_manager,
     set_zone_manager_cache,
     delete_zone_manager_cache,
 )
@@ -23,10 +23,6 @@ class ForumZoneService:
     def _require_admin(self, current_user: User) -> None:
         """要求当前用户为管理员及以上"""
         require_admin(current_user)
-
-    def _is_zone_manager(self, zone: ForumZone, current_user: User) -> bool:
-        """判断当前用户是否为指定分区的区主"""
-        return zone.manager_id == current_user.id
 
     def _validate_manager_id(self, manager_id: int) -> None:
         """
@@ -87,7 +83,7 @@ class ForumZoneService:
             slug = generate_unique_slug(
                 self.db, zone_in.zone_name, exists_checker=forum_zone_crud.get_zone_by_slug
             )
-            zone_in = ForumZoneCreate(**{**zone_in.model_dump(), "slug": slug})
+            zone_in = zone_in.model_copy(update={"slug": slug})
         else:
             self._ensure_slug_unique(zone_in.slug)
 
@@ -123,8 +119,8 @@ class ForumZoneService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
             )
 
-        is_admin = current_user.permission >= 1
-        is_manager = self._is_zone_manager(db_zone, current_user)
+        is_admin = current_user.permission >= PermissionLevel.ADMIN
+        is_manager = is_zone_manager(self.db, db_zone.id, current_user.id)
 
         if not is_admin and not is_manager:
             raise HTTPException(

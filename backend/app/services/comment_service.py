@@ -2,9 +2,10 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.permissions import require_owner_or_admin
 from app.models.user import User
 from app.models.comment import Comment
-from app.schemas.comment import CommentCreate
+from app.schemas.comment import CommentCreate, CommentResponse
 from app.crud import comment as comment_crud
 from app.crud import blog_post as blog_post_crud
 from app.crud import forum_reply as forum_reply_crud
@@ -59,11 +60,13 @@ class CommentService:
         Raises:
             HTTPException: 403 权限不足
         """
-        if current_user.id != comment_user_id and current_user.permission < 1:
+        try:
+            require_owner_or_admin(current_user, comment_user_id)
+        except HTTPException as exc:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=exc.status_code,
                 detail="无权操作此评论",
-            )
+            ) from exc
 
     def _validate_comment_create(self, comment_in: CommentCreate) -> CommentCreate:
         """
@@ -259,6 +262,44 @@ class CommentService:
             skip=skip,
             limit=limit,
         )
+
+    def list_comments_with_like_state(
+        self,
+        target_type: str,
+        target_id: int,
+        parent_id: int | None,
+        is_nested: bool | None,
+        nested_parent_id: int | None,
+        sort_by: str,
+        skip: int,
+        limit: int,
+        current_user: User,
+    ) -> tuple[list[CommentResponse], int]:
+        """
+        查询评论并补充当前用户的点赞状态。
+        """
+        items, total = self.list_comments(
+            target_type=target_type,
+            target_id=target_id,
+            parent_id=parent_id,
+            is_nested=is_nested,
+            nested_parent_id=nested_parent_id,
+            sort_by=sort_by,
+            skip=skip,
+            limit=limit,
+        )
+        responses = [CommentResponse.model_validate(item) for item in items]
+        if not responses:
+            return responses, total
+
+        liked_ids = comment_crud.get_user_liked_comment_ids(
+            self.db,
+            current_user.id,
+            [item.id for item in items],
+        )
+        for response in responses:
+            response.is_liked = response.id in liked_ids
+        return responses, total
 
     def like_comment(self, comment_id: int, current_user: User) -> None:
         """

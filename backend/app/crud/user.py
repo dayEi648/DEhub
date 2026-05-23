@@ -88,9 +88,9 @@ def create_user(db: Session, user_in: UserCreate) -> User:
         username=user_in.username,
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
-        permission=getattr(user_in, "permission", 0),
-        avatar_url=getattr(user_in, "avatar_url", None),
-        personal_profile=getattr(user_in, "personal_profile", None))
+        permission=user_in.permission if user_in.permission is not None else 0,
+        avatar_url=user_in.avatar_url,
+        personal_profile=user_in.personal_profile)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -140,7 +140,7 @@ def soft_delete_user(db: Session, user_id: int) -> int:
     return result
 
 
-def hard_delete_user(db: Session, user_id: int) -> int:
+def hard_delete_user(db: Session, user_id: int, auto_commit: bool = True) -> int:
     """
     硬删除用户（从数据库移除）
     Args:
@@ -150,5 +150,6 @@ def hard_delete_user(db: Session, user_id: int) -> int:
         int: 删除数量
     """
     deleted = db.query(User).filter(User.id == user_id).delete(synchronize_session=False)
-    db.commit()
+    if auto_commit:
+        db.commit()
     return deleted

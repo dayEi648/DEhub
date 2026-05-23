@@ -16,13 +16,16 @@ def create_ai_conversation(db: Session, user_id: int, title: str) -> AIConversat
     return conv
 
 
-def delete_ai_conversation(db: Session, conversation_id: int) -> int:
+def delete_ai_conversation(
+    db: Session, conversation_id: int, auto_commit: bool = True
+) -> int:
     """物理删除对话及其级联消息，返回删除行数。"""
     conv = db.query(AIConversation).filter(AIConversation.id == conversation_id).first()
     if conv is None:
         return 0
     db.delete(conv)
-    db.commit()
+    if auto_commit:
+        db.commit()
     return 1
 
 

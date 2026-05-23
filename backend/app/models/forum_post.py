@@ -34,5 +34,5 @@ class ForumPost(Base):
     user: Mapped["User"] = relationship("User")
     zone: Mapped["ForumZone"] = relationship("ForumZone", back_populates="posts")
     replies: Mapped[list["ForumReply"]] = relationship(
-        "ForumReply", back_populates="post"
+        "ForumReply", back_populates="post", cascade="all, delete-orphan", passive_deletes=True
     )

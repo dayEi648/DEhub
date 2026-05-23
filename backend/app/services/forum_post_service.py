@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.user import User
 from app.models.forum_post import ForumPost
-from app.core.permissions import require_admin
+from app.core.permission_levels import PermissionLevel
 from app.schemas.forum_post import ForumPostCreate, ForumPostUpdate, ForumPostResponse, ForumPostListResponse
 from app.crud import forum_post as forum_post_crud
 from app.crud import forum_zone as forum_zone_crud
@@ -27,7 +27,7 @@ class ForumPostService:
             HTTPException: 403 权限不足
         """
         is_owner = post.user_id == current_user.id
-        is_admin = current_user.permission >= 1
+        is_admin = current_user.permission >= PermissionLevel.ADMIN
         is_manager = allow_manager and is_zone_manager(
             self.db, post.zone_id, current_user.id
         )

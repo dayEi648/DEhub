@@ -1,9 +1,8 @@
-import json
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form
+from fastapi import APIRouter, Depends, status, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.api.v1.form_parser import parse_json_form_payload
 from app.core.security import get_current_user
 from app.models.user import User
 from app.schemas.blog_post import (
@@ -22,26 +21,12 @@ router = APIRouter(prefix="/blog_posts", tags=["博客文章管理"])
 
 def parse_blog_post_create(post_in: str = Form(..., description="博客文章创建请求的 JSON 字符串")) -> BlogPostCreate:
     """解析前端传来的 post_in JSON 字符串为 BlogPostCreate 模型"""
-    try:
-        data = json.loads(post_in)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="请求体 JSON 格式错误"
-        )
-    return BlogPostCreate.model_validate(data)
+    return parse_json_form_payload(post_in, BlogPostCreate)
 
 
 def parse_blog_post_update(post_in: str = Form(..., description="博客文章更新请求的 JSON 字符串")) -> BlogPostUpdate:
     """解析前端传来的 post_in JSON 字符串为 BlogPostUpdate 模型"""
-    try:
-        data = json.loads(post_in)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="请求体 JSON 格式错误"
-        )
-    return BlogPostUpdate.model_validate(data)
+    return parse_json_form_payload(post_in, BlogPostUpdate)
 
 
 # ---------- 写操作（超管专属）----------
@@ -49,7 +34,7 @@ def parse_blog_post_update(post_in: str = Form(..., description="博客文章更
 @router.post("/", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)
 async def create_blog_post(
     post_in: BlogPostCreate = Depends(parse_blog_post_create),
-    file: UploadFile | None = File(None, description="封面图片文件，最大 5MB，支持自动压缩"),
+    file: UploadFile | None = File(None, description="封面图片文件，前端限制 20MB，后端自动压缩至 5MB 以下"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostResponse:
@@ -62,7 +47,7 @@ async def create_blog_post(
 
 
 @router.post("/{post_id}/publish", response_model=BlogPostResponse)
-def publish_blog_post(
+async def publish_blog_post(
     post_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -71,12 +56,12 @@ def publish_blog_post(
     发布博客文章（超级管理员专属）
     """
     service = BlogPostService(db)
-    post = service.publish_blog_post(post_id, current_user)
+    post = await service.publish_blog_post(post_id, current_user)
     return post
 
 
 @router.post("/{post_id}/unpublish", response_model=BlogPostResponse)
-def unpublish_blog_post(
+async def unpublish_blog_post(
     post_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -85,7 +70,7 @@ def unpublish_blog_post(
     下线博客文章（超级管理员专属）
     """
     service = BlogPostService(db)
-    post = service.unpublish_blog_post(post_id, current_user)
+    post = await service.unpublish_blog_post(post_id, current_user)
     return post
 
 
@@ -93,7 +78,7 @@ def unpublish_blog_post(
 async def update_blog_post(
     post_id: int,
     post_in: BlogPostUpdate = Depends(parse_blog_post_update),
-    file: UploadFile | None = File(None, description="封面图片文件，最大 5MB，支持自动压缩"),
+    file: UploadFile | None = File(None, description="封面图片文件，前端限制 20MB，后端自动压缩至 5MB 以下"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostResponse:

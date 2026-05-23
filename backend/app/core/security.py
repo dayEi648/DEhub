@@ -64,15 +64,7 @@ def create_access_token(user_id: int) -> str:
     Returns:
         str: 访问令牌
     """
-    jti = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
-    expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {"sub": str(user_id), "exp": int(expire.timestamp()), "jti": jti, "type": "access", "iat": int(now.timestamp())}
-    return jwt.encode(
-        to_encode,
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM,
-    )
+    return _create_token(user_id, "access", settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
 def create_refresh_token(user_id: int) -> str:
     """
@@ -82,10 +74,21 @@ def create_refresh_token(user_id: int) -> str:
     Returns:
         str: 刷新令牌
     """
+    return _create_token(user_id, "refresh", settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+
+
+def _create_token(user_id: int, token_type: str, expire_minutes: int) -> str:
+    """创建指定类型和过期时间的 JWT。"""
     now = datetime.now(timezone.utc)
-    expire = now + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+    expire = now + timedelta(minutes=expire_minutes)
     jti = str(uuid.uuid4())
-    to_encode = {"sub": str(user_id), "exp": int(expire.timestamp()), "jti": jti, "type": "refresh", "iat": int(now.timestamp())}
+    to_encode = {
+        "sub": str(user_id),
+        "exp": int(expire.timestamp()),
+        "jti": jti,
+        "type": token_type,
+        "iat": int(now.timestamp()),
+    }
     return jwt.encode(
         to_encode,
         settings.SECRET_KEY,
@@ -128,16 +131,16 @@ async def get_current_user(token: str = Depends(get_token_from_header), db: Sess
 
     user_id_str = payload.get("sub")
     if not user_id_str:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌校验失败")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌校验失败", headers={"WWW-Authenticate": "Bearer"})
     try:
         user_id = int(user_id_str)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌校验失败")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌校验失败", headers={"WWW-Authenticate": "Bearer"})
 
     from app.crud import user as user_crud
     user = await run_in_threadpool(user_crud.get_user_by_id, db, user_id)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在", headers={"WWW-Authenticate": "Bearer"})
 
     # 检查用户是否已被注销（用户级 token 撤销）
     redis = get_redis_client()
@@ -163,47 +166,41 @@ async def blacklist_token(access_token: str, refresh_token: Optional[str] = None
     Returns:
         None
     """
-    payload_access_token = decode_token(access_token)
-    payload_refresh_token = decode_token(refresh_token) if refresh_token else None
-    sub_access = payload_access_token.get("sub") if payload_access_token else None
-    jti_access = payload_access_token.get("jti") if payload_access_token else None
-    exp_access = payload_access_token.get("exp") if payload_access_token else None
-    sub_refresh = payload_refresh_token.get("sub") if payload_refresh_token else None
-    jti_refresh = payload_refresh_token.get("jti") if payload_refresh_token else None
-    exp_refresh = payload_refresh_token.get("exp") if payload_refresh_token else None
-
-    if sub_refresh and jti_refresh and exp_refresh:
-        ttl = int(exp_refresh) - int(datetime.now(timezone.utc).timestamp())
-        if ttl > 0:
-            redis = get_redis_client()
-            await redis.setex(f"jwt_blacklist:{jti_refresh}", ttl, "revoked")
-    if sub_access and jti_access and exp_access:
-        ttl = int(exp_access) - int(datetime.now(timezone.utc).timestamp())
-        if ttl > 0:
-            redis = get_redis_client()
-            await redis.setex(f"jwt_blacklist:{jti_access}", ttl, "revoked")
+    redis = get_redis_client()
+    for jti, ttl in _iter_revocable_entries(access_token, refresh_token):
+        await redis.setex(f"jwt_blacklist:{jti}", ttl, "revoked")
 
 def blacklist_token_sync(access_token: str, refresh_token: Optional[str] = None) -> None:
     """
     同步版本：将令牌加入黑名单
     TTL 设为该 token 的剩余存活时间
     """
-    payload_access_token = decode_token(access_token)
-    payload_refresh_token = decode_token(refresh_token) if refresh_token else None
-    jti_access = payload_access_token.get("jti") if payload_access_token else None
-    exp_access = payload_access_token.get("exp") if payload_access_token else None
-    jti_refresh = payload_refresh_token.get("jti") if payload_refresh_token else None
-    exp_refresh = payload_refresh_token.get("exp") if payload_refresh_token else None
-
     redis = get_sync_redis_client()
-    if jti_refresh and exp_refresh:
-        ttl = int(exp_refresh) - int(datetime.now(timezone.utc).timestamp())
+    for jti, ttl in _iter_revocable_entries(access_token, refresh_token):
+        redis.setex(f"jwt_blacklist:{jti}", ttl, "revoked")
+
+
+def _iter_revocable_entries(
+    access_token: str,
+    refresh_token: Optional[str] = None,
+) -> list[tuple[str, int]]:
+    """提取需要写入黑名单的 (jti, ttl) 列表。"""
+    entries: list[tuple[str, int]] = []
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    for token in (refresh_token, access_token):
+        if not token:
+            continue
+        payload = decode_token(token)
+        if payload is None:
+            continue
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if not jti or exp is None:
+            continue
+        ttl = int(exp) - now_ts
         if ttl > 0:
-            redis.setex(f"jwt_blacklist:{jti_refresh}", ttl, "revoked")
-    if jti_access and exp_access:
-        ttl = int(exp_access) - int(datetime.now(timezone.utc).timestamp())
-        if ttl > 0:
-            redis.setex(f"jwt_blacklist:{jti_access}", ttl, "revoked")
+            entries.append((jti, ttl))
+    return entries
 
 
 async def is_token_blacklisted(jti: str) -> bool:
@@ -216,4 +213,3 @@ async def is_token_blacklisted(jti: str) -> bool:
     """
     redis = get_redis_client()
     return await redis.exists(f"jwt_blacklist:{jti}") > 0
-

@@ -307,7 +307,9 @@ def get_user_post_favorites(
 # ---------- 用户级联清理 ----------
 
 
-def delete_all_favorites_by_user_id(db: Session, user_id: int) -> dict[str, int]:
+def delete_all_favorites_by_user_id(
+    db: Session, user_id: int, auto_commit: bool = True
+) -> dict[str, int]:
     """
     删除某用户的所有收藏、点赞、关注记录
     Args:
@@ -331,7 +333,8 @@ def delete_all_favorites_by_user_id(db: Session, user_id: int) -> dict[str, int]
         .filter(UserPostFavorite.user_id == user_id)
         .delete(synchronize_session=False)
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return {
         "blog_post_favorites": blog_fav,
         "zone_follows": zone_follow,

@@ -46,7 +46,7 @@ class BlogCategoryService:
             slug = generate_unique_slug(
                 self.db, category_in.name, exists_checker=blog_category_crud.get_category_by_slug
             )
-            category_in = BlogCategoryCreate(**{**category_in.model_dump(), "slug": slug})
+            category_in = category_in.model_copy(update={"slug": slug})
         else:
             self._ensure_slug_unique(category_in.slug)
 

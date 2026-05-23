@@ -104,7 +104,7 @@ def delete_zone(db: Session, zone_id: int) -> int:
 
 
 def update_zones_manager_by_old_manager(
-    db: Session, old_manager_id: int, new_manager_id: int
+    db: Session, old_manager_id: int, new_manager_id: int, auto_commit: bool = True
 ) -> int:
     """
     批量将指定区主管理的分区的 manager_id 转移给新区主
@@ -120,7 +120,7 @@ def update_zones_manager_by_old_manager(
         .filter(ForumZone.manager_id == old_manager_id)
         .update({"manager_id": new_manager_id}, synchronize_session=False)
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result
-
 

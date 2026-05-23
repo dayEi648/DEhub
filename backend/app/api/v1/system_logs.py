@@ -16,6 +16,7 @@ from app.crud.system_log import (
 )
 from app.models.user import User
 from app.schemas.system_log import (
+    BatchResolveResponse,
     BatchResolveRequest,
     SystemLogListResponse,
     SystemLogResponse,
@@ -71,12 +72,12 @@ def get_system_log_stats(
     return SystemLogStatsResponse(**stats)
 
 
-@router.post("/batch_resolve")
+@router.post("/batch_resolve", response_model=BatchResolveResponse)
 def batch_resolve_system_logs(
     req: BatchResolveRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict[str, int]:
+) -> BatchResolveResponse:
     """
     批量标记日志为已处理（管理员及以上权限）。
 
@@ -85,7 +86,7 @@ def batch_resolve_system_logs(
     """
     require_admin(current_user)
     count = batch_resolve_logs(db, req.ids, resolved_by=current_user.id)
-    return {"resolved_count": count}
+    return BatchResolveResponse(resolved_count=count)
 
 
 @router.get("/{log_id}", response_model=SystemLogResponse)

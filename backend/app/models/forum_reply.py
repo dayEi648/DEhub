@@ -14,7 +14,7 @@ class ForumReply(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     post_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("forum_posts.id"), nullable=False
+        Integer, ForeignKey("forum_posts.id", ondelete="CASCADE"), nullable=False
     )
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False

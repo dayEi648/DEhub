@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.services.comment_service import CommentService
-from app.schemas.comment import CommentCreate
+from app.schemas.comment import CommentCreate, CommentResponse
 
 
 class TestCommentServiceCreate:
@@ -340,6 +340,39 @@ class TestCommentServiceList:
         assert call_kwargs["is_nested"] is True
         assert call_kwargs["nested_parent_id"] == 20
         assert call_kwargs["parent_id"] == 10
+
+    @patch("app.services.comment_service.comment_crud")
+    def test_list_comments_with_like_state(self, mock_comment_crud, service):
+        """批量点赞状态在 Service 层组装，返回 CommentResponse 列表。"""
+        comment_1 = MagicMock()
+        comment_1.id = 1
+        comment_2 = MagicMock()
+        comment_2.id = 2
+        mock_comment_crud.get_comments.return_value = ([comment_1, comment_2], 2)
+
+        current_user = MagicMock()
+        current_user.id = 100
+        mock_comment_crud.get_user_liked_comment_ids.return_value = {2}
+
+        with patch.object(CommentResponse, "model_validate", side_effect=[MagicMock(id=1, is_liked=False), MagicMock(id=2, is_liked=False)]):
+            items, total = service.list_comments_with_like_state(
+                target_type="blog_post",
+                target_id=10,
+                parent_id=None,
+                is_nested=None,
+                nested_parent_id=None,
+                sort_by="time",
+                skip=0,
+                limit=20,
+                current_user=current_user,
+            )
+
+        assert total == 2
+        assert items[0].is_liked is False
+        assert items[1].is_liked is True
+        mock_comment_crud.get_user_liked_comment_ids.assert_called_once_with(
+            service.db, 100, [1, 2]
+        )
 
 
 class TestForumReplyServiceDelete:

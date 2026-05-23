@@ -14,6 +14,12 @@ _bucket: oss2.Bucket | None = None
 
 # 允许的文件类型
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
+INITIAL_JPEG_QUALITY = 92
+MIN_JPEG_QUALITY = 30
+JPEG_QUALITY_STEP = 5
+MIN_IMAGE_DIMENSION = 100
+RESIZE_SCALE_FACTOR = 0.8
+FINAL_RESIZE_QUALITY = 85
 
 
 def _normalize_oss_endpoint(endpoint: str) -> str:
@@ -186,22 +192,22 @@ def compress_image(content: bytes, max_size: int | None = None, max_dimension: i
     img.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
 
     # 循环降低 JPEG 质量，直到满足大小限制
-    quality = 92
-    while quality >= 30:
+    quality = INITIAL_JPEG_QUALITY
+    while quality >= MIN_JPEG_QUALITY:
         buffer = io.BytesIO()
         img.save(buffer, format='JPEG', quality=quality, optimize=True)
         if buffer.tell() <= max_size:
             return buffer.getvalue()
-        quality -= 5
+        quality -= JPEG_QUALITY_STEP
 
     # 质量已最低仍超限，进一步缩小尺寸
     current_width, current_height = img.size
-    while buffer.tell() > max_size and current_width > 100 and current_height > 100:
-        current_width = int(current_width * 0.8)
-        current_height = int(current_height * 0.8)
+    while buffer.tell() > max_size and current_width > MIN_IMAGE_DIMENSION and current_height > MIN_IMAGE_DIMENSION:
+        current_width = int(current_width * RESIZE_SCALE_FACTOR)
+        current_height = int(current_height * RESIZE_SCALE_FACTOR)
         resized = img.resize((current_width, current_height), Image.LANCZOS)
         buffer = io.BytesIO()
-        resized.save(buffer, format='JPEG', quality=85, optimize=True)
+        resized.save(buffer, format='JPEG', quality=FINAL_RESIZE_QUALITY, optimize=True)
 
     if buffer.tell() > max_size:
         raise HTTPException(

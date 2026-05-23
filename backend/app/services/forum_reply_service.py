@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.models.user import User
 from app.models.forum_reply import ForumReply
-from app.schemas.forum_reply import ForumReplyCreate, ForumReplyResponse
+from app.core.permission_levels import PermissionLevel
+from app.schemas.forum_reply import ForumReplyCreate
 from app.crud import forum_reply as forum_reply_crud
 from app.crud import forum_post as forum_post_crud
 from app.crud import comment as comment_crud
@@ -11,6 +12,8 @@ from app.core.zone_manager import is_zone_manager
 
 
 class ForumReplyService:
+    _REPLY_COMMENT_DELETE_LIMIT = 10000
+
     def __init__(self, db: Session):
         self.db = db
 
@@ -34,7 +37,7 @@ class ForumReplyService:
             )
 
         is_owner = reply.user_id == current_user.id
-        is_admin = current_user.permission >= 1
+        is_admin = current_user.permission >= PermissionLevel.ADMIN
         is_manager = is_zone_manager(self.db, post.zone_id, current_user.id)
 
         if not (is_owner or is_admin or is_manager):
@@ -94,7 +97,7 @@ class ForumReplyService:
             self.db,
             target_type="forum_reply",
             target_id=reply_id,
-            limit=10000,  # 足够大的上限以覆盖所有评论
+            limit=self._REPLY_COMMENT_DELETE_LIMIT,  # 足够大的上限以覆盖所有评论
         )
         if reply_comments:
             comment_ids = [c.id for c in reply_comments]

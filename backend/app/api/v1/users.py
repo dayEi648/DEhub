@@ -1,8 +1,8 @@
-import json
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Query, Form
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.api.v1.form_parser import parse_json_form_payload
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLoginResponse, UserLogin, UserLogout, RefreshTokenRequest, UserRegister, UserListResponse, ChangePasswordRequest
 from app.services.user_service import UserService
 from app.models.user import User
@@ -68,21 +68,14 @@ def list_users(
 
 def parse_user_update(user_in: str = Form(..., description="用户更新请求的 JSON 字符串")) -> UserUpdate:
     """解析前端传来的 user_in JSON 字符串为 UserUpdate 模型"""
-    try:
-        data = json.loads(user_in)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="请求体 JSON 格式错误"
-        )
-    return UserUpdate.model_validate(data)
+    return parse_json_form_payload(user_in, UserUpdate)
 
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
     user_in: UserUpdate = Depends(parse_user_update),
-    file: UploadFile | None = File(None, description="头像文件，最大2MB，支持自动压缩"),
+    file: UploadFile | None = File(None, description="头像文件，前端限制 20MB，后端自动压缩至 5MB 以下"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> UserResponse:
