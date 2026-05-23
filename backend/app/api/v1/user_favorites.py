@@ -68,6 +68,29 @@ def unfavorite_blog_post(
 
 
 @router_favorites.get(
+    "/blog-posts/{post_id}",
+    response_model=FavoriteStatusResponse,
+)
+def get_blog_post_favorite_status(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FavoriteStatusResponse:
+    """
+    查询当前用户是否收藏了指定博客文章（登录用户）
+    Args:
+        post_id: 文章ID
+        db: 数据库会话
+        current_user: 当前登录用户
+    Returns:
+        FavoriteStatusResponse: 收藏状态
+    """
+    service = UserFavoriteService(db)
+    is_favorited = service.is_blog_post_favorited(post_id, current_user)
+    return FavoriteStatusResponse(is_favorited=is_favorited)
+
+
+@router_favorites.get(
     "/blog-posts",
     response_model=BlogPostFavoriteListResponse,
 )
@@ -213,6 +236,29 @@ def unfavorite_post(
     service = UserFavoriteService(db)
     service.unfavorite_post(post_id, current_user)
     return FavoriteStatusResponse(is_favorited=False)
+
+
+@router_favorites.get(
+    "/forum-posts/{post_id}",
+    response_model=FavoriteStatusResponse,
+)
+def get_post_favorite_status(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FavoriteStatusResponse:
+    """
+    查询当前用户是否收藏了指定论坛帖子（登录用户）
+    Args:
+        post_id: 帖子ID
+        db: 数据库会话
+        current_user: 当前登录用户
+    Returns:
+        FavoriteStatusResponse: 收藏状态
+    """
+    service = UserFavoriteService(db)
+    is_favorited = service.is_post_favorited(post_id, current_user)
+    return FavoriteStatusResponse(is_favorited=is_favorited)
 
 
 @router_favorites.get(

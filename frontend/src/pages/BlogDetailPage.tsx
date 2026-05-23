@@ -34,7 +34,7 @@ import {
 import { getUser } from '../utils/auth'
 import BlogEditorModal from '../components/BlogEditorModal'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
-import { favoriteBlogPost, unfavoriteBlogPost, getFavoriteBlogPosts } from '../api/favorites'
+import { favoriteBlogPost, unfavoriteBlogPost, getBlogPostFavoriteStatus } from '../api/favorites'
 import { toast } from 'sonner'
 import AppTopNav from '../components/AppTopNav'
 import { useLogout } from '../hooks/useLogout'
@@ -1199,7 +1199,7 @@ function CommentSection({ postId, totalCommentCount }: { postId: number; totalCo
               key={comment.id}
               comment={comment}
               currentUserId={currentUser?.id ?? null}
-              isAdmin={currentUser?.permission === 2}
+              isAdmin={(currentUser?.permission ?? 0) >= 1}
               onLike={handleLike}
               onUnlike={handleUnlike}
               onDelete={handleDelete}
@@ -1297,12 +1297,14 @@ export default function BlogDetailPage() {
     setLoading(true)
     setError('')
     try {
-      const [postRes, favRes] = await Promise.all([
-        getBlogPostBySlug(slug),
-        getFavoriteBlogPosts({ limit: 100 }),
-      ])
+      const postRes = await getBlogPostBySlug(slug)
       setPost(postRes.data)
-      setIsFavorited(favRes.data.items.some((item) => item.id === postRes.data.id))
+      if (currentUser) {
+        const favRes = await getBlogPostFavoriteStatus(postRes.data.id)
+        setIsFavorited(favRes.data.is_favorited)
+      } else {
+        setIsFavorited(false)
+      }
     } catch {
       setError('文章加载失败，请稍后重试')
     } finally {

@@ -45,7 +45,7 @@ export interface BlogPostUpdateData {
   status?: 'draft' | 'published'
 }
 
-export function createBlogPost(data: BlogPostCreateData, file?: File) {
+export function createBlogPost(data: BlogPostCreateData, file: File) {
   const formData = new FormData()
   formData.append('post_in', JSON.stringify(data))
   if (file) {

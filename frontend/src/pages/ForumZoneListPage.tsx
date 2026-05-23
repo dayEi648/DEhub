@@ -82,14 +82,17 @@ function HeroSection() {
 function ZoneCard({
   zone,
   isAdmin,
+  currentUserId,
   onEdit,
   onDelete,
 }: {
   zone: ForumZone
   isAdmin: boolean
+  currentUserId: number | null
   onEdit: (zone: ForumZone) => void
   onDelete: (zone: ForumZone) => void
 }) {
+  const canEdit = isAdmin || currentUserId === zone.manager_id
   const navigate = useNavigate()
 
   return (
@@ -143,7 +146,7 @@ function ZoneCard({
         >
           {zone.zone_name}
         </h3>
-        {isAdmin && (
+        {canEdit && (
           <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => onEdit(zone)}
@@ -162,23 +165,25 @@ function ZoneCard({
             >
               <Edit3 size={12} />
             </button>
-            <button
-              onClick={() => onDelete(zone)}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 'var(--rounded-md)',
-                backgroundColor: 'var(--color-canvas)',
-                border: '1px solid var(--color-hairline)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-error)',
-                cursor: 'pointer',
-              }}
-            >
-              <Trash2 size={12} />
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => onDelete(zone)}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 'var(--rounded-md)',
+                  backgroundColor: 'var(--color-canvas)',
+                  border: '1px solid var(--color-hairline)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--color-error)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -379,6 +384,7 @@ export default function ForumZoneListPage() {
                   key={zone.id}
                   zone={zone}
                   isAdmin={isAdmin}
+                  currentUserId={currentUser?.id ?? null}
                   onEdit={(z) => {
                     setEditingZone(z)
                     setShowEditor(true)

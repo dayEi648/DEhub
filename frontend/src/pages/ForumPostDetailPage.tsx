@@ -27,7 +27,7 @@ import {
   getForumZoneById,
 } from '../api/forum'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
-import { favoriteForumPost, unfavoriteForumPost, getFavoriteForumPosts } from '../api/favorites'
+import { favoriteForumPost, unfavoriteForumPost, getForumPostFavoriteStatus } from '../api/favorites'
 import { uploadImage } from '../api/upload'
 import { toast } from 'sonner'
 import { getUser } from '../utils/auth'
@@ -783,7 +783,7 @@ function ReplyCommentSection({
               <CommentItem
                 comment={comment}
                 currentUserId={currentUser?.id ?? null}
-                isAdmin={currentUser?.permission === 2}
+                isAdmin={(currentUser?.permission ?? 0) >= 1}
                 onLike={handleLike}
                 onUnlike={handleUnlike}
                 onDelete={handleDelete}
@@ -1076,12 +1076,14 @@ export default function ForumPostDetailPage() {
     setLoading(true)
     setError('')
     try {
-      const [postRes, favRes] = await Promise.all([
-        getForumPostById(id),
-        getFavoriteForumPosts({ limit: 100 }),
-      ])
+      const postRes = await getForumPostById(id)
       setPost(postRes.data)
-      setIsFavorited(favRes.data.items.some((item) => item.id === postRes.data.id))
+      if (currentUser) {
+        const favRes = await getForumPostFavoriteStatus(postRes.data.id)
+        setIsFavorited(favRes.data.is_favorited)
+      } else {
+        setIsFavorited(false)
+      }
       // 获取分区信息以判断区主权限
       try {
         const zoneRes = await getForumZoneById(postRes.data.zone_id)
@@ -1128,7 +1130,11 @@ export default function ForumPostDetailPage() {
     if (!window.confirm('确定要删除这篇帖子吗？此操作不可撤销。')) return
     try {
       await deleteForumPost(post.id)
-      navigate(`/forums/z/${post.zone_id}`)
+      if (zone?.slug) {
+        navigate(`/forums/z/${zone.slug}`)
+      } else {
+        navigate('/forums')
+      }
     } catch {
       toast.error('删除失败')
     }
@@ -1144,7 +1150,7 @@ export default function ForumPostDetailPage() {
   }
 
   const isPostAuthor = currentUser?.id === post?.user_id
-  const isAdmin = currentUser?.permission === 2
+  const isAdmin = (currentUser?.permission ?? 0) >= 1
   const isZoneManager = currentUser?.id === zone?.manager_id
 
   if (loading) {

@@ -17,6 +17,10 @@ export function unfavoriteBlogPost(postId: number) {
   return request.delete(`/favorites/blog-posts/${postId}`)
 }
 
+export function getBlogPostFavoriteStatus(postId: number) {
+  return request.get<{ is_favorited: boolean }>(`/favorites/blog-posts/${postId}`)
+}
+
 // ===== Forum Post Favorites =====
 
 export function getFavoriteForumPosts(params: { skip?: number; limit?: number } = {}) {
@@ -29,6 +33,10 @@ export function favoriteForumPost(postId: number) {
 
 export function unfavoriteForumPost(postId: number) {
   return request.delete(`/favorites/forum-posts/${postId}`)
+}
+
+export function getForumPostFavoriteStatus(postId: number) {
+  return request.get<{ is_favorited: boolean }>(`/favorites/forum-posts/${postId}`)
 }
 
 // ===== Zone Follows =====

@@ -79,7 +79,9 @@ export default function UserManagement() {
   const handleUpdate = async (data: CreateUserData | UpdateUserData) => {
     if (!editingUser) return
     try {
-      await updateUser(editingUser.id, data as UpdateUserData)
+      const formData = new FormData()
+      formData.append('user_in', JSON.stringify(data))
+      await updateUser(editingUser.id, formData)
       setEditingUser(null)
       fetchUsers()
     } catch {

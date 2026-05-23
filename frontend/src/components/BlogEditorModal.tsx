@@ -404,10 +404,10 @@ export default function BlogEditorModal({
           </div>
 
           <div>
-            <label style={labelStyle}>封面图片</label>
+            <label style={labelStyle}>封面图片 {!isEdit ? '*' : ''}</label>
             <div style={{ display: 'flex', gap: 'var(--spacing-xs)', alignItems: 'center' }}>
               <span style={{ fontSize: 13, color: 'var(--color-muted)', flex: 1 }}>
-                {coverFile ? coverFile.name : '未选择文件'}
+                {coverFile ? coverFile.name : (isEdit && coverPreview ? '使用现有封面' : '未选择文件')}
               </span>
               <label
                 style={{
@@ -513,7 +513,7 @@ export default function BlogEditorModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !title.trim() || !contentMd.trim() || !categoryId}
+            disabled={submitting || !title.trim() || !contentMd.trim() || !categoryId || (!isEdit && !coverFile)}
             style={{
               height: 40,
               padding: '0 20px',

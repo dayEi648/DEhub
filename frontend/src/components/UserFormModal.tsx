@@ -54,7 +54,7 @@ export default function UserFormModal({ user, onClose, onSubmit }: UserFormModal
           personal_profile: personalProfile || undefined,
         }
         if (password.trim()) data.password = password
-        onSubmit(data)
+        await onSubmit(data)
       } else {
         const data: CreateUserData = {
           username,
@@ -63,7 +63,7 @@ export default function UserFormModal({ user, onClose, onSubmit }: UserFormModal
           permission,
           personal_profile: personalProfile || undefined,
         }
-        onSubmit(data)
+        await onSubmit(data)
       }
     } finally {
       setLoading(false)

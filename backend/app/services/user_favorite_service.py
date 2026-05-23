@@ -94,6 +94,20 @@ class UserFavoriteService:
             )
         favorite_crud.delete_blog_post_favorite(self.db, current_user.id, post_id)
 
+    def is_blog_post_favorited(self, post_id: int, current_user: User) -> bool:
+        """
+        检查当前用户是否收藏了指定博客文章
+        Args:
+            post_id: 文章ID
+            current_user: 当前登录用户
+        Returns:
+            bool: 是否已收藏
+        """
+        existing = favorite_crud.get_blog_post_favorite(
+            self.db, current_user.id, post_id
+        )
+        return existing is not None
+
     def list_blog_post_favorites(
         self, skip: int, limit: int, current_user: User
     ) -> BlogPostFavoriteListResponse:
@@ -225,6 +239,20 @@ class UserFavoriteService:
                 detail="未收藏该帖子",
             )
         favorite_crud.delete_post_favorite(self.db, current_user.id, post_id)
+
+    def is_post_favorited(self, post_id: int, current_user: User) -> bool:
+        """
+        检查当前用户是否收藏了指定论坛帖子
+        Args:
+            post_id: 帖子ID
+            current_user: 当前登录用户
+        Returns:
+            bool: 是否已收藏
+        """
+        existing = favorite_crud.get_post_favorite(
+            self.db, current_user.id, post_id
+        )
+        return existing is not None
 
     def list_post_favorites(
         self, skip: int, limit: int, current_user: User

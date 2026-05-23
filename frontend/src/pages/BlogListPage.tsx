@@ -600,7 +600,7 @@ export default function BlogListPage() {
   const handleCreateBlog = async (data: Parameters<typeof createBlogPost>[0] & { file?: File }) => {
     setSubmitting(true)
     try {
-      await createBlogPost(data, data.file)
+      await createBlogPost(data, data.file!)
       toast.success('文章创建成功')
       setShowEditor(false)
       fetchBlogs()
