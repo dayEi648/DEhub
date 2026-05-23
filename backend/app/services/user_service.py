@@ -98,6 +98,14 @@ class UserService:
             User: 用户对象
         """
         self._require_admin(current_user)
+
+        # 管理员不能创建超级管理员
+        if current_user.permission == PermissionLevel.ADMIN and user_in.permission == PermissionLevel.SUPER_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="权限不足，管理员无法创建超级管理员"
+            )
+
         self._ensure_username_unique(user_in.username)
         self._ensure_email_unique(user_in.email)
         return user_crud.create_user(self.db, user_in)
