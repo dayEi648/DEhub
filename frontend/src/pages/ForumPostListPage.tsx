@@ -16,11 +16,13 @@ import {
 import { toast } from 'sonner'
 import { getForumPostList, getForumZoneBySlug, createForumPost } from '../api/forum'
 import { followZone, unfollowZone, getFollowedZones } from '../api/favorites'
+import { uploadImage } from '../api/upload'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import Pagination from '../components/Pagination'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate } from '../utils/format'
+import { validateImageFile } from '../utils/upload'
 import type { ForumPost, ForumZone } from '../types/forum'
 
 const PAGE_SIZE = 15
@@ -38,6 +40,54 @@ function CreatePostModal({
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items
+    let imageFile: File | null = null
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          imageFile = file
+          break
+        }
+      }
+    }
+    if (!imageFile) return
+
+    e.preventDefault()
+    const error = validateImageFile(imageFile)
+    if (error) {
+      toast.error(error)
+      return
+    }
+
+    const textarea = e.currentTarget
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    toast.promise(
+      uploadImage(imageFile, 'forum_post').then((res) => {
+        const imageUrl = res.data.url
+        const alt = imageFile!.name.replace(/\.[^/.]+$/, '') || '图片'
+        const markdown = `![${alt}](${imageUrl})`
+        setContent((prev) => prev.slice(0, start) + markdown + prev.slice(end))
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + markdown.length
+          textarea.focus()
+        }, 0)
+      }),
+      {
+        loading: '正在上传图片...',
+        success: '图片上传成功',
+        error: (err: unknown) => {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          return msg || '图片上传失败'
+        },
+      }
+    )
+  }
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) return
@@ -138,6 +188,7 @@ function CreatePostModal({
               placeholder="请输入帖子内容..."
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              onPaste={handlePaste}
               style={{
                 width: '100%',
                 minHeight: 160,

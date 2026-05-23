@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+import re
 
 from app.core.permissions import require_owner_or_admin
 from app.models.user import User
@@ -16,6 +17,9 @@ TARGET_TYPE_VALIDATORS = {
     "blog_post": lambda db, target_id: blog_post_crud.get_blog_post_by_id(db, target_id),
     "forum_reply": lambda db, target_id: forum_reply_crud.get_reply_by_id(db, target_id),
 }
+
+_MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)")
+_HTML_IMAGE_RE = re.compile(r"<img\s+[^>]*src\s*=\s*['\"][^'\"]+['\"][^>]*>", re.IGNORECASE)
 
 
 class CommentService:
@@ -78,6 +82,13 @@ class CommentService:
         Raises:
             HTTPException: 参数非法
         """
+        # 评论内容不允许内嵌图片（Markdown 图片语法或 HTML img 标签）
+        if _MARKDOWN_IMAGE_RE.search(comment_in.content) or _HTML_IMAGE_RE.search(comment_in.content):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="评论内容不支持内嵌图片",
+            )
+
         # 规则1：is_nested=False 时 nested_parent_id 必须为 None
         if not comment_in.is_nested and comment_in.nested_parent_id is not None:
             raise HTTPException(

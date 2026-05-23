@@ -66,6 +66,18 @@ def create_reply(db: Session, reply_in: ForumReplyCreate, user_id: int) -> Forum
     return db_reply
 
 
+def get_all_replies_by_post_id(db: Session, post_id: int) -> list[ForumReply]:
+    """
+    查询某帖子下的全部回复（用于删除级联清理）
+    Args:
+        db: 数据库会话
+        post_id: 帖子ID
+    Returns:
+        list[ForumReply]: 回复列表
+    """
+    return db.query(ForumReply).filter(ForumReply.post_id == post_id).all()
+
+
 def delete_reply(db: Session, reply_id: int) -> int:
     """
     删除回复（物理删除）
@@ -126,4 +138,3 @@ def delete_replies_by_user_id(
     if auto_commit:
         db.commit()
     return result
-

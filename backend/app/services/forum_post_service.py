@@ -1,13 +1,23 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+import logging
 
 from app.models.user import User
 from app.models.forum_post import ForumPost
 from app.core.permission_levels import PermissionLevel
 from app.schemas.forum_post import ForumPostCreate, ForumPostUpdate, ForumPostResponse, ForumPostListResponse
 from app.crud import forum_post as forum_post_crud
+from app.crud import forum_reply as forum_reply_crud
 from app.crud import forum_zone as forum_zone_crud
+from app.crud import comment as comment_crud
 from app.core.zone_manager import is_zone_manager
+from app.storage.oss import (
+    convert_oss_url_to_file_path,
+    delete_file_from_oss_sync,
+    extract_oss_image_urls_from_markdown,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class ForumPostService:
@@ -102,6 +112,41 @@ class ForumPostService:
             )
 
         self._can_modify_post(db_post, current_user, allow_manager=True)
+
+        # 预取回复（用于图片和评论级联清理）
+        replies = forum_reply_crud.get_all_replies_by_post_id(
+            self.db,
+            post_id=post_id,
+        )
+
+        # 级联删除帖子正文中的内嵌 OSS 图片
+        post_image_urls = extract_oss_image_urls_from_markdown(db_post.content)
+        for url in post_image_urls:
+            try:
+                delete_file_from_oss_sync(convert_oss_url_to_file_path(url))
+            except Exception:
+                logger.exception("删除论坛帖子内嵌图片失败: post_id=%s, url=%s", post_id, url)
+
+        # 级联删除回复正文中的内嵌 OSS 图片
+        for reply in replies:
+            reply_image_urls = extract_oss_image_urls_from_markdown(reply.content)
+            for url in reply_image_urls:
+                try:
+                    delete_file_from_oss_sync(convert_oss_url_to_file_path(url))
+                except Exception:
+                    logger.exception("删除论坛回复内嵌图片失败: reply_id=%s, url=%s", reply.id, url)
+
+        # 级联删除该帖子下所有回复评论（comments 无外键约束，需显式删除）
+        reply_ids = [reply.id for reply in replies]
+        comment_ids = comment_crud.get_comment_ids_by_target_ids(
+            self.db,
+            target_type="forum_reply",
+            target_ids=reply_ids,
+        )
+        if comment_ids:
+            comment_crud.delete_comment_likes_by_comment_ids(self.db, comment_ids)
+            comment_crud.delete_comments_by_ids(self.db, comment_ids)
+
         forum_post_crud.delete_post(self.db, post_id)
 
     def get_post(self, post_id: int) -> ForumPost:

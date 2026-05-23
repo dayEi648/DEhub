@@ -176,6 +176,33 @@ def get_comment_ids_by_user_id(db: Session, user_id: int) -> list[int]:
     return [row[0] for row in rows]
 
 
+def get_comment_ids_by_target_ids(
+    db: Session,
+    target_type: str,
+    target_ids: list[int],
+) -> list[int]:
+    """
+    按目标类型和目标 ID 列表批量查询评论 ID
+    Args:
+        db: 数据库会话
+        target_type: 目标类型
+        target_ids: 目标 ID 列表
+    Returns:
+        list[int]: 评论 ID 列表
+    """
+    if not target_ids:
+        return []
+    rows = (
+        db.query(Comment.id)
+        .filter(
+            Comment.target_type == target_type,
+            Comment.target_id.in_(target_ids),
+        )
+        .all()
+    )
+    return [row[0] for row in rows]
+
+
 def get_child_comment_ids_by_parent_ids(
     db: Session, parent_ids: list[int]
 ) -> list[int]:

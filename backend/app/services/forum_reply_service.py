@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+import logging
 
 from app.models.user import User
 from app.models.forum_reply import ForumReply
@@ -9,6 +10,13 @@ from app.crud import forum_reply as forum_reply_crud
 from app.crud import forum_post as forum_post_crud
 from app.crud import comment as comment_crud
 from app.core.zone_manager import is_zone_manager
+from app.storage.oss import (
+    delete_file_from_oss_sync,
+    convert_oss_url_to_file_path,
+    extract_oss_image_urls_from_markdown,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class ForumReplyService:
@@ -91,6 +99,14 @@ class ForumReplyService:
             )
 
         self._can_modify_reply(db_reply, current_user)
+
+        # 级联删除该 reply 正文中的内嵌 OSS 图片
+        image_urls = extract_oss_image_urls_from_markdown(db_reply.content)
+        for url in image_urls:
+            try:
+                delete_file_from_oss_sync(convert_oss_url_to_file_path(url))
+            except Exception:
+                logger.exception("删除论坛回复内嵌图片失败: reply_id=%s, url=%s", reply_id, url)
 
         # 级联删除该 reply 下的所有评论
         reply_comments, _ = comment_crud.get_comments(

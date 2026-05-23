@@ -68,6 +68,25 @@ class TestCommentServiceCreate:
         assert exc_info.value.status_code == 400
 
     @patch("app.services.comment_service.blog_post_crud")
+    def test_create_comment_with_embedded_image_rejected(self, mock_blog_crud, service, current_user):
+        """评论内容不允许内嵌图片语法"""
+        mock_blog_crud.get_blog_post_by_id.return_value = MagicMock()
+
+        comment_in = CommentCreate(
+            target_type="blog_post",
+            target_id=1,
+            parent_id=None,
+            is_nested=False,
+            nested_parent_id=None,
+            content="这里有图 ![alt](https://example.com/a.png)",
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            service.create_comment(comment_in, current_user)
+        assert exc_info.value.status_code == 400
+        assert "不支持内嵌图片" in exc_info.value.detail
+
+    @patch("app.services.comment_service.blog_post_crud")
     @patch("app.services.comment_service.comment_crud")
     def test_create_blog_inner_reply_success(
         self, mock_comment_crud, mock_blog_crud, service, current_user
@@ -398,8 +417,14 @@ class TestForumReplyServiceDelete:
     @patch("app.services.forum_reply_service.forum_post_crud")
     @patch("app.services.forum_reply_service.comment_crud")
     @patch("app.services.forum_reply_service.is_zone_manager")
+    @patch("app.services.forum_reply_service.extract_oss_image_urls_from_markdown")
+    @patch("app.services.forum_reply_service.convert_oss_url_to_file_path")
+    @patch("app.services.forum_reply_service.delete_file_from_oss_sync")
     def test_delete_reply_cascades_comments(
         self,
+        mock_delete_file,
+        mock_convert_path,
+        mock_extract_urls,
         mock_is_manager,
         mock_comment_crud,
         mock_post_crud,
@@ -412,8 +437,11 @@ class TestForumReplyServiceDelete:
         reply.id = 5
         reply.user_id = 1
         reply.post_id = 100
+        reply.content = "reply content"
         mock_reply_crud.get_reply_by_id.return_value = reply
         mock_is_manager.return_value = False
+        mock_extract_urls.return_value = ["https://oss.example.com/forum/replies/20260101/a.jpg"]
+        mock_convert_path.return_value = "forum/replies/20260101/a.jpg"
 
         comment1 = MagicMock()
         comment1.id = 21
@@ -432,5 +460,8 @@ class TestForumReplyServiceDelete:
         mock_comment_crud.delete_comments_by_ids.assert_called_once_with(
             service.db, [21, 22]
         )
+        mock_extract_urls.assert_called_once_with("reply content")
+        mock_convert_path.assert_called_once_with("https://oss.example.com/forum/replies/20260101/a.jpg")
+        mock_delete_file.assert_called_once_with("forum/replies/20260101/a.jpg")
         mock_reply_crud.delete_reply.assert_called_once_with(service.db, 5)
         mock_post_crud.decrement_reply_count.assert_called_once_with(service.db, 100)

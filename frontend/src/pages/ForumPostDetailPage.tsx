@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   User,
   Eye,
@@ -26,17 +28,47 @@ import {
 } from '../api/forum'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
 import { favoriteForumPost, unfavoriteForumPost, getFavoriteForumPosts } from '../api/favorites'
+import { uploadImage } from '../api/upload'
 import { toast } from 'sonner'
 import { getUser } from '../utils/auth'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate, formatDateTime } from '../utils/format'
+import { validateImageFile } from '../utils/upload'
 import type { ForumPost, ForumReply, ForumZone } from '../types/forum'
 import type { CommentResponse } from '../types/comments'
 
 const REPLY_PAGE_SIZE = 10
 const COMMENT_PAGE_SIZE = 5
+
+function ForumMarkdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => (
+          <p style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--color-body)', margin: '0 0 var(--spacing-sm)' }}>
+            {children}
+          </p>
+        ),
+        img: ({ src, alt }) => (
+          <img
+            src={src}
+            alt={alt}
+            style={{
+              maxWidth: '100%',
+              borderRadius: 'var(--rounded-md)',
+              margin: 'var(--spacing-sm) 0',
+            }}
+          />
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
+}
 
 /* ─── Edit Post Modal ─── */
 function EditPostModal({
@@ -51,6 +83,54 @@ function EditPostModal({
   const [title, setTitle] = useState(post.title)
   const [content, setContent] = useState(post.content)
   const [submitting, setSubmitting] = useState(false)
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items
+    let imageFile: File | null = null
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          imageFile = file
+          break
+        }
+      }
+    }
+    if (!imageFile) return
+
+    e.preventDefault()
+    const error = validateImageFile(imageFile)
+    if (error) {
+      toast.error(error)
+      return
+    }
+
+    const textarea = e.currentTarget
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    toast.promise(
+      uploadImage(imageFile, 'forum_post').then((res) => {
+        const imageUrl = res.data.url
+        const alt = imageFile!.name.replace(/\.[^/.]+$/, '') || '图片'
+        const markdown = `![${alt}](${imageUrl})`
+        setContent((prev) => prev.slice(0, start) + markdown + prev.slice(end))
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + markdown.length
+          textarea.focus()
+        }, 0)
+      }),
+      {
+        loading: '正在上传图片...',
+        success: '图片上传成功',
+        error: (err: unknown) => {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          return msg || '图片上传失败'
+        },
+      }
+    )
+  }
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) return
@@ -148,6 +228,7 @@ function EditPostModal({
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              onPaste={handlePaste}
               style={{
                 width: '100%',
                 minHeight: 160,
@@ -213,15 +294,65 @@ function TextInput({
   placeholder,
   onSubmit,
   onCancel,
+  uploadScene = 'forum_reply',
   submitText = '回复',
 }: {
   placeholder: string
   onSubmit: (content: string) => void
   onCancel?: () => void
+  uploadScene?: 'forum_reply' | 'forum_post'
   submitText?: string
 }) {
   const [value, setValue] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items
+    let imageFile: File | null = null
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          imageFile = file
+          break
+        }
+      }
+    }
+    if (!imageFile) return
+
+    e.preventDefault()
+    const error = validateImageFile(imageFile)
+    if (error) {
+      toast.error(error)
+      return
+    }
+
+    const textarea = e.currentTarget
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    toast.promise(
+      uploadImage(imageFile, uploadScene).then((res) => {
+        const imageUrl = res.data.url
+        const alt = imageFile!.name.replace(/\.[^/.]+$/, '') || '图片'
+        const markdown = `![${alt}](${imageUrl})`
+        setValue((prev) => prev.slice(0, start) + markdown + prev.slice(end))
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + markdown.length
+          textarea.focus()
+        }, 0)
+      }),
+      {
+        loading: '正在上传图片...',
+        success: '图片上传成功',
+        error: (err: unknown) => {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          return msg || '图片上传失败'
+        },
+      }
+    )
+  }
 
   const handleSubmit = async () => {
     if (!value.trim()) return
@@ -237,6 +368,7 @@ function TextInput({
         placeholder={placeholder}
         value={value}
         onChange={(e) => setValue(e.target.value)}
+        onPaste={handlePaste}
         style={{
           width: '100%',
           minHeight: 60,
@@ -801,9 +933,9 @@ function ForumReplyItem({
             </span>
           </div>
 
-          <p style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--color-body)', margin: '0 0 var(--spacing-sm)' }}>
-            {reply.content}
-          </p>
+          <div style={{ margin: '0 0 var(--spacing-sm)' }}>
+            <ForumMarkdown content={reply.content} />
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
             <span
@@ -1253,16 +1385,8 @@ export default function ForumPostDetailPage() {
       {/* Post Content */}
       <section style={{ padding: 'var(--spacing-xl) var(--spacing-xl)', flex: 1 }}>
         <div style={{ maxWidth: 800, margin: '0 auto' }}>
-          <div
-            style={{
-              fontSize: 16,
-              lineHeight: 1.75,
-              color: 'var(--color-body)',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-          >
-            {post.content}
+          <div style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--color-body)', wordBreak: 'break-word' }}>
+            <ForumMarkdown content={post.content} />
           </div>
 
           {/* Reply Section */}
