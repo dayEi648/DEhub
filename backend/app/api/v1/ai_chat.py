@@ -29,7 +29,7 @@ async def chat(
     Returns:
         ChatResponse
     """
-    service = ChatService(db)
+    service = ChatService(db, permission_level=current_user.permission)
     return await service.chat(chat_in, current_user.id)
 
 
@@ -50,7 +50,7 @@ async def list_conversations(
     Returns:
         ConversationListResponse
     """
-    service = ChatService(db)
+    service = ChatService(db, permission_level=current_user.permission)
     items, total = await service.list_conversations(
         user_id=current_user.id,
         skip=skip,
@@ -79,7 +79,7 @@ async def list_messages(
     if include_hidden:
         require_admin(current_user)
 
-    service = ChatService(db)
+    service = ChatService(db, permission_level=current_user.permission)
     messages = await service.get_messages(
         conversation_id=conversation_id,
         user_id=current_user.id,
@@ -103,6 +103,6 @@ async def delete_conversation(
     物理删除对话（仅对话所有者可用）。
     同时清理 Checkpointer 中的对话历史。
     """
-    service = ChatService(db)
+    service = ChatService(db, permission_level=current_user.permission)
     await service.delete_conversation(conversation_id, current_user.id)
     return None

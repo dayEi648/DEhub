@@ -82,9 +82,9 @@ class ChatService:
             created_at=message.created_at,
         )
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, permission_level: int = 0):
         self.db = db
-        self.graph = get_chat_graph()
+        self.graph = get_chat_graph(permission_level=permission_level)
         self.profile_service = UserProfileService(db)
         self._background_tasks: set[asyncio.Task] = set()
 
