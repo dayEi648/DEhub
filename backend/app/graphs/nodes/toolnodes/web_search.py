@@ -32,8 +32,8 @@ def _iqs_search_single(query: str) -> list[dict]:
         "engineType": "Generic",
         "numResults": settings.IQS_NUM_RESULTS,
         "contents": {
-            "mainText": False,
-            "markdownText": True,
+            "mainText": True,
+            "markdownText": False,
             "richMainBody": False,
             "summary": False,
             "rerankScore": True,
@@ -62,15 +62,15 @@ def _format_web_search_results(results: list[dict]) -> str:
     for item in results:
         title = item.get("title", "")
         snippet = item.get("snippet", "")
-        markdown_text = item.get("markdownText", "")
+        main_text = item.get("mainText", "")
         link = item.get("link", "")
         hostname = item.get("hostname", "")
 
         parts = [f"{_LABEL} {title}"]
         if hostname:
             parts.append(f"来源：{hostname}")
-        if markdown_text:
-            parts.append(markdown_text)
+        if main_text:
+            parts.append(main_text)
         elif snippet:
             parts.append(snippet)
         if link:
@@ -94,7 +94,7 @@ def search_web(query: str) -> str:
     Args:
         query: 用户的搜索关键词或问题描述
     Returns:
-        str: 格式化后的相关网络搜索结果，包含标题、来源、正文（Markdown）、链接。
+        str: 格式化后的相关网络搜索结果，包含标题、来源、正文、链接。
     """
     if not query or not query.strip():
         return "未提供有效的搜索关键词。"

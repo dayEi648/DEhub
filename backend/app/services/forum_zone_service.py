@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.models.forum_zone import ForumZone
 from app.models.user import User
 from app.core.permissions import require_admin
 from app.core.permission_levels import PermissionLevel
