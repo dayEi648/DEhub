@@ -191,9 +191,8 @@ class UserService:
                     await delete_file_from_oss(convert_oss_url_to_file_path(db_user.avatar_url))
                 except Exception:
                     logger.exception("删除旧头像失败: user=%s", db_user.id)
-            # 上传新头像
-            avatar_url = await upload_image(file, ImageUploadScene.avatar)
-            user_in.avatar_url = avatar_url
+            # 上传新头像并直接赋值到 ORM 对象
+            db_user.avatar_url = await upload_image(file, ImageUploadScene.avatar)
 
         return UserResponse.model_validate(user_crud.update_user(self.db, db_user, user_in))
 

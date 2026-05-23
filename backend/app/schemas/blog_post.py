@@ -12,7 +12,6 @@ class BlogPostBase(BaseModel):
     slug: str = Field(min_length=1, max_length=255)
     summary: Optional[str] = None
     content_md: str
-    cover_image_url: Optional[str] = None
     category_id: int = Field(ge=1)
     tags: list[str] = Field(default_factory=list)
     status: str = Field(default="draft", pattern=r"^(draft|published)$")
@@ -29,7 +28,6 @@ class BlogPostUpdate(BaseModel):
     slug: Optional[str] = Field(default=None, min_length=1, max_length=255)
     summary: Optional[str] = None
     content_md: Optional[str] = None
-    cover_image_url: Optional[str] = None
     category_id: Optional[int] = Field(default=None, ge=1)
     tags: Optional[list[str]] = None
     status: Optional[str] = Field(default=None, pattern=r"^(draft|published)$")
@@ -41,6 +39,7 @@ class BlogPostResponse(BlogPostBase):
     user_id: int
     view_count: int
     comment_count: int
+    cover_image_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     category: BlogCategoryBrief

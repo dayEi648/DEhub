@@ -34,7 +34,7 @@ def parse_blog_post_update(post_in: str = Form(..., description="博客文章更
 @router.post("/", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)
 async def create_blog_post(
     post_in: BlogPostCreate = Depends(parse_blog_post_create),
-    file: UploadFile | None = File(None, description="封面图片文件，前端限制 20MB，后端自动压缩至 5MB 以下"),
+    file: UploadFile = File(..., description="封面图片文件，前端限制 20MB，后端自动压缩至 5MB 以下"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostResponse:

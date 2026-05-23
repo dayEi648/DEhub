@@ -56,7 +56,7 @@ class BlogPostService:
     # ---------- 写操作（超管专属）----------
 
     async def create_blog_post(
-        self, post_in: BlogPostCreate, current_user: User, file: UploadFile | None = None
+        self, post_in: BlogPostCreate, current_user: User, file: UploadFile
     ) -> BlogPost:
         self._require_super_admin(current_user)
 
@@ -69,11 +69,14 @@ class BlogPostService:
         else:
             self._ensure_slug_unique(post_in.slug)
 
-        if file:
-            cover_url = await upload_image(file, ImageUploadScene.cover)
-            post_in = post_in.model_copy(update={"cover_image_url": cover_url})
+        # 先上传再入库，避免上传失败时产生无效数据
+        cover_url = await upload_image(file, ImageUploadScene.cover)
 
         db_post = blog_post_crud.create_blog_post(self.db, post_in, current_user.id)
+
+        db_post.cover_image_url = cover_url
+        self.db.commit()
+        self.db.refresh(db_post)
 
         # 若创建即发布，异步生成向量嵌入
         if db_post.status == "published":
@@ -142,8 +145,7 @@ class BlogPostService:
                 except Exception:
                     # 旧图删除失败不影响本次更新，避免用户更新请求整体失败
                     logger.exception("删除旧博客封面失败: post_id=%s", db_post.id)
-            cover_url = await upload_image(file, ImageUploadScene.cover)
-            post_in = post_in.model_copy(update={"cover_image_url": cover_url})
+            db_post.cover_image_url = await upload_image(file, ImageUploadScene.cover)
 
         updated = blog_post_crud.update_blog_post(self.db, db_post, post_in)
 
