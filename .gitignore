@@ -224,14 +224,14 @@ __marimo__/
 
 # 个人开发环境
 .cursor/
+.claude/
 .codex/
-
 .kimi/
+
 AGENTS.md
+CLAUDE.md
 DESIGN.md
 planing/
 png/
-技术亮点.md
 
-.claude/
-CLAUDE.md
+

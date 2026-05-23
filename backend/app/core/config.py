@@ -22,8 +22,8 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = Field(default="")
     ALGORITHM: str = Field(default="HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 24)
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 24 * 30)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 24 * 7)
 
     LLM_MAIN_API_KEY: str = Field(default="")
     LLM_MAIN_BASE_URL: str = Field(default="")
