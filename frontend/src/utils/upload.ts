@@ -20,7 +20,7 @@ export const ALLOWED_IMAGE_TYPES = [
  */
 export function validateImageFile(file: File): string | null {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    return '仅支持 JPG、PNG、GIF、WebP 格式的图片'
+    return '仅支持 JPG、PNG、WebP 格式的图片'
   }
   if (file.size > MAX_IMAGE_SIZE) {
     return '图片大小不能超过 20MB'

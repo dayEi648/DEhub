@@ -413,3 +413,47 @@ def convert_oss_url_to_file_path(oss_url: str) -> str:
     if settings.OSS_BUCKET_NAME and path.startswith(settings.OSS_BUCKET_NAME + "/"):
         path = path[len(settings.OSS_BUCKET_NAME) + 1:]
     return path
+
+
+import re
+
+_MD_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+
+
+def _is_oss_url(url: str) -> bool:
+    """判断 URL 是否属于当前配置的 OSS。"""
+    if not url:
+        return False
+    if settings.OSS_DOMAIN and url.startswith(settings.OSS_DOMAIN):
+        return True
+    parsed = urlparse(url)
+    path = parsed.path.lstrip("/")
+    if settings.OSS_BUCKET_NAME and path.startswith(settings.OSS_BUCKET_NAME + "/"):
+        return True
+    endpoint_host = urlparse(_normalize_oss_endpoint(settings.OSS_ENDPOINT)).netloc
+    if endpoint_host and parsed.netloc == endpoint_host:
+        return True
+    return False
+
+
+def extract_oss_image_urls_from_markdown(content_md: str) -> list[str]:
+    """
+    从 Markdown 正文中提取属于当前 OSS 的图片 URL。
+
+    Args:
+        content_md: Markdown 格式正文
+    Returns:
+        list[str]: OSS 图片 URL 列表（去重）
+    """
+    if not content_md:
+        return []
+    urls = [match.group(2).strip() for match in _MD_IMAGE_RE.finditer(content_md)]
+    oss_urls = [url for url in urls if _is_oss_url(url)]
+    # 去重保持顺序
+    seen = set()
+    result = []
+    for url in oss_urls:
+        if url not in seen:
+            seen.add(url)
+            result.append(url)
+    return result

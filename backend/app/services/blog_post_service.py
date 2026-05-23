@@ -18,7 +18,7 @@ from app.schemas.blog_post import (
 )
 from app.crud import blog_post as blog_post_crud
 from app.utils.slug import generate_unique_slug
-from app.storage.oss import upload_image, ImageUploadScene, delete_file_from_oss, convert_oss_url_to_file_path
+from app.storage.oss import upload_image, ImageUploadScene, delete_file_from_oss, convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
 from app.infrastructure.llm_client import get_llm_small_client
 from app.services.blog_post_embedding_service import BlogPostEmbeddingService
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -165,6 +165,15 @@ class BlogPostService:
         db_post = blog_post_crud.get_blog_post_by_id(self.db, post_id)
         if db_post and db_post.cover_image_url:
             await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
+
+        # 级联删除正文中的内嵌 OSS 图片
+        if db_post and db_post.content_md:
+            image_urls = extract_oss_image_urls_from_markdown(db_post.content_md)
+            for url in image_urls:
+                try:
+                    await delete_file_from_oss(convert_oss_url_to_file_path(url))
+                except Exception:
+                    logger.exception("删除博客正文内嵌图片失败: post_id=%s, url=%s", post_id, url)
 
         # 硬删除前先清理向量嵌入（显式删除，不依赖数据库 CASCADE）
         embed_service = BlogPostEmbeddingService(self.db)
