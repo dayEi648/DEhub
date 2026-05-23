@@ -372,7 +372,7 @@ export default function ProfilePage() {
         formData.append('file', avatarFile)
       }
 
-      const res = await updateUser(userId, formData as unknown as Record<string, unknown>)
+      const res = await updateUser(userId, formData)
       setUserState(res.data)
       setUser(res.data)
       setIsEditing(false)
@@ -779,7 +779,7 @@ export default function ProfilePage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  accept="image/jpeg,image/png,image/webp"
                   style={{ display: 'none' }}
                   onChange={handleFileChange}
                 />

@@ -427,9 +427,9 @@ export default function BlogEditorModal({
               >
                 <Plus size={14} />
                 选择文件
-                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{ display: 'none' }} onChange={handleFileChange} />
+                <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={handleFileChange} />
               </label>
-              {(coverFile || coverPreview) && (
+              {!isEdit && (coverFile || coverPreview) && (
                 <button
                   onClick={() => {
                     setCoverFile(null)

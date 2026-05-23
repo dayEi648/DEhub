@@ -30,7 +30,6 @@ export interface BlogPostCreateData {
   slug?: string
   summary?: string
   content_md: string
-  cover_image_url?: string
   category_id: number
   tags?: string[]
   status?: 'draft' | 'published'
@@ -41,7 +40,6 @@ export interface BlogPostUpdateData {
   slug?: string
   summary?: string
   content_md?: string
-  cover_image_url?: string
   category_id?: number
   tags?: string[]
   status?: 'draft' | 'published'

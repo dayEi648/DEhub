@@ -36,7 +36,6 @@ export interface CreateUserData {
   email: string
   password: string
   permission?: UserPermission
-  avatar_url?: string
   personal_profile?: string
 }
 
@@ -45,7 +44,6 @@ export interface UpdateUserData {
   email?: string
   password?: string
   permission?: UserPermission
-  avatar_url?: string
   personal_profile?: string
 }
 

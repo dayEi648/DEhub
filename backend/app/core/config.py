@@ -84,13 +84,10 @@ class Settings(BaseSettings):
     MAX_OSS_IMAGE_SIZE: int = Field(default=5 * 1024 * 1024)
 
     OSS_USERS_AVATAR_DIR: str = Field(default="users/avatar")
-    MAX_USER_AVATAR_SIZE: int = Field(default=5 * 1024 * 1024)
 
     OSS_BLOG_COVER_DIR: str = Field(default="blog/covers")
-    MAX_BLOG_COVER_SIZE: int = Field(default=5 * 1024 * 1024)
 
     OSS_UPLOADS_IMAGE_DIR: str = Field(default="uploads/images")
-    MAX_UPLOAD_IMAGE_SIZE: int = Field(default=5 * 1024 * 1024)
 
     # 预留场景路径
     OSS_FORUM_POST_IMAGE_DIR: str = Field(default="forum/posts")

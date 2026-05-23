@@ -27,7 +27,7 @@ export function createUser(data: CreateUserData) {
   return request.post<User>('/users/', data)
 }
 
-export function updateUser(userId: number, data: UpdateUserData) {
+export function updateUser(userId: number, data: UpdateUserData | FormData) {
   return request.put<User>(`/users/${userId}`, data)
 }
 
