@@ -2,7 +2,7 @@ import threading
 
 from langchain.agents import create_agent
 
-from app.graphs.middleware import ConcurrencyMiddleware
+from app.graphs.middleware import ConcurrencyMiddleware, PromptAssemblyMiddleware
 from app.graphs.nodes.toolnodes import registry
 from app.graphs.states.chat_state import ChatState
 from app.infrastructure.checkpoint_client import get_checkpointer
@@ -44,7 +44,7 @@ def get_chat_graph(permission_level: int = 0):
             state_schema=ChatState,
             checkpointer=get_checkpointer(),
             name="chat_agent",
-            middleware=[ConcurrencyMiddleware()],
+            middleware=[PromptAssemblyMiddleware(), ConcurrencyMiddleware()],
         )
         _graph_cache[cache_key] = compiled
         return compiled

@@ -15,12 +15,13 @@ backend/                    # 后端工程（FastAPI）
 │   ├── db/                 # 数据库连接与 ORM 基类
 │   ├── graphs/             # LangGraph 状态机与工作流定义（AI 对话编排）
 │   │   ├── builders/       # 图编译构建器
+│   │   ├── middleware.py   # AgentMiddleware（Prompt 动态组装、并发控制）
 │   │   ├── nodes/          # 图节点定义
 │   │   │   └── toolnodes/  # LangChain Tool 节点（供 LLM Tool Calling）
-│   │   └── states/         # 图状态定义
+│   │   └── states/         # 图状态定义（含动态 prompt 所需运行时字段）
 │   ├── infrastructure/     # 外部基础设施客户端（LLM、Embedding、Redis、Checkpoint、Cache）
 │   ├── models/             # SQLAlchemy ORM 模型（按模块拆分）
-│   ├── prompts/            # AI 对话 Prompt 模板
+│   ├── prompts/            # AI 对话 Prompt 模板（固定/动态分层 + 渲染函数）
 │   ├── schemas/            # Pydantic 数据校验模型（按模块拆分）
 │   ├── services/           # 业务逻辑层（按模块拆分）
 │   ├── storage/            # 文件存储与本地资源管理
@@ -53,6 +54,7 @@ frontend/                   # 前端工程
 DEhub/                      # 项目根目录（前后端之外的全局文件与目录）
 ├── planing/                # 计划、设计与接口文档（按模块拆分为独立接口文档）
 │   ├── Redis缓存开发计划.md  # 首页、博客与论坛列表 Redis 缓存策略开发计划
+│   ├── 提示词开发计划.md     # AI 对话 System Prompt 固定部分与动态部分组装计划
 │   ├── 修复计划.md          # 论坛帖子列表瘦身、回复点赞计数与 Redis 缓存一致性修复计划
 │   └── 前端代码检查报告.md   # 前端代码全面审查报告（问题清单与改进建议）
 ├── sql/                    # SQL 建表语句

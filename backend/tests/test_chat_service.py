@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from app.schemas.chat import ChatRequest
 from app.services.chat_service import ChatService
@@ -308,3 +308,188 @@ class TestGetConversationIfOwned:
         with pytest.raises(HTTPException) as exc_info:
             self.service.get_conversation_if_owned(1, 1)
         assert exc_info.value.status_code == 404
+
+
+class TestCountUserMessageChars:
+    """测试 _count_user_message_chars 静态方法。"""
+
+    def test_counts_human_message_chars(self):
+        """应正确计算 HumanMessage 的内容字符数。"""
+        messages = [
+            HumanMessage(content="你好"),
+            AIMessage(content="Hello"),
+            HumanMessage(content="世界"),
+        ]
+        result = ChatService._count_user_message_chars(messages)
+        assert result == 4  # "你好" = 2, "世界" = 2
+
+    def test_skips_non_human_messages(self):
+        """非 HumanMessage 不应被计入。"""
+        messages = [
+            AIMessage(content="AI reply"),
+            HumanMessage(content="用户输入"),
+        ]
+        result = ChatService._count_user_message_chars(messages)
+        assert result == 4  # "用户输入" = 4
+
+    def test_empty_list(self):
+        """空消息列表应返回 0。"""
+        assert ChatService._count_user_message_chars([]) == 0
+
+
+class TestGenerateCurrentGoal:
+    """测试 _generate_current_goal 异步方法。"""
+
+    def setup_method(self):
+        self.mock_db = MagicMock()
+        with patch("app.services.chat_service.get_chat_graph"):
+            self.service = ChatService(self.mock_db)
+
+    @pytest.mark.asyncio
+    @patch("app.services.chat_service.get_llm_small_client")
+    async def test_generates_goal_when_chars_above_threshold(self, mock_get_client):
+        """用户消息总字数 >= 200 时，应调用 small model 生成 goal。"""
+        mock_client = MagicMock()
+        mock_client.ainvoke = AsyncMock(
+            return_value=MagicMock(content="  学习 Docker 部署流程  ")
+        )
+        mock_get_client.return_value = mock_client
+
+        result = await self.service._generate_current_goal(
+            conversation_id=1,
+            user_input="我想学习 Docker 部署流程，请详细说明",
+            previous_goal=None,
+            current_messages=[HumanMessage(content="之前的长消息" * 20)],
+        )
+        assert result == "学习 Docker 部署流程"
+        mock_client.ainvoke.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("app.services.chat_service.get_llm_small_client")
+    async def test_truncates_long_goal(self, mock_get_client):
+        """生成结果超过 200 字时应截断。"""
+        mock_client = MagicMock()
+        mock_client.ainvoke = AsyncMock(
+            return_value=MagicMock(content="x" * 250)
+        )
+        mock_get_client.return_value = mock_client
+
+        result = await self.service._generate_current_goal(
+            conversation_id=1,
+            user_input="test",
+            previous_goal=None,
+            current_messages=[HumanMessage(content="long message" * 20)],
+        )
+        assert len(result) == 200  # 197 + "..."
+        assert result.endswith("...")
+
+    @pytest.mark.asyncio
+    @patch("app.services.chat_service.get_llm_small_client")
+    async def test_returns_none_for_short_goal(self, mock_get_client):
+        """生成结果短于 5 字时应返回 None。"""
+        mock_client = MagicMock()
+        mock_client.ainvoke = AsyncMock(
+            return_value=MagicMock(content="ok")
+        )
+        mock_get_client.return_value = mock_client
+
+        result = await self.service._generate_current_goal(
+            conversation_id=1,
+            user_input="test",
+            previous_goal=None,
+            current_messages=[HumanMessage(content="long message" * 20)],
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch("app.services.chat_service.get_llm_small_client")
+    async def test_falls_back_to_previous_goal_on_error(self, mock_get_client):
+        """small model 调用失败时应保留旧 goal。"""
+        mock_client = MagicMock()
+        mock_client.ainvoke = AsyncMock(side_effect=Exception("API error"))
+        mock_get_client.return_value = mock_client
+
+        result = await self.service._generate_current_goal(
+            conversation_id=1,
+            user_input="test",
+            previous_goal="旧目标",
+            current_messages=[HumanMessage(content="long message" * 20)],
+        )
+        assert result == "旧目标"
+
+
+class TestChatDynamicFields:
+    """测试 chat() 方法中动态字段的传入逻辑。"""
+
+    def setup_method(self):
+        self.mock_db = MagicMock()
+        with patch("app.services.chat_service.get_chat_graph") as mock_get_graph:
+            mock_get_graph.return_value = MagicMock()
+            self.service = ChatService(self.mock_db)
+            self.service.graph = MagicMock()
+
+    @patch("app.services.chat_service.conv_crud.create_ai_conversation")
+    @patch("app.services.chat_service.msg_crud.create_conversation_message")
+    @patch.object(ChatService, "_ensure_title_async")
+    def test_new_conversation_passes_dialogue_start_scene(
+        self, mock_title, mock_create_msg, mock_create_conv
+    ):
+        """新对话时应传入 prompt_scene='对话开始'。"""
+        mock_conv = MagicMock()
+        mock_conv.id = 42
+        mock_create_conv.return_value = mock_conv
+
+        self.service.graph.aget_state = AsyncMock(return_value=None)
+        self.service.graph.ainvoke = AsyncMock(
+            return_value={"messages": [AIMessage(content="AI reply")]}
+        )
+
+        chat_in = ChatRequest(user_input="Hello", conversation_id=None)
+        asyncio.run(self.service.chat(chat_in, user_id=1))
+
+        call_kwargs = self.service.graph.ainvoke.call_args[0][0]
+        assert call_kwargs["prompt_scene"] == "对话开始"
+        assert call_kwargs["conversation_id"] == 42
+
+    @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
+    @patch("app.services.chat_service.msg_crud.create_conversation_message")
+    def test_existing_conversation_passes_continue_scene(
+        self, mock_create_msg, mock_get_conv
+    ):
+        """已有对话时应传入 prompt_scene='持续对话'。"""
+        mock_conv = MagicMock()
+        mock_conv.user_id = 1
+        mock_get_conv.return_value = mock_conv
+
+        self.service.graph.aget_state = AsyncMock(
+            return_value=MagicMock(values={"messages": []})
+        )
+        self.service.graph.ainvoke = AsyncMock(
+            return_value={"messages": [AIMessage(content="AI reply")]}
+        )
+
+        chat_in = ChatRequest(user_input="Hello", conversation_id=1)
+        asyncio.run(self.service.chat(chat_in, user_id=1))
+
+        call_kwargs = self.service.graph.ainvoke.call_args[0][0]
+        assert call_kwargs["prompt_scene"] == "持续对话"
+
+    @patch("app.services.chat_service.conv_crud.create_ai_conversation")
+    @patch("app.services.chat_service.msg_crud.create_conversation_message")
+    @patch.object(ChatService, "_ensure_title_async")
+    def test_short_input_no_goal(self, mock_title, mock_create_msg, mock_create_conv):
+        """用户输入很短（< 200 字）时不应生成 current_goal。"""
+        mock_conv = MagicMock()
+        mock_conv.id = 42
+        mock_create_conv.return_value = mock_conv
+
+        self.service.graph.aget_state = AsyncMock(return_value=None)
+        self.service.graph.ainvoke = AsyncMock(
+            return_value={"messages": [AIMessage(content="AI reply")]}
+        )
+
+        chat_in = ChatRequest(user_input="短消息", conversation_id=None)
+        asyncio.run(self.service.chat(chat_in, user_id=1))
+
+        call_kwargs = self.service.graph.ainvoke.call_args[0][0]
+        assert call_kwargs["current_goal"] is None

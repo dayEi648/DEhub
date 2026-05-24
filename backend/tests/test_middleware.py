@@ -1,13 +1,22 @@
-"""ConcurrencyMiddleware 单元测试。"""
+"""中间件单元测试。"""
 
 import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 
-from app.graphs.middleware import ConcurrencyMiddleware
+from app.graphs.middleware import ConcurrencyMiddleware, PromptAssemblyMiddleware
 
+
+# ===================================================================
+# ConcurrencyMiddleware
+# ===================================================================
 
 class TestConcurrencyMiddleware:
     """测试 ConcurrencyMiddleware 的并发控制策略。"""
@@ -188,3 +197,147 @@ class TestConcurrencyMiddleware:
 
             assert isinstance(result, ToolMessage)
             assert result.content == "ok"
+
+
+# ===================================================================
+# PromptAssemblyMiddleware
+# ===================================================================
+
+class TestPromptAssemblyMiddleware:
+    """测试 PromptAssemblyMiddleware 的 system prompt 动态组装逻辑。"""
+
+    @pytest.fixture
+    def middleware(self):
+        return PromptAssemblyMiddleware()
+
+    @staticmethod
+    def _make_model_request(
+        state: dict,
+        messages: list,
+        system_message=None,
+    ) -> MagicMock:
+        """构造模拟的 ModelRequest。
+
+        override() 会返回一个新的 MagicMock，携带传入的 system_message 和 messages，
+        以模拟 ModelRequest 的不可变替换行为。
+        """
+        request = MagicMock()
+        request.state = state
+        request.messages = messages
+        request.system_message = system_message
+
+        def _override(**kwargs):
+            new_req = MagicMock()
+            new_req.state = state
+            new_req.messages = kwargs.get("messages", messages)
+            new_req.system_message = kwargs.get("system_message", system_message)
+            new_req.override = _override
+            return new_req
+
+        request.override = _override
+        return request
+
+    def test_filters_old_system_messages(self, middleware):
+        """应过滤 request.messages 中的旧 SystemMessage。"""
+        old_sys = SystemMessage(content="旧系统提示")
+        user_msg = HumanMessage(content="你好")
+        request = self._make_model_request(
+            state={"prompt_scene": "持续对话"},
+            messages=[old_sys, user_msg],
+        )
+
+        def handler(req):
+            # 验证 messages 中不含 SystemMessage
+            assert len(req.messages) == 1
+            assert isinstance(req.messages[0], HumanMessage)
+            return AIMessage(content="reply")
+
+        result = middleware.wrap_model_call(request, handler)
+        assert isinstance(result, AIMessage)
+
+    def test_assembles_system_prompt_with_dynamic_fields(self, middleware):
+        """应正确组装包含动态字段的 system prompt。"""
+        request = self._make_model_request(
+            state={
+                "prompt_scene": "对话开始",
+                "profile_text": "用户是 Python 开发者",
+                "current_goal": "学习 Docker",
+                "context_summary": None,
+            },
+            messages=[HumanMessage(content="你好")],
+        )
+
+        def handler(req):
+            # 验证 system_message 已设置且包含动态内容
+            assert req.system_message is not None
+            content = req.system_message.content
+            assert "对话开始" in content
+            assert "用户是 Python 开发者" in content
+            assert "当前目标：学习 Docker" in content
+            return AIMessage(content="reply")
+
+        middleware.wrap_model_call(request, handler)
+
+    def test_omits_empty_dynamic_fields(self, middleware):
+        """空动态字段不应出现在 system prompt 中。"""
+        request = self._make_model_request(
+            state={
+                "prompt_scene": "持续对话",
+                "profile_text": None,
+                "current_goal": None,
+                "context_summary": None,
+            },
+            messages=[HumanMessage(content="你好")],
+        )
+
+        def handler(req):
+            content = req.system_message.content
+            assert "持续对话" in content
+            assert "用户画像" not in content
+            assert "当前目标" not in content
+            assert "上下文总结" not in content
+            return AIMessage(content="reply")
+
+        middleware.wrap_model_call(request, handler)
+
+    def test_overrides_scene_when_last_message_is_tool(self, middleware):
+        """最后一条消息是 ToolMessage 时，场景应被覆盖。"""
+        request = self._make_model_request(
+            state={
+                "prompt_scene": "持续对话",
+                "messages": [
+                    HumanMessage(content="查一下天气"),
+                    AIMessage(content="", tool_calls=[{"id": "call_1", "name": "weather", "args": {}}]),
+                    ToolMessage(content="晴天", tool_call_id="call_1"),
+                ],
+            },
+            messages=[
+                HumanMessage(content="查一下天气"),
+                AIMessage(content=""),
+                ToolMessage(content="晴天", tool_call_id="call_1"),
+            ],
+        )
+
+        def handler(req):
+            content = req.system_message.content
+            assert "工具结果返回后继续回答" in content
+            return AIMessage(content="reply")
+
+        middleware.wrap_model_call(request, handler)
+
+    @pytest.mark.asyncio
+    async def test_async_version(self, middleware):
+        """异步版本 awrap_model_call 应正常工作。"""
+        request = self._make_model_request(
+            state={"prompt_scene": "对话开始"},
+            messages=[HumanMessage(content="你好")],
+        )
+
+        async def handler(req):
+            assert req.system_message is not None
+            assert "对话开始" in req.system_message.content
+            return AIMessage(content="async reply")
+
+        result = await middleware.awrap_model_call(request, handler)
+        assert isinstance(result, AIMessage)
+        assert result.content == "async reply"

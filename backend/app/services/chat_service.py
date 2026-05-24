@@ -13,7 +13,10 @@ from app.graphs.builders.chat_builder import get_chat_graph
 from app.infrastructure.checkpoint_client import delete_checkpoint
 from app.infrastructure.llm_client import get_llm_small_client
 from app.models.ai_conversation import AIConversation
-from app.prompts.chat_prompts import CHAT_DEFAULT_SYSTEM_PROMPT, CONVERSATION_TITLE_PROMPT
+from app.prompts.chat_prompts import (
+    CONVERSATION_TITLE_PROMPT,
+    render_current_goal_prompt,
+)
 from app.schemas.chat import ChatRequest, ChatResponse, MessageResponse
 from app.services.user_profile_service import UserProfileService
 
@@ -120,18 +123,10 @@ class ChatService:
                 messages.append(ToolMessage(content=msg.content, **kwargs))
         return messages
 
-    def _build_system_message(self, user_id: int) -> SystemMessage:
-        """构建包含固定指令和用户画像的 SystemMessage。"""
-        profile_text = self.profile_service.get_profile_text(user_id)
-        content = CHAT_DEFAULT_SYSTEM_PROMPT
-        if profile_text:
-            content += f"\n\n--- 用户画像 ---\n{profile_text}\n---"
-        return SystemMessage(content=content)
-
     async def _restore_state_from_db(
         self, config: dict, conversation_id: int, user_id: int
     ) -> None:
-        """从数据库加载对话历史，恢复到 Redis checkpoint 中（包含 SystemMessage）。"""
+        """从数据库加载对话历史，恢复到 Redis checkpoint 中（不注入 SystemMessage）。"""
         db_messages = await asyncio.to_thread(
             msg_crud.list_conversation_messages,
             self.db,
@@ -139,19 +134,66 @@ class ChatService:
             limit=None,
         )
 
-        system_msg = self._build_system_message(user_id)
-        if db_messages:
-            history = self._db_messages_to_lc_messages(db_messages)
-            messages = [system_msg] + history
-        else:
-            messages = [system_msg]
+        history = self._db_messages_to_lc_messages(db_messages) if db_messages else []
+        state_update: dict = {"messages": history}
 
-        await self.graph.aupdate_state(config, {"messages": messages})
+        # 恢复时加载一次用户画像并写入 checkpoint（后续轮次直接复用 state 中的值）
+        profile_text = self.profile_service.get_profile_text(user_id)
+        if profile_text:
+            state_update["profile_text"] = profile_text
+
+        await self.graph.aupdate_state(config, state_update)
         logger.info(
             "从数据库恢复对话历史到 checkpoint: conv=%s, messages=%d",
             conversation_id,
-            len(messages),
+            len(history),
         )
+
+    @staticmethod
+    def _count_user_message_chars(messages: list) -> int:
+        """计算消息列表中所有 HumanMessage 的内容总字数（字符数）。"""
+        return sum(
+            len(m.content) for m in messages if isinstance(m, HumanMessage) and isinstance(m.content, str)
+        )
+
+    async def _generate_current_goal(
+        self,
+        conversation_id: int,
+        user_input: str,
+        previous_goal: str | None,
+        current_messages: list,
+    ) -> str | None:
+        """根据对话上下文调用 small model 生成 current_goal。
+
+        Returns:
+            5~200 字的目标描述，或 None（生成失败或太短）
+        """
+        # 提取最近的用户消息作为上下文（最多最近 6 条用户消息）
+        recent_human_messages = [
+            m.content for m in current_messages
+            if isinstance(m, HumanMessage) and isinstance(m.content, str)
+        ][-6:]
+        recent_human_messages.append(user_input)
+        conversation = "\n".join(recent_human_messages)
+
+        prompt = render_current_goal_prompt(
+            conversation=conversation,
+            previous_goal=previous_goal,
+        )
+
+        try:
+            response = await get_llm_small_client().ainvoke([
+                SystemMessage(content=prompt),
+            ])
+            goal = response.content.strip() if isinstance(response.content, str) else ""
+            if len(goal) < 5:
+                return None
+            if len(goal) > 200:
+                goal = goal[:197] + "..."
+            return goal
+        except Exception:
+            logger.exception("生成 current_goal 失败，保留旧值")
+            return previous_goal
 
     async def chat(self, chat_in: ChatRequest, user_id: int) -> ChatResponse:
         """
@@ -190,20 +232,18 @@ class ChatService:
             logger.exception("获取 checkpoint 状态失败，假设为新对话")
             state_before = None
 
-        # 如果 checkpoint 存在但格式旧（无 SystemMessage），清理后重新初始化
+        # 弱化旧格式检测：仅当 checkpoint 结构明显异常（消息列表无法解析）时清理
         if state_before is not None:
             messages = state_before.values.get("messages", [])
             if not messages:
                 state_before = None
-            elif not isinstance(messages[0], SystemMessage):
-                logger.info("检测到旧格式 checkpoint，清理后重新初始化")
-                await delete_checkpoint(str(conversation_id))
-                state_before = None
+            # 不再因首条是 SystemMessage 或非 SystemMessage 而删除 checkpoint
+            # 旧 SystemMessage 由 PromptAssemblyMiddleware 在请求前过滤
 
-        # checkpoint 为 None 时：新对话、已过期、或刚清理的旧格式
+        # checkpoint 为 None 时：新对话、已过期、或消息为空
         if state_before is None:
             if chat_in.conversation_id is not None:
-                # 已有对话：从数据库恢复历史并注入 SystemMessage
+                # 已有对话：从数据库恢复历史
                 try:
                     await self._restore_state_from_db(config, conversation_id, user_id)
                     state_before = await self.graph.aget_state(config)
@@ -211,15 +251,16 @@ class ChatService:
                     logger.exception("从数据库恢复 checkpoint 失败，继续作为新对话")
                     state_before = None
             else:
-                # 新对话：仅注入 SystemMessage
+                # 新对话：初始化 profile_text
                 try:
-                    system_msg = self._build_system_message(user_id)
-                    await self.graph.aupdate_state(
-                        config, {"messages": [system_msg]}
-                    )
+                    profile_text = self.profile_service.get_profile_text(user_id)
+                    state_update: dict = {"messages": []}
+                    if profile_text:
+                        state_update["profile_text"] = profile_text
+                    await self.graph.aupdate_state(config, state_update)
                     state_before = await self.graph.aget_state(config)
                 except Exception:
-                    logger.exception("注入 SystemMessage 失败")
+                    logger.exception("初始化新对话 checkpoint 失败")
                     state_before = None
 
         history_len = (
@@ -233,6 +274,34 @@ class ChatService:
         human_count_before = sum(
             1 for m in current_messages if isinstance(m, HumanMessage)
         )
+
+        # 从 state 读取或补加载 profile_text
+        profile_text = state_before.values.get("profile_text") if state_before else None
+        if not profile_text:
+            profile_text = self.profile_service.get_profile_text(user_id)
+            if state_before and profile_text:
+                try:
+                    await self.graph.aupdate_state(
+                        config, {"profile_text": profile_text}
+                    )
+                except Exception:
+                    logger.exception("补写入 profile_text 失败")
+
+        # 计算用户消息总字数，决定是否生成 current_goal
+        user_chars_total = self._count_user_message_chars(current_messages) + len(chat_in.user_input)
+        previous_goal = state_before.values.get("current_goal") if state_before else None
+        if user_chars_total < 200:
+            current_goal = None
+        else:
+            current_goal = await self._generate_current_goal(
+                conversation_id=conversation_id,
+                user_input=chat_in.user_input,
+                previous_goal=previous_goal,
+                current_messages=current_messages,
+            )
+
+        # 确定当前场景
+        prompt_scene = "对话开始" if chat_in.conversation_id is None else "持续对话"
 
         # 持久化用户消息
         await asyncio.to_thread(
@@ -248,6 +317,12 @@ class ChatService:
                 {
                     "messages": [HumanMessage(content=chat_in.user_input)],
                     "user_id": user_id,
+                    "conversation_id": conversation_id,
+                    "profile_text": profile_text,
+                    "prompt_scene": prompt_scene,
+                    "current_goal": current_goal,
+                    "context_summary": None,
+                    "compacted": False,
                 },
                 config=config,
             )

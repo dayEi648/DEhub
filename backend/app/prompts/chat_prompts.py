@@ -2,7 +2,11 @@
 # ===================================================================
 # Prompts
 # ===================================================================
-CHAT_DEFAULT_SYSTEM_PROMPT = (
+
+# -------------------------------------------------------------------
+# Fixed System Prompt（固定部分：角色、边界、输出风格、工具策略）
+# -------------------------------------------------------------------
+CHAT_FIXED_SYSTEM_PROMPT = (
     "<system>\n"
     "<role>\n"
     "你是 DE Hub 网站的 AI 助手，名为「DE 助手」。请始终使用中文与用户交流。\n"
@@ -49,6 +53,140 @@ CHAT_DEFAULT_SYSTEM_PROMPT = (
     "</system>"
 )
 
+# -------------------------------------------------------------------
+# Dynamic System Prompt Template（动态部分：每轮实时组装）
+# -------------------------------------------------------------------
+CHAT_DYNAMIC_SYSTEM_PROMPT_TEMPLATE = (
+    "<dynamic_context>\n"
+    "{current_time_block}"
+    "{scene_block}"
+    "{profile_block}"
+    "{goal_block}"
+    "{summary_block}"
+    "</dynamic_context>"
+)
+
+_CURRENT_TIME_BLOCK_TEMPLATE = "当前时间：{current_time}\n\n"
+_SCENE_BLOCK_TEMPLATE = "当前场景：{scene}\n\n"
+_PROFILE_BLOCK_TEMPLATE = "--- 用户画像 ---\n{profile_text}\n---\n\n"
+_GOAL_BLOCK_TEMPLATE = "当前目标：{current_goal}\n\n"
+_SUMMARY_BLOCK_TEMPLATE = (
+    "【上下文总结】\n"
+    "{context_summary}\n"
+    "\n"
+)
+
+
+def render_chat_system_prompt(
+    *,
+    current_time: str | None = None,
+    scene: str | None = None,
+    profile_text: str | None = None,
+    current_goal: str | None = None,
+    context_summary: str | None = None,
+) -> str:
+    """渲染完整的单条 SystemMessage 内容。
+
+    固定部分与动态部分在代码结构中分离，但最终合并为一条字符串，
+    以兼容国内 OpenAI-compatible 接口对多个 system message 的不稳定支持。
+
+    Args:
+        current_time: 当前时间字符串（如 "2026-05-24 14:30"）
+        scene: 当前场景标记（如 "对话开始"、"持续对话"）
+        profile_text: 用户画像文本
+        current_goal: 当前目标描述（5~200 字）
+        context_summary: 上下文摘要（第一期通常为空）
+
+    Returns:
+        合并后的 system prompt 字符串
+    """
+    current_time_block = (
+        _CURRENT_TIME_BLOCK_TEMPLATE.format(current_time=current_time)
+        if current_time else ""
+    )
+    scene_block = (
+        _SCENE_BLOCK_TEMPLATE.format(scene=scene)
+        if scene else ""
+    )
+    profile_block = (
+        _PROFILE_BLOCK_TEMPLATE.format(profile_text=profile_text)
+        if profile_text else ""
+    )
+    goal_block = (
+        _GOAL_BLOCK_TEMPLATE.format(current_goal=current_goal)
+        if current_goal else ""
+    )
+    summary_block = (
+        _SUMMARY_BLOCK_TEMPLATE.format(context_summary=context_summary)
+        if context_summary else ""
+    )
+
+    has_dynamic = any(
+        (current_time_block, scene_block, profile_block, goal_block, summary_block)
+    )
+
+    if not has_dynamic:
+        return CHAT_FIXED_SYSTEM_PROMPT
+
+    dynamic_content = CHAT_DYNAMIC_SYSTEM_PROMPT_TEMPLATE.format(
+        current_time_block=current_time_block,
+        scene_block=scene_block,
+        profile_block=profile_block,
+        goal_block=goal_block,
+        summary_block=summary_block,
+    )
+    return f"{CHAT_FIXED_SYSTEM_PROMPT}\n\n{dynamic_content}"
+
+
+# 兼容 alias：保留旧名称，便于后续逐步迁移引用
+CHAT_DEFAULT_SYSTEM_PROMPT = CHAT_FIXED_SYSTEM_PROMPT
+
+
+# -------------------------------------------------------------------
+# Current Goal Generation Prompt（small model 用）
+# -------------------------------------------------------------------
+CURRENT_GOAL_GENERATION_PROMPT = (
+    "你是对话意图提炼助手。请根据以下对话内容，提炼用户当前的核心目标或需求。\n\n"
+    "要求：\n"
+    "- 用第三人称或陈述句描述用户想要什么\n"
+    "- 只输出目标描述，不要解释\n"
+    "- 字数严格控制在 5~200 字之间\n"
+    "- 如果对话很短或目标不明确，输出空字符串\n\n"
+    "{previous_goal_block}"
+    "对话内容：\n"
+    "{conversation}\n\n"
+    "当前目标："
+)
+
+_PREVIOUS_GOAL_BLOCK_TEMPLATE = "历史目标：{previous_goal}\n\n"
+
+
+def render_current_goal_prompt(
+    conversation: str,
+    previous_goal: str | None = None,
+) -> str:
+    """渲染生成 current_goal 的 small model prompt。
+
+    Args:
+        conversation: 供 small model 参考的对话内容（通常为最近若干轮用户消息）
+        previous_goal: 上一轮的 current_goal（如有）
+
+    Returns:
+        完整的 prompt 字符串
+    """
+    previous_goal_block = (
+        _PREVIOUS_GOAL_BLOCK_TEMPLATE.format(previous_goal=previous_goal)
+        if previous_goal else ""
+    )
+    return CURRENT_GOAL_GENERATION_PROMPT.format(
+        previous_goal_block=previous_goal_block,
+        conversation=conversation,
+    )
+
+
+# ===================================================================
+# 其他 Prompts（保持不变）
+# ===================================================================
 PROFILE_JUDGE_PROMPT = (
     "你是用户画像分析助手。你的任务是判断以下对话记录中，"
     "是否包含值得记录到用户画像中的信息，重点关注用户自身的发言。\n\n"

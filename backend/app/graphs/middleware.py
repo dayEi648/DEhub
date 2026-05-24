@@ -1,18 +1,22 @@
-"""Agent 中间件：工具执行策略控制。
+"""Agent 中间件：工具执行策略控制与 Prompt 动态组装。
 
 使用 LangChain 官方 `AgentMiddleware` 机制，在不触碰 `ToolNode` 内部的前提下，
-通过 `awrap_tool_call` / `wrap_tool_call` 钩子实现并发调度策略。
+通过 `awrap_tool_call` / `wrap_tool_call` 钩子实现并发调度策略，
+通过 `awrap_model_call` / `wrap_model_call` 实现 system prompt 动态组装。
 """
 
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
+from langchain_core.messages import SystemMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from app.graphs.nodes.toolnodes import registry
+from app.prompts.chat_prompts import render_chat_system_prompt
 
 
 class ConcurrencyMiddleware(AgentMiddleware):
@@ -63,3 +67,65 @@ class ConcurrencyMiddleware(AgentMiddleware):
             async with self._get_lock(tool_name):
                 return await handler(request)
         return await handler(request)
+
+
+class PromptAssemblyMiddleware(AgentMiddleware):
+    """System Prompt 动态组装中间件。
+
+    每次模型调用前，根据当前状态实时组装固定 prompt 与动态 prompt，
+    合并为单条 SystemMessage 后替换模型请求中的 system_message。
+
+    同时负责过滤旧 checkpoint 中遗留的 SystemMessage，避免重复注入。
+    """
+
+    @property
+    def name(self) -> str:
+        return "prompt_assembly"
+
+    @staticmethod
+    def _filter_system_messages(messages: list) -> list:
+        """过滤消息列表中的旧 SystemMessage。"""
+        return [m for m in messages if not isinstance(m, SystemMessage)]
+
+    @staticmethod
+    def _resolve_scene(state) -> str | None:
+        """根据状态和历史消息解析当前场景。"""
+        scene = state.get("prompt_scene")
+        messages = state.get("messages", [])
+        if messages and isinstance(messages[-1], ToolMessage):
+            return "工具结果返回后继续回答"
+        return scene
+
+    @staticmethod
+    def _render_system_prompt(state) -> str:
+        """渲染合并后的 system prompt 内容。"""
+        scene = PromptAssemblyMiddleware._resolve_scene(state)
+        return render_chat_system_prompt(
+            current_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            scene=scene,
+            profile_text=state.get("profile_text"),
+            current_goal=state.get("current_goal"),
+            context_summary=state.get("context_summary"),
+        )
+
+    def wrap_model_call(self, request, handler):
+        """同步拦截：组装 system prompt 并过滤旧 SystemMessage。"""
+        state = request.state
+        cleaned_messages = self._filter_system_messages(request.messages)
+        system_prompt = self._render_system_prompt(state)
+        new_request = request.override(
+            system_message=SystemMessage(content=system_prompt),
+            messages=cleaned_messages,
+        )
+        return handler(new_request)
+
+    async def awrap_model_call(self, request, handler):
+        """异步拦截：组装 system prompt 并过滤旧 SystemMessage。"""
+        state = request.state
+        cleaned_messages = self._filter_system_messages(request.messages)
+        system_prompt = self._render_system_prompt(state)
+        new_request = request.override(
+            system_message=SystemMessage(content=system_prompt),
+            messages=cleaned_messages,
+        )
+        return await handler(new_request)
