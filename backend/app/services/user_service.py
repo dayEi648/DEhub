@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import time
 
@@ -19,14 +18,14 @@ from app.core.permissions import require_admin, require_owner_or_admin
 from app.core.permission_levels import PermissionLevel
 from app.storage.oss import delete_file_from_oss_sync, upload_image, ImageUploadScene, convert_oss_url_to_file_path, delete_file_from_oss
 from app.redis_client import get_redis_client, get_sync_redis_client
-from app.infrastructure.checkpoint_client import delete_checkpoint
+from app.infrastructure.checkpoint_client import delete_checkpoint_sync
 from app.infrastructure.cache_invalidator import ForumCacheInvalidator, BlogCacheInvalidator
 
 logger = logging.getLogger(__name__)
 
 
 class UserService:
-    _ALL_CONVERSATIONS_QUERY_LIMIT = 999999
+    _CONVERSATION_BATCH_SIZE = 100
 
     def __init__(self, db: Session):
         """
@@ -266,15 +265,19 @@ class UserService:
                     self.db, user_id, current_user.id, auto_commit=False
                 )
 
-                # 3. 删除 AI 对话（ORM 级联自动删除 messages）
-                convs = ai_conversation_crud.list_ai_conversations_by_user(
-                    self.db, user_id, skip=0, limit=self._ALL_CONVERSATIONS_QUERY_LIMIT
-                )
-                checkpoint_conversation_ids = [conv.id for conv in convs[0]]
-                for conv_id in checkpoint_conversation_ids:
-                    ai_conversation_crud.delete_ai_conversation(
-                        self.db, conv_id, auto_commit=False
+                # 3. 删除 AI 对话（ORM 级联自动删除 messages，分批处理避免一次性拉取大量数据）
+                while True:
+                    convs, _total = ai_conversation_crud.list_ai_conversations_by_user(
+                        self.db, user_id, skip=0, limit=self._CONVERSATION_BATCH_SIZE
                     )
+                    if not convs:
+                        break
+
+                    for conv in convs:
+                        checkpoint_conversation_ids.append(conv.id)
+                        ai_conversation_crud.delete_ai_conversation(
+                            self.db, conv.id, auto_commit=False
+                        )
 
                 # 4. 删除评论及子评论（先删点赞，再删评论）
                 user_comment_ids = comment_crud.get_comment_ids_by_user_id(
@@ -356,7 +359,7 @@ class UserService:
         # 数据库事务成功后，再做外部副作用清理
         for conv_id in checkpoint_conversation_ids:
             try:
-                asyncio.run(delete_checkpoint(str(conv_id)))
+                delete_checkpoint_sync(str(conv_id))
             except Exception:
                 logger.exception("清理 AI 对话 checkpoint 失败: conv=%s", conv_id)
 
@@ -378,19 +381,11 @@ class UserService:
         Returns:
             User | None: 用户对象或None
         """
-        if "@" in user_login.account:
-            user = user_crud.get_user_by_email(self.db, user_login.account)
-        else:
-            user = user_crud.get_user_by_username(self.db, user_login.account)
+        account = user_login.account
+        user = user_crud.get_user_by_username(self.db, account)
         if user is None:
-            fallback = (
-                user_crud.get_user_by_username(self.db, user_login.account)
-                if "@" in user_login.account
-                else user_crud.get_user_by_email(self.db, user_login.account)
-            )
-            user = fallback
+            user = user_crud.get_user_by_email(self.db, account)
         if not user:
-            # 执行 dummy verify 以掩藏"用户不存在"与"密码错误"的时序差异
             verify_password(user_login.password, self._DUMMY_HASH)
             return None
         if not verify_password(user_login.password, user.hashed_password):
@@ -506,7 +501,7 @@ class UserService:
         self._ensure_email_unique(user_register.email)
         # 强制注册用户的 permission 为 0
         user_data = UserCreate.model_validate(
-            user_register.model_dump(update={"permission": PermissionLevel.USER})
+            user_register.model_copy(update={"permission": PermissionLevel.USER}).model_dump()
         )
         user = user_crud.create_user(self.db, user_data)
         return UserResponse.model_validate(user)

@@ -1,6 +1,5 @@
 """chat_service 单元测试。"""
 
-import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -28,7 +27,7 @@ class TestChatServiceChat:
     @patch("app.services.chat_service.msg_crud.create_conversation_message")
     @patch.object(ChatService, "_ensure_title_async")
     @patch.object(ChatService, "_maybe_update_profile_async")
-    def test_chat_creates_new_conversation_when_no_id(
+    async def test_chat_creates_new_conversation_when_no_id(
         self, mock_sync, mock_title, mock_create_msg, mock_create_conv
     ):
         """无 conversation_id 时应自动创建新对话。"""
@@ -44,14 +43,14 @@ class TestChatServiceChat:
         )
 
         chat_in = ChatRequest(user_input="Hello", conversation_id=None)
-        result = asyncio.run(self.service.chat(chat_in, user_id=1))
+        result = await self.service.chat(chat_in, user_id=1)
 
         mock_create_conv.assert_called_once()
         assert result.conversation_id == 42
         assert result.response == "AI reply"
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
-    def test_chat_rejects_foreign_conversation(self, mock_get_conv):
+    async def test_chat_rejects_foreign_conversation(self, mock_get_conv):
         """传入不属于当前用户的 conversation_id 时应抛出 403。"""
         mock_conv = MagicMock()
         mock_conv.user_id = 999  # 另一个用户
@@ -64,13 +63,13 @@ class TestChatServiceChat:
 
         chat_in = ChatRequest(user_input="Hello", conversation_id=1)
         with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(self.service.chat(chat_in, user_id=1))
+            await self.service.chat(chat_in, user_id=1)
 
         assert exc_info.value.status_code == 403
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.create_conversation_message")
-    def test_chat_stores_tool_call_messages(self, mock_create_msg, mock_get_conv):
+    async def test_chat_stores_tool_call_messages(self, mock_create_msg, mock_get_conv):
         """当 Graph 返回中间 AIMessage（含 tool_calls）和 ToolMessage 时，均应存入数据库并标记 display=False。"""
         mock_conv = MagicMock()
         mock_conv.user_id = 1
@@ -94,7 +93,7 @@ class TestChatServiceChat:
         )
 
         chat_in = ChatRequest(user_input="Hello", conversation_id=1)
-        result = asyncio.run(self.service.chat(chat_in, user_id=1))
+        result = await self.service.chat(chat_in, user_id=1)
 
         assert result.response == "最终回复"
 
@@ -130,7 +129,7 @@ class TestChatServiceChat:
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.create_conversation_message")
-    def test_chat_marks_tool_call_ai_with_content_as_displayable(
+    async def test_chat_marks_tool_call_ai_with_content_as_displayable(
         self, mock_create_msg, mock_get_conv
     ):
         """含 tool_calls 且有正文的 AIMessage 应标记为可展示。"""
@@ -154,7 +153,7 @@ class TestChatServiceChat:
         )
 
         chat_in = ChatRequest(user_input="查一下 Python", conversation_id=1)
-        result = asyncio.run(self.service.chat(chat_in, user_id=1))
+        result = await self.service.chat(chat_in, user_id=1)
 
         assert result.response == "根据联网搜索结果，我整理如下。"
         kwargs1 = mock_create_msg.call_args_list[1].kwargs
@@ -162,13 +161,13 @@ class TestChatServiceChat:
         assert kwargs1["metadata"]["tool_calls"][0]["name"] == "web_search"
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
-    def test_chat_rejects_nonexistent_conversation(self, mock_get_conv):
+    async def test_chat_rejects_nonexistent_conversation(self, mock_get_conv):
         """传入不存在的 conversation_id 时应抛出 404。"""
         mock_get_conv.return_value = None
 
         chat_in = ChatRequest(user_input="Hello", conversation_id=1)
         with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(self.service.chat(chat_in, user_id=1))
+            await self.service.chat(chat_in, user_id=1)
 
         assert exc_info.value.status_code == 404
 
@@ -199,7 +198,7 @@ class TestGetMessages:
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.list_conversation_messages")
-    def test_filters_hidden_by_default(self, mock_list, mock_get_conv):
+    async def test_filters_hidden_by_default(self, mock_list, mock_get_conv):
         """默认应过滤掉工具结果、系统消息和空内容工具决策消息。"""
         mock_conv = MagicMock()
         mock_conv.user_id = 1
@@ -216,14 +215,14 @@ class TestGetMessages:
         system_msg = self._message(4, "system", "系统提示")
         mock_list.return_value = [visible_msg, hidden_ai, tool_msg, system_msg]
 
-        result = asyncio.run(self.service.get_messages(1, 1))
+        result = await self.service.get_messages(1, 1)
         assert len(result) == 1
         assert result[0].id == visible_msg.id
         assert result[0].content == "最终回复"
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.list_conversation_messages")
-    def test_keeps_tool_call_assistant_content_visible_by_default(
+    async def test_keeps_tool_call_assistant_content_visible_by_default(
         self, mock_list, mock_get_conv
     ):
         """带 tool_calls 但有正文的 assistant 消息应作为普通可见回复返回。"""
@@ -244,7 +243,7 @@ class TestGetMessages:
         final_reply = self._message(3, "assistant", "根据联网搜索结果，我整理如下。")
         mock_list.return_value = [pre_tool_reply, tool_msg, final_reply]
 
-        result = asyncio.run(self.service.get_messages(1, 1))
+        result = await self.service.get_messages(1, 1)
 
         assert [msg.content for msg in result] == [
             "好的，我帮你联网搜索一下。",
@@ -254,7 +253,7 @@ class TestGetMessages:
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.list_conversation_messages")
-    def test_includes_hidden_when_flag_set(self, mock_list, mock_get_conv):
+    async def test_includes_hidden_when_flag_set(self, mock_list, mock_get_conv):
         """include_hidden=True 时应返回完整消息列表。"""
         mock_conv = MagicMock()
         mock_conv.user_id = 1
@@ -269,7 +268,7 @@ class TestGetMessages:
         )
         mock_list.return_value = [visible_msg, hidden_msg]
 
-        result = asyncio.run(self.service.get_messages(1, 1, include_hidden=True))
+        result = await self.service.get_messages(1, 1, include_hidden=True)
         assert len(result) == 2
         assert result[1].meta == {"display": False, "tool_call_id": "call_1"}
 
@@ -431,7 +430,7 @@ class TestChatDynamicFields:
     @patch("app.services.chat_service.conv_crud.create_ai_conversation")
     @patch("app.services.chat_service.msg_crud.create_conversation_message")
     @patch.object(ChatService, "_ensure_title_async")
-    def test_new_conversation_passes_dialogue_start_scene(
+    async def test_new_conversation_passes_dialogue_start_scene(
         self, mock_title, mock_create_msg, mock_create_conv
     ):
         """新对话时应传入 prompt_scene='对话开始'。"""
@@ -445,7 +444,7 @@ class TestChatDynamicFields:
         )
 
         chat_in = ChatRequest(user_input="Hello", conversation_id=None)
-        asyncio.run(self.service.chat(chat_in, user_id=1))
+        await self.service.chat(chat_in, user_id=1)
 
         call_kwargs = self.service.graph.ainvoke.call_args[0][0]
         assert call_kwargs["prompt_scene"] == "对话开始"
@@ -453,7 +452,7 @@ class TestChatDynamicFields:
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.create_conversation_message")
-    def test_existing_conversation_passes_continue_scene(
+    async def test_existing_conversation_passes_continue_scene(
         self, mock_create_msg, mock_get_conv
     ):
         """已有对话时应传入 prompt_scene='持续对话'。"""
@@ -469,7 +468,7 @@ class TestChatDynamicFields:
         )
 
         chat_in = ChatRequest(user_input="Hello", conversation_id=1)
-        asyncio.run(self.service.chat(chat_in, user_id=1))
+        await self.service.chat(chat_in, user_id=1)
 
         call_kwargs = self.service.graph.ainvoke.call_args[0][0]
         assert call_kwargs["prompt_scene"] == "持续对话"
@@ -477,7 +476,7 @@ class TestChatDynamicFields:
     @patch("app.services.chat_service.conv_crud.create_ai_conversation")
     @patch("app.services.chat_service.msg_crud.create_conversation_message")
     @patch.object(ChatService, "_ensure_title_async")
-    def test_short_input_no_goal(self, mock_title, mock_create_msg, mock_create_conv):
+    async def test_short_input_no_goal(self, mock_title, mock_create_msg, mock_create_conv):
         """用户输入很短（< 200 字）时不应生成 current_goal。"""
         mock_conv = MagicMock()
         mock_conv.id = 42
@@ -489,7 +488,7 @@ class TestChatDynamicFields:
         )
 
         chat_in = ChatRequest(user_input="短消息", conversation_id=None)
-        asyncio.run(self.service.chat(chat_in, user_id=1))
+        await self.service.chat(chat_in, user_id=1)
 
         call_kwargs = self.service.graph.ainvoke.call_args[0][0]
         assert call_kwargs["current_goal"] is None
