@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -9,6 +9,10 @@ from app.db.base import Base
 
 class SystemLog(Base):
     __tablename__ = "system_logs"
+
+    __table_args__ = (
+        CheckConstraint("level IN ('WARN', 'ERROR', 'CRITICAL')", name="ck_system_logs_level"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     level: Mapped[str] = mapped_column(String(10), nullable=False)
