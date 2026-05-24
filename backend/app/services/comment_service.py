@@ -10,6 +10,7 @@ from app.schemas.comment import CommentCreate, CommentResponse
 from app.crud import comment as comment_crud
 from app.crud import blog_post as blog_post_crud
 from app.crud import forum_reply as forum_reply_crud
+from app.infrastructure.cache_invalidator import BlogCacheInvalidator
 
 
 # 可扩展的 target_type 校验器：新增场景时追加键值对即可
@@ -202,6 +203,11 @@ class CommentService:
         self._validate_target(comment_in.target_type, comment_in.target_id)
         comment_in = self._validate_comment_create(comment_in)
         db_comment = comment_crud.create_comment(self.db, comment_in, current_user.id)
+
+        # 博客评论由数据库触发器维护 comment_count，Service 层需显式失效缓存
+        if comment_in.target_type == "blog_post":
+            BlogCacheInvalidator.invalidate_blog_posts()
+
         # 重新查询以加载 user 关联，避免延迟加载问题
         refreshed = comment_crud.get_comment_by_id(self.db, db_comment.id)
         return refreshed
@@ -236,6 +242,10 @@ class CommentService:
                 comment_crud.delete_comments_by_ids(self.db, child_ids)
 
         comment_crud.delete_comment(self.db, comment_id)
+
+        # 博客评论由数据库触发器维护 comment_count，Service 层需显式失效缓存
+        if db_comment.target_type == "blog_post":
+            BlogCacheInvalidator.invalidate_blog_posts()
 
     def list_comments(
         self,

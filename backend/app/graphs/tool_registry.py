@@ -18,11 +18,9 @@ class ToolRisk(Enum):
     """工具风险等级，用于执行策略决策。"""
 
     READONLY = "readonly"
-    """纯查询，无副作用，可安全并发执行。"""
-
+    """只读操作，可安全并发执行。"""
     IDEMPOTENT = "idempotent"
-    """写操作，但幂等（重复执行结果不变），如设置状态、更新记录。"""
-
+    """幂等操作，重复执行结果不变，如设置状态、更新记录。"""
     DESTRUCTIVE = "destructive"
     """不可逆操作，如删除、覆盖，执行前可能需要人工确认。"""
 
@@ -32,10 +30,8 @@ class ToolScope(Enum):
 
     PUBLIC = "public"
     """无额外权限门槛，所有已登录用户均可用。"""
-
     AUTHENTICATED = "authenticated"
     """需要登录用户身份（语义上区别于 PUBLIC，当前阶段效果相同）。"""
-
     ADMIN = "admin"
     """仅管理员及以上可用。"""
 
@@ -50,22 +46,16 @@ class ToolMetadata:
 
     name: str
     """工具唯一标识名（与 LLM 看到的 tool name 一致）。"""
-
     tool: BaseTool
     """由 @tool 或 StructuredTool 生成的 LangChain 工具实例。"""
-
     risk: ToolRisk
     """风险等级，决定执行策略。"""
-
     scope: ToolScope
     """可见性作用域，决定哪些用户能看到该工具。"""
-
     concurrency_safe: bool = True
     """同一用户的多个 tool_calls 能否并发执行。"""
-
     category: str = "general"
     """工具分类标签，用于未来按场景动态裁剪。"""
-
     enabled: bool = True
     """是否启用，支持 Feature Flag 灰度开关。"""
 

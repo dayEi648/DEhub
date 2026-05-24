@@ -1,6 +1,7 @@
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 from app.models.forum_reply import ForumReply
+from app.models.user_forum_reply_like import UserForumReplyLike
 from app.schemas.forum_reply import ForumReplyCreate
 
 
@@ -133,6 +134,143 @@ def delete_replies_by_user_id(
     result = (
         db.query(ForumReply)
         .filter(ForumReply.user_id == user_id)
+        .delete(synchronize_session=False)
+    )
+    if auto_commit:
+        db.commit()
+    return result
+
+
+# ---------- 回复点赞相关 ----------
+
+
+def get_user_forum_reply_like(
+    db: Session, reply_id: int, user_id: int
+) -> UserForumReplyLike | None:
+    """
+    查询用户对某条回复的点赞记录
+    Args:
+        db: 数据库会话
+        reply_id: 回复ID
+        user_id: 用户ID
+    Returns:
+        UserForumReplyLike | None: 点赞记录或None
+    """
+    return (
+        db.query(UserForumReplyLike)
+        .filter(
+            UserForumReplyLike.reply_id == reply_id,
+            UserForumReplyLike.user_id == user_id,
+        )
+        .first()
+    )
+
+
+def create_user_forum_reply_like(
+    db: Session, reply_id: int, user_id: int
+) -> UserForumReplyLike:
+    """
+    创建回复点赞记录
+    Args:
+        db: 数据库会话
+        reply_id: 回复ID
+        user_id: 用户ID
+    Returns:
+        UserForumReplyLike: 点赞记录对象
+    """
+    db_like = UserForumReplyLike(reply_id=reply_id, user_id=user_id)
+    db.add(db_like)
+    db.commit()
+    db.refresh(db_like)
+    return db_like
+
+
+def delete_user_forum_reply_like(db: Session, reply_id: int, user_id: int) -> int:
+    """
+    删除回复点赞记录
+    Args:
+        db: 数据库会话
+        reply_id: 回复ID
+        user_id: 用户ID
+    Returns:
+        int: 删除行数
+    """
+    result = (
+        db.query(UserForumReplyLike)
+        .filter(
+            UserForumReplyLike.reply_id == reply_id,
+            UserForumReplyLike.user_id == user_id,
+        )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return result
+
+
+def get_user_liked_reply_ids(
+    db: Session,
+    user_id: int,
+    reply_ids: list[int],
+) -> set[int]:
+    """
+    批量查询用户已点赞的回复 ID。
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+        reply_ids: 回复 ID 列表
+    Returns:
+        set[int]: 已点赞回复 ID 集合
+    """
+    if not reply_ids:
+        return set()
+    rows = (
+        db.query(UserForumReplyLike.reply_id)
+        .filter(
+            UserForumReplyLike.user_id == user_id,
+            UserForumReplyLike.reply_id.in_(reply_ids),
+        )
+        .all()
+    )
+    return {row[0] for row in rows}
+
+
+def delete_forum_reply_likes_by_reply_ids(
+    db: Session, reply_ids: list[int], auto_commit: bool = True
+) -> int:
+    """
+    按回复 ID 列表批量删除点赞记录
+    Args:
+        db: 数据库会话
+        reply_ids: 回复 ID 列表
+    Returns:
+        int: 删除行数
+    """
+    if not reply_ids:
+        return 0
+    result = (
+        db.query(UserForumReplyLike)
+        .filter(UserForumReplyLike.reply_id.in_(reply_ids))
+        .delete(synchronize_session=False)
+    )
+    if auto_commit:
+        db.commit()
+    return result
+
+
+def delete_forum_reply_likes_by_user_id(
+    db: Session, user_id: int, auto_commit: bool = True
+) -> int:
+    """
+    按用户 ID 批量删除回复点赞记录
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+    Returns:
+        int: 删除行数
+    """
+    result = (
+        db.query(UserForumReplyLike)
+        .filter(UserForumReplyLike.user_id == user_id)
         .delete(synchronize_session=False)
     )
     if auto_commit:

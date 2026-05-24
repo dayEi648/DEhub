@@ -26,8 +26,20 @@ export interface ForumPost {
   created_at: string
 }
 
+export interface ForumPostListItem {
+  id: number
+  title: string
+  zone_id: number
+  user_id: number
+  user: UserBriefInfo
+  view_count: number
+  reply_count: number
+  updated_at: string
+  created_at: string
+}
+
 export interface ForumPostListResponse {
-  items: ForumPost[]
+  items: ForumPostListItem[]
   total: number
 }
 
@@ -60,6 +72,7 @@ export interface ForumReply {
   likecount: number
   comment_count: number
   created_at: string
+  is_liked: boolean
 }
 
 export interface ForumReplyListResponse {

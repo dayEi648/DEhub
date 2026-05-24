@@ -23,7 +23,7 @@ import Pagination from '../components/Pagination'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate } from '../utils/format'
 import { validateImageFile } from '../utils/upload'
-import type { ForumPost, ForumZone } from '../types/forum'
+import type { ForumPostListItem, ForumZone } from '../types/forum'
 
 const PAGE_SIZE = 15
 
@@ -250,7 +250,7 @@ function CreatePostModal({
 }
 
 /* ─── Post Card ─── */
-function PostCard({ post }: { post: ForumPost }) {
+function PostCard({ post }: { post: ForumPostListItem }) {
   const navigate = useNavigate()
 
   return (
@@ -349,7 +349,7 @@ export default function ForumPostListPage() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const [zone, setZone] = useState<ForumZone | null>(null)
-  const [posts, setPosts] = useState<ForumPost[]>([])
+  const [posts, setPosts] = useState<ForumPostListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState<'created' | 'view'>('created')

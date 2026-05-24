@@ -37,9 +37,24 @@ class ForumPostResponse(ForumPostBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ForumPostListItem(BaseModel):
+    """论坛帖子列表项（轻量，不含完整 content）"""
+    id: int
+    title: str
+    zone_id: int
+    user_id: int
+    user: UserBriefInfo
+    view_count: int
+    reply_count: int
+    updated_at: datetime
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ForumPostListResponse(BaseModel):
     """论坛帖子分页列表响应"""
-    items: list[ForumPostResponse]
+    items: list[ForumPostListItem]
     total: int
 
     model_config = ConfigDict(from_attributes=True)

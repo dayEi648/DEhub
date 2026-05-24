@@ -20,12 +20,12 @@ import AppTopNav from '../components/AppTopNav'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate } from '../utils/format'
 import type { BlogPostListItem } from '../types/blog'
-import type { ForumPost, ForumZone } from '../types/forum'
+import type { ForumPostListItem, ForumZone } from '../types/forum'
 
 /* ─── Types ─── */
 interface HomeData {
   blogs: BlogPostListItem[]
-  hotPosts: ForumPost[]
+  hotPosts: ForumPostListItem[]
   zones: ForumZone[]
 }
 
@@ -452,7 +452,7 @@ function BlogSection({ blogs }: { blogs: BlogPostListItem[] }) {
   )
 }
 
-function ForumSection({ posts, zones }: { posts: ForumPost[]; zones: ForumZone[] }) {
+function ForumSection({ posts, zones }: { posts: ForumPostListItem[]; zones: ForumZone[] }) {
   const navigate = useNavigate()
   const isMobile = useViewport() < 768
   return (

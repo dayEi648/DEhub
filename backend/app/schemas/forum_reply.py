@@ -23,6 +23,7 @@ class ForumReplyResponse(ForumReplyBase):
     likecount: int
     comment_count: int
     created_at: datetime
+    is_liked: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

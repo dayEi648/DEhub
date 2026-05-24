@@ -13,6 +13,9 @@ from app.schemas.blog_category import (
 )
 from app.crud import blog_category as blog_category_crud
 from app.utils.slug import generate_unique_slug
+from app.infrastructure.cache import build_cache_key, get_json_cache, set_json_cache
+from app.infrastructure.cache_invalidator import BlogCacheInvalidator
+from app.core.config import settings
 
 
 class BlogCategoryService:
@@ -50,7 +53,9 @@ class BlogCategoryService:
         else:
             self._ensure_slug_unique(category_in.slug)
 
-        return blog_category_crud.create_category(self.db, category_in)
+        result = blog_category_crud.create_category(self.db, category_in)
+        BlogCacheInvalidator.invalidate_blog_categories()
+        return result
 
     def get_category(
         self, category_id: int
@@ -72,6 +77,11 @@ class BlogCategoryService:
     def list_categories(
         self
     ) -> list[BlogCategoryWithPostCount]:
+        cache_key = build_cache_key("blog_categories:list")
+        cached = get_json_cache(cache_key, list[BlogCategoryWithPostCount])
+        if cached is not None:
+            return cached
+
         categories = blog_category_crud.get_all_categories(self.db)
 
         # 一次性获取所有分类的文章数量，避免 N+1 查询
@@ -90,6 +100,13 @@ class BlogCategoryService:
             data = BlogCategoryWithPostCount.model_validate(cat).model_dump()
             data["post_count"] = counts.get(cat.id, 0)
             result.append(BlogCategoryWithPostCount.model_validate(data))
+
+        set_json_cache(
+            cache_key,
+            result,
+            settings.CACHE_BLOG_CATEGORY_TTL,
+            tags=["blog_categories"],
+        )
         return result
 
     def update_category(
@@ -113,9 +130,11 @@ class BlogCategoryService:
                 update_data["slug"], exclude_category_id=db_category.id
             )
 
-        return blog_category_crud.update_category(
+        result = blog_category_crud.update_category(
             self.db, db_category, category_in
         )
+        BlogCacheInvalidator.invalidate_all()
+        return result
 
     def get_category_by_slug(self, slug: str) -> BlogCategoryWithPostCount:
         db_category = blog_category_crud.get_category_by_slug(self.db, slug)
@@ -152,3 +171,4 @@ class BlogCategoryService:
             )
 
         blog_category_crud.delete_category(self.db, category_id)
+        BlogCacheInvalidator.invalidate_blog_categories()

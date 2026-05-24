@@ -70,3 +70,11 @@ export function createForumReply(postId: number, data: ForumReplyCreateData) {
 export function deleteForumReply(replyId: number) {
   return request.delete(`/forum_replies/${replyId}`)
 }
+
+export function likeForumReply(replyId: number) {
+  return request.post(`/forum_replies/${replyId}/like`)
+}
+
+export function unlikeForumReply(replyId: number) {
+  return request.delete(`/forum_replies/${replyId}/like`)
+}

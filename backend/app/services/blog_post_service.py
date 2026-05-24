@@ -21,6 +21,15 @@ from app.utils.slug import generate_unique_slug
 from app.storage.oss import upload_image, ImageUploadScene, delete_file_from_oss, convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
 from app.infrastructure.llm_client import get_llm_small_client
 from app.services.blog_post_embedding_service import BlogPostEmbeddingService
+from app.infrastructure.cache import (
+    build_cache_key,
+    get_json_cache,
+    set_json_cache,
+    acquire_cache_lock,
+    release_cache_lock,
+)
+from app.infrastructure.cache_invalidator import BlogCacheInvalidator
+from app.core.config import settings
 from langchain_core.messages import SystemMessage, HumanMessage
 
 logger = logging.getLogger(__name__)
@@ -82,6 +91,8 @@ class BlogPostService:
         if db_post.status == "published":
             embed_service = BlogPostEmbeddingService(self.db)
             await asyncio.to_thread(embed_service.sync_post_embedding, db_post.id)
+            # 发布状态的文章会影响公共列表和分类计数
+            BlogCacheInvalidator.invalidate_all()
 
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
@@ -102,6 +113,9 @@ class BlogPostService:
         embed_service = BlogPostEmbeddingService(self.db)
         await asyncio.to_thread(embed_service.sync_post_embedding, post_id)
 
+        # 发布会影响公共列表和分类计数
+        BlogCacheInvalidator.invalidate_all()
+
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
         return refreshed
@@ -120,6 +134,9 @@ class BlogPostService:
         # 下架后同步清理向量嵌入
         embed_service = BlogPostEmbeddingService(self.db)
         await asyncio.to_thread(embed_service.delete_post_embedding, post_id)
+
+        # 下线会影响公共列表和分类计数
+        BlogCacheInvalidator.invalidate_all()
 
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
@@ -156,6 +173,9 @@ class BlogPostService:
         else:
             await asyncio.to_thread(embed_service.delete_post_embedding, updated.id)
 
+        # 更新可能影响公共列表和分类计数
+        BlogCacheInvalidator.invalidate_all()
+
         # 重新查询以加载 category 关联（可能已变更），避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, updated.id)
         return refreshed
@@ -182,6 +202,9 @@ class BlogPostService:
         result = blog_post_crud.hard_delete_blog_post(self.db, post_id)
         if result == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
+
+        # 删除会影响公共列表和分类计数
+        BlogCacheInvalidator.invalidate_all()
 
     # ---------- 读操作（权限区分）----------
 
@@ -253,6 +276,41 @@ class BlogPostService:
         else:
             effective_status = status if include_unpublished else "published"
 
+        # 只有公共 published 列表才走缓存
+        should_cache = effective_status == "published" and not include_unpublished
+
+        cache_key = None
+        ttl = None
+        is_hot_key = False
+        lock_acquired = False
+
+        if should_cache:
+            cache_params = {
+                "skip": skip,
+                "limit": limit,
+                "status": "published",
+                "category_id": category_id,
+                "tag": tag,
+                "q": q,
+            }
+            cache_key = build_cache_key("blog_posts:list", cache_params)
+
+            if q:
+                ttl = settings.CACHE_BLOG_LIST_TTL // 2  # 搜索场景 30s
+            elif skip == 0 and limit == 6:
+                ttl = settings.CACHE_BLOG_HOME_TTL  # 首页热门 120s
+                is_hot_key = True
+            else:
+                ttl = settings.CACHE_BLOG_LIST_TTL  # 普通列表 60s
+
+            cached = get_json_cache(cache_key, BlogPostListResponse)
+            if cached is not None:
+                return cached
+
+            # 首页热门 key 加短锁防击穿
+            if is_hot_key:
+                lock_acquired = acquire_cache_lock(cache_key, ttl=5)
+
         posts = blog_post_crud.get_blog_posts(
             self.db,
             skip=skip,
@@ -269,10 +327,19 @@ class BlogPostService:
             tag=tag,
             q=q,
         )
-        return BlogPostListResponse(
+        result = BlogPostListResponse(
             items=[BlogPostListItem.model_validate(post) for post in posts],
             total=total,
         )
+
+        if should_cache and cache_key is not None and ttl is not None:
+            # 热门 key 只有抢到锁才写缓存；普通 key 直接写
+            if not is_hot_key or lock_acquired:
+                set_json_cache(cache_key, result, ttl, tags=["blog_posts"])
+            if lock_acquired:
+                release_cache_lock(cache_key)
+
+        return result
 
 
     # ---------- AI 辅助功能 ----------

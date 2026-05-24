@@ -32,7 +32,7 @@ import { getUser as getStoredUser, setUser, clearAuth } from '../utils/auth'
 import { formatDateCN } from '../utils/format'
 import type { User as UserType } from '../types/user'
 import type { BlogPostListItem } from '../types/blog'
-import type { ForumPost, ForumZone } from '../types/forum'
+import type { ForumPostListItem, ForumZone } from '../types/forum'
 
 import { validateImageFile, createImagePreview } from '../utils/upload'
 
@@ -281,7 +281,7 @@ export default function ProfilePage() {
 
   // Favorites state
   const [favoriteBlogs, setFavoriteBlogs] = useState<BlogPostListItem[]>([])
-  const [favoritePosts, setFavoritePosts] = useState<ForumPost[]>([])
+  const [favoritePosts, setFavoritePosts] = useState<ForumPostListItem[]>([])
   const [followedZones, setFollowedZones] = useState<ForumZone[]>([])
   const [loadingFavorites, setLoadingFavorites] = useState(false)
   const [favSubTab, setFavSubTab] = useState<FavSubTab>('zones')

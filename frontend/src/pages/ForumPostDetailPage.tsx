@@ -25,6 +25,8 @@ import {
   createForumReply,
   deleteForumReply,
   getForumZoneById,
+  likeForumReply,
+  unlikeForumReply,
 } from '../api/forum'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
 import { favoriteForumPost, unfavoriteForumPost, getForumPostFavoriteStatus } from '../api/favorites'
@@ -859,6 +861,8 @@ function ForumReplyItem({
   isZoneManager,
   onDelete,
   onRefreshReplies,
+  onLike,
+  onUnlike,
 }: {
   reply: ForumReply
   index: number
@@ -868,6 +872,8 @@ function ForumReplyItem({
   isZoneManager: boolean
   onDelete: (id: number) => void
   onRefreshReplies?: () => void
+  onLike: (id: number) => void
+  onUnlike: (id: number) => void
 }) {
   const canDelete = currentUserId === reply.user_id || isAdmin || isZoneManager
   const [showComments, setShowComments] = useState(false)
@@ -938,19 +944,30 @@ function ForumReplyItem({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
-            <span
+            <button
+              onClick={() => {
+                if (reply.is_liked) {
+                  onUnlike(reply.id)
+                } else {
+                  onLike(reply.id)
+                }
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
                 fontSize: 13,
                 fontWeight: 500,
-                color: 'var(--color-muted-soft)',
+                color: reply.is_liked ? 'var(--color-primary)' : 'var(--color-muted-soft)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
               }}
             >
-              <Heart size={14} />
+              <Heart size={14} fill={reply.is_liked ? 'var(--color-primary)' : 'none'} />
               {reply.likecount}
-            </span>
+            </button>
 
             <button
               onClick={() => setShowReplyInput((s) => !s)}
@@ -1146,6 +1163,32 @@ export default function ForumPostDetailPage() {
       fetchReplies()
     } catch {
       toast.error('删除失败')
+    }
+  }
+
+  const handleLikeReply = async (replyId: number) => {
+    try {
+      await likeForumReply(replyId)
+      setReplies((prev) =>
+        prev.map((r) =>
+          r.id === replyId ? { ...r, is_liked: true, likecount: r.likecount + 1 } : r
+        )
+      )
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleUnlikeReply = async (replyId: number) => {
+    try {
+      await unlikeForumReply(replyId)
+      setReplies((prev) =>
+        prev.map((r) =>
+          r.id === replyId ? { ...r, is_liked: false, likecount: r.likecount - 1 } : r
+        )
+      )
+    } catch {
+      // ignore
     }
   }
 
@@ -1510,6 +1553,8 @@ export default function ForumPostDetailPage() {
                     isZoneManager={isZoneManager}
                     onDelete={handleDeleteReply}
                     onRefreshReplies={fetchReplies}
+                    onLike={handleLikeReply}
+                    onUnlike={handleUnlikeReply}
                   />
                 ))}
               </div>

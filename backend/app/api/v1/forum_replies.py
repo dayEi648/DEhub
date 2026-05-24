@@ -62,7 +62,7 @@ def list_replies(
     """
     service = ForumReplyService(db)
     items, total = service.list_replies_by_post(
-        post_id=post_id, skip=skip, limit=limit
+        post_id=post_id, skip=skip, limit=limit, current_user=current_user
     )
     return ForumReplyListResponse(items=items, total=total)
 
@@ -84,4 +84,44 @@ def delete_reply(
     """
     service = ForumReplyService(db)
     service.delete_reply(reply_id, current_user)
+    return None
+
+
+@router.post("/forum_replies/{reply_id}/like", status_code=status.HTTP_204_NO_CONTENT)
+def like_reply(
+    reply_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """
+    点赞回复（登录用户）
+    Args:
+        reply_id: 回复ID
+        db: 数据库会话
+        current_user: 当前登录用户
+    Returns:
+        None
+    """
+    service = ForumReplyService(db)
+    service.like_reply(reply_id, current_user)
+    return None
+
+
+@router.delete("/forum_replies/{reply_id}/like", status_code=status.HTTP_204_NO_CONTENT)
+def unlike_reply(
+    reply_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """
+    取消点赞回复（登录用户）
+    Args:
+        reply_id: 回复ID
+        db: 数据库会话
+        current_user: 当前登录用户
+    Returns:
+        None
+    """
+    service = ForumReplyService(db)
+    service.unlike_reply(reply_id, current_user)
     return None

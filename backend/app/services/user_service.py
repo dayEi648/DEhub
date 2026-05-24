@@ -20,6 +20,7 @@ from app.core.permission_levels import PermissionLevel
 from app.storage.oss import delete_file_from_oss_sync, upload_image, ImageUploadScene, convert_oss_url_to_file_path, delete_file_from_oss
 from app.redis_client import get_redis_client, get_sync_redis_client
 from app.infrastructure.checkpoint_client import delete_checkpoint
+from app.infrastructure.cache_invalidator import ForumCacheInvalidator, BlogCacheInvalidator
 
 logger = logging.getLogger(__name__)
 
@@ -310,6 +311,11 @@ class UserService:
                     self.db, user_id, auto_commit=False
                 )
 
+                # 删除该用户的回复点赞记录
+                forum_reply_crud.delete_forum_reply_likes_by_user_id(
+                    self.db, user_id, auto_commit=False
+                )
+
                 # 6. 删除收藏/点赞/关注记录
                 user_favorite_crud.delete_all_favorites_by_user_id(
                     self.db, user_id, auto_commit=False
@@ -332,6 +338,11 @@ class UserService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="关键清理步骤失败，已中止用户硬删除",
             ) from exc
+
+        # 事务提交成功后统一失效相关缓存
+        BlogCacheInvalidator.invalidate_blog_posts()
+        ForumCacheInvalidator.invalidate_forum_posts()
+        ForumCacheInvalidator.invalidate_forum_zones()
 
         # 1. 删除用户头像（事务提交成功后执行，失败不影响删除结果）
         if avatar_url_for_cleanup:

@@ -15,6 +15,10 @@ from app.core.zone_manager import (
     set_zone_manager_cache,
     delete_zone_manager_cache,
 )
+from app.infrastructure.cache import build_cache_key, get_json_cache, set_json_cache
+from app.infrastructure.cache_invalidator import ForumCacheInvalidator
+from app.core.config import settings
+from app.schemas.forum_zone import ForumZoneResponse
 
 
 class ForumZoneService:
@@ -97,6 +101,8 @@ class ForumZoneService:
         db_zone = forum_zone_crud.create_zone(self.db, zone_in, target_manager_id)
         # 重新查询以加载 manager 关联，避免延迟加载问题
         refreshed = forum_zone_crud.get_zone_by_id(self.db, db_zone.id)
+
+        ForumCacheInvalidator.invalidate_forum_zones()
         return refreshed
 
     def update_zone(
@@ -156,6 +162,8 @@ class ForumZoneService:
 
         # 重新查询以加载 manager 关联（可能已变更），避免延迟加载问题
         refreshed = forum_zone_crud.get_zone_by_id(self.db, updated_zone.id)
+
+        ForumCacheInvalidator.invalidate_forum_zones()
         return refreshed
 
     def delete_zone(self, zone_id: int, current_user: User) -> None:
@@ -186,6 +194,7 @@ class ForumZoneService:
 
         forum_zone_crud.delete_zone(self.db, zone_id)
         delete_zone_manager_cache(zone_id)
+        ForumCacheInvalidator.invalidate_forum_zones()
 
     def get_zone(self, zone_id: int) -> ForumZone:
         """
@@ -197,12 +206,22 @@ class ForumZoneService:
         Raises:
             HTTPException: 404 分区不存在
         """
+        cache_key = build_cache_key("forum_zones:id", {"zone_id": zone_id})
+        cached = get_json_cache(cache_key, ForumZoneResponse)
+        if cached is not None:
+            return cached
+
         db_zone = forum_zone_crud.get_zone_by_id(self.db, zone_id)
         if not db_zone:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
             )
-        return db_zone
+
+        result = ForumZoneResponse.model_validate(db_zone)
+        set_json_cache(
+            cache_key, result, settings.CACHE_FORUM_ZONE_TTL, tags=["forum_zones"]
+        )
+        return result
 
     def get_zone_by_slug(self, slug: str) -> ForumZone:
         """
@@ -214,12 +233,22 @@ class ForumZoneService:
         Raises:
             HTTPException: 404 分区不存在
         """
+        cache_key = build_cache_key("forum_zones:slug", {"slug": slug})
+        cached = get_json_cache(cache_key, ForumZoneResponse)
+        if cached is not None:
+            return cached
+
         db_zone = forum_zone_crud.get_zone_by_slug(self.db, slug)
         if not db_zone:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
             )
-        return db_zone
+
+        result = ForumZoneResponse.model_validate(db_zone)
+        set_json_cache(
+            cache_key, result, settings.CACHE_FORUM_ZONE_TTL, tags=["forum_zones"]
+        )
+        return result
 
     def list_zones(self) -> list[ForumZone]:
         """
@@ -227,4 +256,14 @@ class ForumZoneService:
         Returns:
             list[ForumZone]: 分区列表
         """
-        return forum_zone_crud.get_all_zones(self.db)
+        cache_key = build_cache_key("forum_zones:list")
+        cached = get_json_cache(cache_key, list[ForumZoneResponse])
+        if cached is not None:
+            return cached
+
+        zones = forum_zone_crud.get_all_zones(self.db)
+        result = [ForumZoneResponse.model_validate(z) for z in zones]
+        set_json_cache(
+            cache_key, result, settings.CACHE_FORUM_ZONE_TTL, tags=["forum_zones"]
+        )
+        return result

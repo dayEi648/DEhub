@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str = Field(default="")
     REDIS_CHECKPOINT_TTL: int = Field(default=600)
 
+    # 通用缓存配置
+    CACHE_ENABLED: bool = Field(default=True)
+    CACHE_DEFAULT_TTL: int = Field(default=60)
+    CACHE_BLOG_LIST_TTL: int = Field(default=60)
+    CACHE_BLOG_HOME_TTL: int = Field(default=120)
+    CACHE_BLOG_CATEGORY_TTL: int = Field(default=300)
+    CACHE_FORUM_ZONE_TTL: int = Field(default=300)
+    CACHE_FORUM_POST_LIST_TTL: int = Field(default=60)
+    CACHE_FORUM_HOT_POST_TTL: int = Field(default=30)
+
     POSTGRES_HOST: str = Field(default="localhost")
     POSTGRES_PORT: int = Field(default=5432)
     POSTGRES_USER: str = Field(default="postgres")
