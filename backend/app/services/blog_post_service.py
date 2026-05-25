@@ -81,7 +81,7 @@ class BlogPostService:
 
         # 先上传再入库，避免上传失败时产生无效数据；若后续入库失败则清理新文件。
         cover_url = await upload_image(file, ImageUploadScene.cover)
-        cleanup_service = OssCleanupService(self.db)
+        cleanup_service = OssCleanupService()
 
         try:
             db_post = blog_post_crud.create_blog_post(
@@ -167,7 +167,7 @@ class BlogPostService:
 
         old_cover_url = db_post.cover_image_url
         new_cover_url: str | None = None
-        cleanup_service = OssCleanupService(self.db)
+        cleanup_service = OssCleanupService()
         if file:
             new_cover_url = await upload_image(file, ImageUploadScene.cover)
             db_post.cover_image_url = new_cover_url
@@ -228,7 +228,7 @@ class BlogPostService:
         # 删除会影响公共列表和分类计数
         BlogCacheInvalidator.invalidate_all()
 
-        cleanup_service = OssCleanupService(self.db)
+        cleanup_service = OssCleanupService()
         for file_path in file_paths_to_delete:
             await cleanup_service.delete_file_after_commit(
                 file_path,

@@ -6,7 +6,8 @@ from app.api.v1.form_parser import parse_json_form_payload
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLoginResponse, UserLogin, UserLogout, RefreshTokenRequest, UserRegister, UserListResponse, ChangePasswordRequest
 from app.services.user_service import UserService
 from app.models.user import User
-from app.core.security import get_current_user, get_token_from_header
+from app.core.security import get_current_user, get_token_from_header, create_access_token, create_refresh_token
+from app.core.config import settings
 
 router = APIRouter(prefix="/users", tags=["用户管理"])
 
@@ -26,7 +27,8 @@ def create_user(
         UserResponse: 用户响应
     """
     service = UserService(db)
-    return service.create_user(user_in, current_user)
+    user = service.create_user(user_in, current_user)
+    return UserResponse.model_validate(user)
 
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(
@@ -39,7 +41,8 @@ def get_user(
     若用户已注销，仅管理员及以上可查看
     """
     service = UserService(db)
-    return service.get_user(user_id, current_user)
+    db_user = service.get_user(user_id, current_user)
+    return UserResponse.model_validate(db_user)
 
 @router.get("/", response_model=UserListResponse)
 def list_users(
@@ -138,7 +141,15 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)) -> UserLoginResp
         UserLoginResponse: 用户登录响应
     """
     service = UserService(db)
-    return service.login_user(user_login)
+    user, access_token, refresh_token = service.login_user(user_login)
+    return UserLoginResponse(
+        token_type="Bearer",
+        access_token=access_token,
+        refresh_token=refresh_token,
+        access_token_expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        refresh_token_expires_in=settings.REFRESH_TOKEN_EXPIRE_MINUTES if refresh_token else None,
+        user=UserResponse.model_validate(user),
+    )
 
 @router.post("/refresh-token", response_model=UserLoginResponse)
 async def refresh_access_token(req: RefreshTokenRequest, db: Session = Depends(get_db)) -> UserLoginResponse:
@@ -153,7 +164,15 @@ async def refresh_access_token(req: RefreshTokenRequest, db: Session = Depends(g
     if not req.refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="刷新令牌不能为空")
     service = UserService(db)
-    return await service.refresh_access_token(req.refresh_token)
+    user, access_token, refresh_token = await service.refresh_access_token(req.refresh_token)
+    return UserLoginResponse(
+        token_type="Bearer",
+        access_token=access_token,
+        refresh_token=refresh_token,
+        access_token_expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        refresh_token_expires_in=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
+        user=UserResponse.model_validate(user),
+    )
 
 @router.post("/logout", status_code=204)
 async def logout(

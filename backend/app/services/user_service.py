@@ -9,7 +9,7 @@ from app.crud import forum_reply as forum_reply_crud
 from app.crud import comment as comment_crud
 from app.crud import ai_conversation as ai_conversation_crud
 from app.crud import user_favorite as user_favorite_crud
-from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister, ChangePasswordRequest
+from app.schemas.user import UserCreate, UserUpdate, UserLogin, UserResponse, UserLogout, UserRegister, ChangePasswordRequest
 from app.models.user import User
 from fastapi import HTTPException, status, UploadFile
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
@@ -196,7 +196,7 @@ class UserService:
 
         old_avatar_url = db_user.avatar_url
         new_avatar_url: str | None = None
-        cleanup_service = OssCleanupService(self.db)
+        cleanup_service = OssCleanupService()
         if file:
             new_avatar_url = await upload_image(file, ImageUploadScene.avatar)
             db_user.avatar_url = new_avatar_url
@@ -366,7 +366,7 @@ class UserService:
 
         # 1. 删除用户头像（事务提交成功后执行，失败不影响删除结果）
         if avatar_url_for_cleanup:
-            OssCleanupService(self.db).delete_file_after_commit_sync(
+            OssCleanupService().delete_file_after_commit_sync(
                 convert_oss_url_to_file_path(avatar_url_for_cleanup),
                 source="user.avatar.hard_delete",
             )
@@ -407,13 +407,13 @@ class UserService:
             return None
         return user
 
-    def login_user(self, user_login: UserLogin) -> UserLoginResponse:
+    def login_user(self, user_login: UserLogin) -> tuple[User, str, str | None]:
         """
         登录
         Args:
             user_login: 用户登录请求
         Returns:
-            UserLoginResponse: 用户登录响应
+            tuple[User, str, str | None]: (用户对象, access_token, refresh_token)
         """
         user = self.authenticate_user(user_login)
         if not user:
@@ -426,23 +426,18 @@ class UserService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="用户已注销"
             )
-        return UserLoginResponse(
-            token_type="Bearer",
-            access_token=create_access_token(user.id),
-            refresh_token=create_refresh_token(user.id) if user_login.is_remember else None,
-            access_token_expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
-            refresh_token_expires_in=settings.REFRESH_TOKEN_EXPIRE_MINUTES if user_login.is_remember else None,
-            user=UserResponse.model_validate(user)
-        )
+        access_token = create_access_token(user.id)
+        refresh_token = create_refresh_token(user.id) if user_login.is_remember else None
+        return user, access_token, refresh_token
 
-    async def refresh_access_token(self, refresh_token: str) -> UserLoginResponse:
+    async def refresh_access_token(self, refresh_token: str) -> tuple[User, str, str]:
         """
         刷新令牌
         刷新后将旧 refresh token 加入黑名单（Token Rotation）
         Args:
             refresh_token: 刷新令牌
         Returns:
-            UserLoginResponse: 用户登录响应
+            tuple[User, str, str]: (用户对象, access_token, refresh_token)
         """
         payload = decode_token(refresh_token)
         if not payload:
@@ -482,14 +477,9 @@ class UserService:
 
         # Token Rotation：将旧 refresh token 加入黑名单，再签发新令牌
         await blacklist_token(refresh_token)
-        return UserLoginResponse(
-            token_type="Bearer",
-            access_token=create_access_token(user.id),
-            refresh_token=create_refresh_token(user.id),
-            access_token_expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
-            refresh_token_expires_in=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
-            user=UserResponse.model_validate(user)
-        )
+        access_token = create_access_token(user.id)
+        new_refresh_token = create_refresh_token(user.id)
+        return user, access_token, new_refresh_token
 
     async def logout_user(self, access_token: str, user_logout: UserLogout) -> None:
         """

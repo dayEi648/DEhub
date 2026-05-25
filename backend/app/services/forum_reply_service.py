@@ -132,7 +132,7 @@ class ForumReplyService:
         if post:
             ForumCacheInvalidator.invalidate_forum_posts(zone_id=post.zone_id)
 
-        cleanup_service = OssCleanupService(self.db)
+        cleanup_service = OssCleanupService()
         for file_path in file_paths_to_delete:
             cleanup_service.delete_file_after_commit_sync(
                 file_path,
