@@ -1068,6 +1068,7 @@ export default function ForumPostDetailPage() {
   const { postId } = useParams<{ postId: string }>()
   const navigate = useNavigate()
   const currentUser = getUser()
+  const currentUserId = currentUser?.id ?? null
   const [post, setPost] = useState<ForumPost | null>(null)
   const [zone, setZone] = useState<ForumZone | null>(null)
   const [replies, setReplies] = useState<ForumReply[]>([])
@@ -1095,7 +1096,7 @@ export default function ForumPostDetailPage() {
     try {
       const postRes = await getForumPostById(id)
       setPost(postRes.data)
-      if (currentUser) {
+      if (currentUserId) {
         const favRes = await getForumPostFavoriteStatus(postRes.data.id)
         setIsFavorited(favRes.data.is_favorited)
       } else {
@@ -1113,7 +1114,7 @@ export default function ForumPostDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [postId])
+  }, [postId, currentUserId])
 
   const fetchReplies = useCallback(async () => {
     if (!postId) return

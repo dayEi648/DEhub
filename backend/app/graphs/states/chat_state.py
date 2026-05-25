@@ -13,5 +13,3 @@ class ChatState(AgentState):
     profile_text: str | None = None
     prompt_scene: str | None = None
     current_goal: str | None = None
-    context_summary: str | None = None
-    compacted: bool = False

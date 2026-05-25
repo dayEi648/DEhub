@@ -30,6 +30,42 @@ class UserProfileService:
         record = profile_crud.get_user_profile(self.db, user_id)
         return record.profile_text if record else ""
 
+    @staticmethod
+    def _build_compact_aware_transcript(messages: list) -> str:
+        """构造画像更新使用的压缩态 transcript。
+
+        如果数据库中已有 compact summary，则只使用最新 summary、summary 中记录的
+        retained_messages，以及 summary 之后的新消息。
+        """
+        latest_summary_index = None
+        for index, msg in enumerate(messages):
+            if msg.role == "assistant" and msg.meta and msg.meta.get("compact_summary"):
+                latest_summary_index = index
+
+        transcript_parts: list[str] = []
+        if latest_summary_index is not None:
+            summary = messages[latest_summary_index]
+            transcript_parts.append(f"compact_summary: {summary.content}")
+            for retained in (summary.meta or {}).get("retained_messages") or []:
+                if not isinstance(retained, dict):
+                    continue
+                role = retained.get("role")
+                content = retained.get("content") or ""
+                if role in {"user", "assistant"} and content:
+                    transcript_parts.append(f"{role}: {content}")
+            messages = messages[latest_summary_index + 1:]
+
+        for msg in messages:
+            if msg.role == "system":
+                continue
+            if msg.role == "assistant" and msg.meta and msg.meta.get("tool_calls"):
+                continue
+            if msg.role == "tool":
+                continue
+            transcript_parts.append(f"{msg.role}: {msg.content}")
+
+        return "\n".join(transcript_parts)
+
     async def maybe_update_user_profile(
         self, user_id: int, conversation_id: int
     ) -> None:
@@ -52,9 +88,9 @@ class UserProfileService:
             if not messages:
                 return
 
-            transcript = "\n".join(
-                f"{msg.role}: {msg.content}" for msg in messages
-            )
+            transcript = self._build_compact_aware_transcript(messages)
+            if not transcript:
+                return
 
             # 第一步：判断是否有值得记录的信息
             judge_response = await get_llm_small_client().ainvoke([

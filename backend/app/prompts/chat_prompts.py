@@ -62,7 +62,6 @@ CHAT_DYNAMIC_SYSTEM_PROMPT_TEMPLATE = (
     "{scene_block}"
     "{profile_block}"
     "{goal_block}"
-    "{summary_block}"
     "</dynamic_context>"
 )
 
@@ -70,11 +69,6 @@ _CURRENT_TIME_BLOCK_TEMPLATE = "当前时间：{current_time}\n\n"
 _SCENE_BLOCK_TEMPLATE = "当前场景：{scene}\n\n"
 _PROFILE_BLOCK_TEMPLATE = "--- 用户画像 ---\n{profile_text}\n---\n\n"
 _GOAL_BLOCK_TEMPLATE = "当前目标：{current_goal}\n\n"
-_SUMMARY_BLOCK_TEMPLATE = (
-    "【上下文总结】\n"
-    "{context_summary}\n"
-    "\n"
-)
 
 
 def render_chat_system_prompt(
@@ -83,7 +77,6 @@ def render_chat_system_prompt(
     scene: str | None = None,
     profile_text: str | None = None,
     current_goal: str | None = None,
-    context_summary: str | None = None,
 ) -> str:
     """渲染完整的单条 SystemMessage 内容。
 
@@ -95,7 +88,6 @@ def render_chat_system_prompt(
         scene: 当前场景标记（如 "对话开始"、"持续对话"）
         profile_text: 用户画像文本
         current_goal: 当前目标描述（5~200 字）
-        context_summary: 上下文摘要（第一期通常为空）
 
     Returns:
         合并后的 system prompt 字符串
@@ -116,13 +108,9 @@ def render_chat_system_prompt(
         _GOAL_BLOCK_TEMPLATE.format(current_goal=current_goal)
         if current_goal else ""
     )
-    summary_block = (
-        _SUMMARY_BLOCK_TEMPLATE.format(context_summary=context_summary)
-        if context_summary else ""
-    )
 
     has_dynamic = any(
-        (current_time_block, scene_block, profile_block, goal_block, summary_block)
+        (current_time_block, scene_block, profile_block, goal_block)
     )
 
     if not has_dynamic:
@@ -133,7 +121,6 @@ def render_chat_system_prompt(
         scene_block=scene_block,
         profile_block=profile_block,
         goal_block=goal_block,
-        summary_block=summary_block,
     )
     return f"{CHAT_FIXED_SYSTEM_PROMPT}\n\n{dynamic_content}"
 
@@ -182,6 +169,29 @@ def render_current_goal_prompt(
         previous_goal_block=previous_goal_block,
         conversation=conversation,
     )
+
+
+# -------------------------------------------------------------------
+# Context Compact Prompt（small model 用）
+# -------------------------------------------------------------------
+CONTEXT_COMPACT_PROMPT = (
+    "你是对话上下文压缩助手。请把以下历史对话压缩为一份可供后续 AI 助手继续对话的上下文摘要。\n\n"
+    "要求：\n"
+    "- 使用 Markdown；\n"
+    "- 保留用户明确表达的事实、偏好、目标、约束、已达成结论、未完成事项；\n"
+    "- 保留必要的技术名词、路径、接口名、错误信息和关键决策；\n"
+    "- 删除寒暄、重复内容、工具调用过程噪声和无意义细节；\n"
+    "- 不要编造历史中不存在的信息；\n"
+    "- 输出不超过 5000 个中文字符；\n"
+    "- 只输出摘要正文，不要解释。\n\n"
+    "历史对话：\n"
+    "{transcript}\n"
+)
+
+
+def render_context_compact_prompt(transcript: str) -> str:
+    """渲染上下文压缩 prompt。"""
+    return CONTEXT_COMPACT_PROMPT.format(transcript=transcript)
 
 
 # ===================================================================

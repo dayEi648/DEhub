@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { toast } from 'sonner'
-import { Bot, MessageSquarePlus, Send, ShieldAlert, Trash2 } from 'lucide-react'
+import { Archive, Bot, MessageSquarePlus, Send, ShieldAlert, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import AppTopNav from '../components/AppTopNav'
@@ -38,7 +38,14 @@ function hasDisplayableContent(message: AIMessage) {
   return message.content.trim().length > 0
 }
 
+function isCompactSummaryMessage(message: AIMessage) {
+  return Boolean(message.meta && message.meta.compact_summary === true)
+}
+
 function isDefaultVisibleMessage(message: AIMessage) {
+  if (isCompactSummaryMessage(message)) {
+    return true
+  }
   if (!hasDisplayableContent(message)) {
     return false
   }
@@ -366,24 +373,38 @@ export default function AIChatPage() {
             ) : displayMessages.length === 0 ? (
               <div className="ai-chat-panel__status">暂无消息，开始提问吧。</div>
             ) : (
-              displayMessages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`ai-chat-bubble ai-chat-bubble--${message.role}`}
-                >
-                  <div className="ai-chat-bubble__meta">
-                    <strong>{roleLabel(message.role)}</strong>
-                    <span>{formatDateTime(message.created_at)}</span>
-                  </div>
-                  {message.role === 'assistant' ? (
-                    <div className="ai-chat-bubble__markdown">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+              displayMessages.map((message) => {
+                if (isCompactSummaryMessage(message)) {
+                  return (
+                    <article
+                      key={message.id}
+                      className="ai-chat-bubble ai-chat-bubble--compact"
+                    >
+                      <Archive size={14} />
+                      <span>{message.content}</span>
+                      <time>{formatDateTime(message.created_at)}</time>
+                    </article>
+                  )
+                }
+                return (
+                  <article
+                    key={message.id}
+                    className={`ai-chat-bubble ai-chat-bubble--${message.role}`}
+                  >
+                    <div className="ai-chat-bubble__meta">
+                      <strong>{roleLabel(message.role)}</strong>
+                      <span>{formatDateTime(message.created_at)}</span>
                     </div>
-                  ) : (
-                    <p className="ai-chat-bubble__plain">{message.content}</p>
-                  )}
-                </article>
-              ))
+                    {message.role === 'assistant' ? (
+                      <div className="ai-chat-bubble__markdown">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="ai-chat-bubble__plain">{message.content}</p>
+                    )}
+                  </article>
+                )
+              })
             )}
             <div ref={bottomRef} />
           </div>

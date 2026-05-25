@@ -1291,6 +1291,7 @@ export default function BlogDetailPage() {
   const [categories, setCategories] = useState<BlogCategoryWithPostCount[]>([])
   const currentUser = getUser()
   const isSuperAdmin = currentUser?.permission === 2
+  const currentUserId = currentUser?.id ?? null
 
   const fetchPost = useCallback(async () => {
     if (!slug) return
@@ -1299,7 +1300,7 @@ export default function BlogDetailPage() {
     try {
       const postRes = await getBlogPostBySlug(slug)
       setPost(postRes.data)
-      if (currentUser) {
+      if (currentUserId) {
         const favRes = await getBlogPostFavoriteStatus(postRes.data.id)
         setIsFavorited(favRes.data.is_favorited)
       } else {
@@ -1310,7 +1311,7 @@ export default function BlogDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [slug])
+  }, [slug, currentUserId])
 
   useEffect(() => {
     fetchPost()

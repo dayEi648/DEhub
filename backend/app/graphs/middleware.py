@@ -105,7 +105,6 @@ class PromptAssemblyMiddleware(AgentMiddleware):
             scene=scene,
             profile_text=state.get("profile_text"),
             current_goal=state.get("current_goal"),
-            context_summary=state.get("context_summary"),
         )
 
     def wrap_model_call(self, request, handler):

@@ -504,6 +504,22 @@
   background-color: var(--color-surface-soft);
 }
 
+.ai-chat-bubble--compact {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  max-width: 100%;
+  color: var(--color-muted);
+  background-color: var(--color-surface-soft);
+  font-size: 13px;
+}
+
+.ai-chat-bubble--compact time {
+  color: var(--color-muted-soft);
+  font-size: 11px;
+}
+
 .ai-chat-bubble__meta {
   display: flex;
   align-items: center;

@@ -262,7 +262,6 @@ class TestPromptAssemblyMiddleware:
                 "prompt_scene": "对话开始",
                 "profile_text": "用户是 Python 开发者",
                 "current_goal": "学习 Docker",
-                "context_summary": None,
             },
             messages=[HumanMessage(content="你好")],
         )
@@ -285,7 +284,6 @@ class TestPromptAssemblyMiddleware:
                 "prompt_scene": "持续对话",
                 "profile_text": None,
                 "current_goal": None,
-                "context_summary": None,
             },
             messages=[HumanMessage(content="你好")],
         )

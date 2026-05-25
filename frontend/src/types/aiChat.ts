@@ -36,6 +36,7 @@ export interface AIMessageListParams {
 export interface AIChatRequest {
   conversation_id?: number
   user_input: string
+  skip_side_effects?: boolean
   is_edit?: boolean
 }
 
@@ -43,4 +44,3 @@ export interface AIChatResponse {
   response: string
   conversation_id: number
 }
-

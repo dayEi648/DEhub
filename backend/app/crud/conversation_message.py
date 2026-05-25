@@ -44,3 +44,17 @@ def count_conversation_messages(db: Session, conversation_id: int) -> int:
         .filter(ConversationMessage.conversation_id == conversation_id)
         .count()
     )
+
+
+def count_conversation_messages_by_role(
+    db: Session, conversation_id: int, role: str
+) -> int:
+    """按角色统计某对话的消息数量。"""
+    return (
+        db.query(ConversationMessage)
+        .filter(
+            ConversationMessage.conversation_id == conversation_id,
+            ConversationMessage.role == role,
+        )
+        .count()
+    )
