@@ -14,6 +14,26 @@ ROUTE_PATTERN = re.compile(
 )
 
 
+def resolve_docs_dir(path_str: str) -> Path:
+    """解析文档目录路径。
+
+    策略：
+    1. 绝对路径直接使用；
+    2. 相对路径先尝试基于当前工作目录解析；
+    3. 当前工作目录下不存在时，回退到项目根目录（backend 的父目录）解析。
+    """
+    path = Path(path_str)
+    if path.is_absolute():
+        return path.resolve()
+
+    cwd_path = Path.cwd() / path
+    if cwd_path.exists():
+        return cwd_path.resolve()
+
+    project_root = BACKEND_ROOT.parent
+    return (project_root / path).resolve()
+
+
 def collect_documented_routes(docs_dir: Path) -> set[tuple[str, str]]:
     routes: set[tuple[str, str]] = set()
     for doc_path in docs_dir.glob("*.md"):
@@ -56,7 +76,12 @@ def main() -> int:
 
     from app.main import app
 
-    issues = find_route_doc_issues(app.openapi(), Path(args.docs_dir))
+    docs_dir = resolve_docs_dir(args.docs_dir)
+    if not docs_dir.exists():
+        print(f"错误：文档目录不存在: {docs_dir}", file=sys.stderr)
+        return 1
+
+    issues = find_route_doc_issues(app.openapi(), docs_dir)
     if issues:
         for issue in issues:
             print(issue)

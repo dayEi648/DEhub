@@ -227,11 +227,12 @@ __marimo__/
 .claude/
 .codex/
 .kimi/
-.ignore/
 
 AGENTS.md
 CLAUDE.md
 DESIGN.md
+
+workflow.md
 
 planing/
 png/

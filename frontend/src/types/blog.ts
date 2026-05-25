@@ -36,6 +36,7 @@ export interface BlogPostListItem {
   status: string
   view_count: number
   comment_count: number
+  user_id: number
   author: BlogAuthor
   created_at: string
   updated_at: string
