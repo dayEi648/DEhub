@@ -56,7 +56,7 @@ def list_users(
     获取用户列表（支持分页与筛选）
     """
     service = UserService(db)
-    return service.list_users(
+    items, total = service.list_users(
         skip=skip,
         limit=limit,
         include_deleted=include_deleted,
@@ -64,6 +64,10 @@ def list_users(
         email=email,
         permission=permission,
         current_user=current_user,
+    )
+    return UserListResponse(
+        items=[UserResponse.model_validate(user) for user in items],
+        total=total,
     )
 
 def parse_user_update(user_in: str = Form(..., description="用户更新请求的 JSON 字符串")) -> UserUpdate:
@@ -91,7 +95,8 @@ async def update_user(
         UserResponse: 用户响应
     """
     service = UserService(db)
-    return await service.update_user(user_id, user_in, current_user, file)
+    user = await service.update_user(user_id, user_in, current_user, file)
+    return UserResponse.model_validate(user)
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def soft_delete_user(
@@ -201,4 +206,5 @@ def register(user_register: UserRegister, db: Session = Depends(get_db)) -> User
         UserResponse: 用户响应
     """
     service = UserService(db)
-    return service.register_user(user_register)
+    user = service.register_user(user_register)
+    return UserResponse.model_validate(user)

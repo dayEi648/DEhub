@@ -17,6 +17,7 @@ from app.infrastructure.llm_client import (
 )
 from app.infrastructure.embedding_client import init_embedding_client, close_embedding_client
 from app.infrastructure.checkpoint_client import init_checkpoint_client, close_checkpoint_client
+from app.infrastructure.background_tasks import background_task_manager
 from app.core.config import settings
 from contextlib import asynccontextmanager
 
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
     await init_checkpoint_client()
     yield
     # 关闭时
+    await background_task_manager.shutdown(timeout=10)
     await close_checkpoint_client()
     await close_embedding_client()
     close_llm_small_client()

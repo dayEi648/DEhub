@@ -20,11 +20,8 @@ from app.infrastructure.cache import (
 )
 from app.infrastructure.cache_invalidator import ForumCacheInvalidator
 from app.core.config import settings
-from app.storage.oss import (
-    convert_oss_url_to_file_path,
-    delete_file_from_oss_sync,
-    extract_oss_image_urls_from_markdown,
-)
+from app.storage.oss import convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
+from app.services.oss_cleanup_service import OssCleanupService
 
 logger = logging.getLogger(__name__)
 
@@ -165,11 +162,12 @@ class ForumPostService:
         forum_post_crud.delete_post(self.db, post_id)
         ForumCacheInvalidator.invalidate_forum_posts(zone_id=zone_id)
 
+        cleanup_service = OssCleanupService(self.db)
         for file_path in file_paths_to_delete:
-            try:
-                delete_file_from_oss_sync(file_path)
-            except Exception:
-                logger.exception("删除论坛帖子关联 OSS 文件失败: post_id=%s, file=%s", post_id, file_path)
+            cleanup_service.delete_file_after_commit_sync(
+                file_path,
+                source="forum.post.delete",
+            )
 
     def get_post(self, post_id: int) -> ForumPost:
         """

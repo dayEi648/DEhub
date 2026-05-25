@@ -11,9 +11,9 @@ from app.services.forum_post_service import ForumPostService
 @patch("app.services.forum_post_service.is_zone_manager")
 @patch("app.services.forum_post_service.extract_oss_image_urls_from_markdown")
 @patch("app.services.forum_post_service.convert_oss_url_to_file_path")
-@patch("app.services.forum_post_service.delete_file_from_oss_sync")
+@patch("app.services.forum_post_service.OssCleanupService.delete_file_after_commit_sync")
 def test_delete_post_cascades_reply_comments_and_embedded_images(
-    mock_delete_file,
+    mock_cleanup_file,
     mock_convert_path,
     mock_extract_urls,
     mock_is_manager,
@@ -65,7 +65,7 @@ def test_delete_post_cascades_reply_comments_and_embedded_images(
     )
     mock_comment_crud.delete_comment_likes_by_comment_ids.assert_called_once_with(db, [301, 302])
     mock_comment_crud.delete_comments_by_ids.assert_called_once_with(db, [301, 302])
-    assert mock_delete_file.call_count == 3
+    assert mock_cleanup_file.call_count == 3
     mock_post_crud.delete_post.assert_called_once_with(db, 100)
 
 
@@ -75,9 +75,9 @@ def test_delete_post_cascades_reply_comments_and_embedded_images(
 @patch("app.services.forum_post_service.is_zone_manager")
 @patch("app.services.forum_post_service.extract_oss_image_urls_from_markdown")
 @patch("app.services.forum_post_service.convert_oss_url_to_file_path")
-@patch("app.services.forum_post_service.delete_file_from_oss_sync")
+@patch("app.services.forum_post_service.OssCleanupService.delete_file_after_commit_sync")
 def test_delete_post_db_failure_should_not_delete_oss_files(
-    mock_delete_file,
+    mock_cleanup_file,
     mock_convert_path,
     mock_extract_urls,
     mock_is_manager,
@@ -108,4 +108,4 @@ def test_delete_post_db_failure_should_not_delete_oss_files(
     with pytest.raises(RuntimeError):
         service.delete_post(100, current_user)
 
-    mock_delete_file.assert_not_called()
+    mock_cleanup_file.assert_not_called()

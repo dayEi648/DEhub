@@ -16,6 +16,7 @@ from app.models.user_blog_post_favorite import UserBlogPostFavorite
 from app.models.system_log import SystemLog
 from app.models.user_zone_follow import UserZoneFollow
 from app.models.user_post_favorite import UserPostFavorite
+from app.models.oss_cleanup_task import OssCleanupTask
 
 __all__ = [
     "AIConversation",
@@ -35,4 +36,5 @@ __all__ = [
     "SystemLog",
     "UserZoneFollow",
     "UserPostFavorite",
+    "OssCleanupTask",
 ]

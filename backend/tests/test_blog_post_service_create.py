@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -43,7 +43,7 @@ async def test_create_blog_post_upload_fail_should_not_create_post(
 
 
 @pytest.mark.asyncio
-@patch("app.services.blog_post_service.delete_file_from_oss")
+@patch("app.services.blog_post_service.OssCleanupService.delete_file_after_commit", new_callable=AsyncMock)
 @patch("app.services.blog_post_service.upload_image")
 @patch("app.services.blog_post_service.blog_post_crud.get_blog_post_by_slug")
 @patch("app.services.blog_post_service.blog_post_crud.create_blog_post")
@@ -51,7 +51,7 @@ async def test_create_blog_post_db_failure_should_cleanup_uploaded_cover(
     mock_create_blog_post,
     mock_get_blog_post_by_slug,
     mock_upload_image,
-    mock_delete_file_from_oss,
+    mock_cleanup_file,
 ):
     db = MagicMock()
     service = BlogPostService(db)
@@ -75,5 +75,5 @@ async def test_create_blog_post_db_failure_should_cleanup_uploaded_cover(
     with pytest.raises(RuntimeError):
         await service.create_blog_post(post_in, current_user, MagicMock())
 
-    mock_delete_file_from_oss.assert_awaited_once()
-    assert "covers/new.jpg" in str(mock_delete_file_from_oss.await_args)
+    mock_cleanup_file.assert_awaited_once()
+    assert "covers/new.jpg" in str(mock_cleanup_file.await_args)

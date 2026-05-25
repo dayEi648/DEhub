@@ -9,14 +9,15 @@ from app.crud import forum_reply as forum_reply_crud
 from app.crud import comment as comment_crud
 from app.crud import ai_conversation as ai_conversation_crud
 from app.crud import user_favorite as user_favorite_crud
-from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister, UserListResponse, ChangePasswordRequest
+from app.schemas.user import UserCreate, UserUpdate, UserLoginResponse, UserLogin, UserResponse, UserLogout, UserRegister, ChangePasswordRequest
 from app.models.user import User
 from fastapi import HTTPException, status, UploadFile
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
 from app.core.config import settings
 from app.core.permissions import require_admin, require_owner_or_admin
 from app.core.permission_levels import PermissionLevel
-from app.storage.oss import delete_file_from_oss_sync, upload_image, ImageUploadScene, convert_oss_url_to_file_path, delete_file_from_oss
+from app.storage.oss import upload_image, ImageUploadScene, convert_oss_url_to_file_path
+from app.services.oss_cleanup_service import OssCleanupService
 from app.redis_client import get_redis_client, get_sync_redis_client
 from app.infrastructure.checkpoint_client import delete_checkpoint_sync
 from app.infrastructure.cache_invalidator import ForumCacheInvalidator, BlogCacheInvalidator
@@ -137,7 +138,7 @@ class UserService:
         email: str | None = None,
         permission: int | None = None,
         current_user: User | None = None,
-    ) -> UserListResponse:
+    ) -> tuple[list[User], int]:
         """
         获取用户列表（支持分页与筛选）
         管理员及以上可查询用户列表
@@ -158,12 +159,9 @@ class UserService:
             email=email,
             permission=permission,
         )
-        return UserListResponse(
-            items=[UserResponse.model_validate(user) for user in items],
-            total=total,
-        )
+        return items, total
 
-    async def update_user(self, user_id: int, user_in: UserUpdate, current_user: User, file: UploadFile | None = None) -> UserResponse:
+    async def update_user(self, user_id: int, user_in: UserUpdate, current_user: User, file: UploadFile | None = None) -> User:
         """
         更新用户
         Args:
@@ -198,6 +196,7 @@ class UserService:
 
         old_avatar_url = db_user.avatar_url
         new_avatar_url: str | None = None
+        cleanup_service = OssCleanupService(self.db)
         if file:
             new_avatar_url = await upload_image(file, ImageUploadScene.avatar)
             db_user.avatar_url = new_avatar_url
@@ -207,20 +206,20 @@ class UserService:
         except Exception:
             self.db.rollback()
             if new_avatar_url:
-                try:
-                    await delete_file_from_oss(convert_oss_url_to_file_path(new_avatar_url))
-                except Exception:
-                    logger.exception("清理新头像失败: user=%s", db_user.id)
+                await cleanup_service.delete_file_after_commit(
+                    convert_oss_url_to_file_path(new_avatar_url),
+                    source="user.avatar.rollback",
+                )
             db_user.avatar_url = old_avatar_url
             raise
 
         if new_avatar_url and old_avatar_url:
-            try:
-                await delete_file_from_oss(convert_oss_url_to_file_path(old_avatar_url))
-            except Exception:
-                logger.exception("删除旧头像失败: user=%s", db_user.id)
+            await cleanup_service.delete_file_after_commit(
+                convert_oss_url_to_file_path(old_avatar_url),
+                source="user.avatar",
+            )
 
-        return UserResponse.model_validate(updated)
+        return updated
 
     def soft_delete_user(self, user_id: int, current_user: User, access_token: str | None = None) -> None:
         """
@@ -367,12 +366,10 @@ class UserService:
 
         # 1. 删除用户头像（事务提交成功后执行，失败不影响删除结果）
         if avatar_url_for_cleanup:
-            try:
-                delete_file_from_oss_sync(
-                    convert_oss_url_to_file_path(avatar_url_for_cleanup)
-                )
-            except Exception:
-                logger.exception("删除用户头像失败: user=%s", user_id)
+            OssCleanupService(self.db).delete_file_after_commit_sync(
+                convert_oss_url_to_file_path(avatar_url_for_cleanup),
+                source="user.avatar.hard_delete",
+            )
 
         # 数据库事务成功后，再做外部副作用清理
         for conv_id in checkpoint_conversation_ids:
@@ -507,7 +504,7 @@ class UserService:
         """
         await blacklist_token(access_token, user_logout.refresh_token if user_logout.refresh_token else None)
 
-    def register_user(self, user_register: UserRegister) -> UserResponse:
+    def register_user(self, user_register: UserRegister) -> User:
         """
         注册用户
         Args:
@@ -522,7 +519,7 @@ class UserService:
             user_register.model_copy(update={"permission": PermissionLevel.USER}).model_dump()
         )
         user = user_crud.create_user(self.db, user_data)
-        return UserResponse.model_validate(user)
+        return user
 
     def change_password(
         self,

@@ -12,11 +12,8 @@ from app.crud import forum_post as forum_post_crud
 from app.crud import comment as comment_crud
 from app.core.zone_manager import is_zone_manager
 from app.infrastructure.cache_invalidator import ForumCacheInvalidator
-from app.storage.oss import (
-    delete_file_from_oss_sync,
-    convert_oss_url_to_file_path,
-    extract_oss_image_urls_from_markdown,
-)
+from app.storage.oss import convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
+from app.services.oss_cleanup_service import OssCleanupService
 
 logger = logging.getLogger(__name__)
 
@@ -135,11 +132,12 @@ class ForumReplyService:
         if post:
             ForumCacheInvalidator.invalidate_forum_posts(zone_id=post.zone_id)
 
+        cleanup_service = OssCleanupService(self.db)
         for file_path in file_paths_to_delete:
-            try:
-                delete_file_from_oss_sync(file_path)
-            except Exception:
-                logger.exception("删除论坛回复内嵌图片失败: reply_id=%s, file=%s", reply_id, file_path)
+            cleanup_service.delete_file_after_commit_sync(
+                file_path,
+                source="forum.reply.delete",
+            )
 
     def list_replies_by_post(
         self, post_id: int, skip: int, limit: int, current_user: User

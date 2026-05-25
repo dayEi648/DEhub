@@ -19,13 +19,14 @@ backend/                    # 后端工程（FastAPI）
 │   │   ├── nodes/          # 图节点定义
 │   │   │   └── toolnodes/  # LangChain Tool 节点（供 LLM Tool Calling）
 │   │   └── states/         # 图状态定义（含动态 prompt 所需运行时字段）
-│   ├── infrastructure/     # 外部基础设施客户端（LLM、Embedding、Redis、Checkpoint、Cache）
+│   ├── infrastructure/     # 外部基础设施客户端（LLM、Embedding、Redis、Checkpoint、Cache、后台任务管理）
 │   ├── models/             # SQLAlchemy ORM 模型（按模块拆分）
 │   ├── prompts/            # AI 对话 Prompt 模板（固定/动态分层 + 渲染函数）
 │   ├── schemas/            # Pydantic 数据校验模型（按模块拆分）
-│   ├── services/           # 业务逻辑层（按模块拆分）
+│   ├── services/           # 业务逻辑层（按模块拆分，含 OSS 清理任务服务）
 │   ├── storage/            # 文件存储与本地资源管理
 │   └── utils/              # 后端通用工具函数
+├── scripts/                # 后端维护脚本（如接口文档一致性检查）
 ├── tests/                  # 测试目录（含单元测试、集成测试与 conftest 共享 fixture）
 │   ├── conftest.py         # pytest 全局 fixture（测试数据库、认证客户端、工厂数据）
 │   ├── test_integration_*.py # API 集成测试（users / blog_posts / comments）
@@ -64,7 +65,7 @@ DEhub/                      # 项目根目录（前后端之外的全局文件�
 │   ├── 修复计划.md          # 论坛帖子列表瘦身、回复点赞计数与 Redis 缓存一致性修复计划
 │   ├── 前端代码检查报告.md   # 前端代码全面审查报告（问题清单与改进建议）
 │   └── 修复.md              # 后端接口文档一致性与代码质量审查问题清单
-├── sql/                    # SQL 建表语句
+├── sql/                    # SQL 建表语句（含 OSS 清理任务表）
 ├── 废弃/                    # 废弃或归档文件
 ├── AGENTS.md               # Agent 开发规范与项目背景
 ├── Redis缓存策略.md         # Redis 缓存 Key、TTL、失效策略技术文档（可选）

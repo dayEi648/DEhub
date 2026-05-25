@@ -419,10 +419,10 @@ class TestForumReplyServiceDelete:
     @patch("app.services.forum_reply_service.is_zone_manager")
     @patch("app.services.forum_reply_service.extract_oss_image_urls_from_markdown")
     @patch("app.services.forum_reply_service.convert_oss_url_to_file_path")
-    @patch("app.services.forum_reply_service.delete_file_from_oss_sync")
+    @patch("app.services.forum_reply_service.OssCleanupService.delete_file_after_commit_sync")
     def test_delete_reply_cascades_comments(
         self,
-        mock_delete_file,
+        mock_cleanup_file,
         mock_convert_path,
         mock_extract_urls,
         mock_is_manager,
@@ -462,7 +462,8 @@ class TestForumReplyServiceDelete:
         )
         mock_extract_urls.assert_called_once_with("reply content")
         mock_convert_path.assert_called_once_with("https://oss.example.com/forum/replies/20260101/a.jpg")
-        mock_delete_file.assert_called_once_with("forum/replies/20260101/a.jpg")
+        mock_cleanup_file.assert_called_once()
+        assert "forum/replies/20260101/a.jpg" in str(mock_cleanup_file.call_args)
         mock_reply_crud.delete_reply.assert_called_once_with(service.db, 5)
         mock_post_crud.decrement_reply_count.assert_called_once_with(service.db, 100)
 
@@ -472,10 +473,10 @@ class TestForumReplyServiceDelete:
     @patch("app.services.forum_reply_service.is_zone_manager")
     @patch("app.services.forum_reply_service.extract_oss_image_urls_from_markdown")
     @patch("app.services.forum_reply_service.convert_oss_url_to_file_path")
-    @patch("app.services.forum_reply_service.delete_file_from_oss_sync")
+    @patch("app.services.forum_reply_service.OssCleanupService.delete_file_after_commit_sync")
     def test_delete_reply_db_failure_should_not_delete_oss_files(
         self,
-        mock_delete_file,
+        mock_cleanup_file,
         mock_convert_path,
         mock_extract_urls,
         mock_is_manager,
@@ -500,4 +501,4 @@ class TestForumReplyServiceDelete:
         with pytest.raises(RuntimeError):
             service.delete_reply(5, current_user)
 
-        mock_delete_file.assert_not_called()
+        mock_cleanup_file.assert_not_called()

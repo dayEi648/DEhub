@@ -12,6 +12,7 @@ from app.crud import conversation_message as msg_crud
 from app.db.session import SessionLocal
 from app.graphs.builders.chat_builder import get_chat_graph
 from app.infrastructure.checkpoint_client import delete_checkpoint
+from app.infrastructure.background_tasks import background_task_manager
 from app.infrastructure.llm_client import get_llm_small_client
 from app.models.ai_conversation import AIConversation
 from app.prompts.chat_prompts import (
@@ -22,7 +23,6 @@ from app.schemas.chat import ChatRequest, ChatResponse, MessageResponse
 from app.services.user_profile_service import UserProfileService
 
 logger = logging.getLogger(__name__)
-_BACKGROUND_TASKS: set[asyncio.Task] = set()
 
 
 def _require_owner(conv: AIConversation, user_id: int) -> None:
@@ -101,7 +101,7 @@ class ChatService:
         self.permission_level = permission_level
         self.graph = get_chat_graph(permission_level=permission_level)
         self.profile_service = UserProfileService(db)
-        self._background_tasks = _BACKGROUND_TASKS
+        self._background_tasks = background_task_manager
 
     @staticmethod
     def _db_messages_to_lc_messages(db_messages: list) -> list:
@@ -488,26 +488,24 @@ class ChatService:
         if skip_side_effects:
             return
 
-        task = asyncio.create_task(
+        self._background_tasks.create_task(
             self._run_in_new_session(
                 self._ensure_title_async, chat_in, conversation_id
-            )
+            ),
+            name="chat.ensure_title",
         )
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
 
         human_count_after = human_count_before + 1
         if (
             human_count_after > 0
             and human_count_after % self._PROFILE_UPDATE_INTERVAL == 0
         ):
-            task = asyncio.create_task(
+            self._background_tasks.create_task(
                 self._run_in_new_session(
                     self._maybe_update_profile_async, user_id, conversation_id
-                )
+                ),
+                name="chat.update_profile",
             )
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
 
     async def _run_in_new_session(self, method, *args) -> None:
         """在新 Session 中异步运行指定方法，用于后台任务隔离。"""

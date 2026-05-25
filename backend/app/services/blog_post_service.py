@@ -18,7 +18,8 @@ from app.schemas.blog_post import (
 )
 from app.crud import blog_post as blog_post_crud
 from app.utils.slug import generate_unique_slug
-from app.storage.oss import upload_image, ImageUploadScene, delete_file_from_oss, convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
+from app.storage.oss import upload_image, ImageUploadScene, convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
+from app.services.oss_cleanup_service import OssCleanupService
 from app.infrastructure.llm_client import get_llm_small_client
 from app.services.blog_post_embedding_service import BlogPostEmbeddingService
 from app.infrastructure.cache import (
@@ -80,6 +81,7 @@ class BlogPostService:
 
         # 先上传再入库，避免上传失败时产生无效数据；若后续入库失败则清理新文件。
         cover_url = await upload_image(file, ImageUploadScene.cover)
+        cleanup_service = OssCleanupService(self.db)
 
         try:
             db_post = blog_post_crud.create_blog_post(
@@ -90,10 +92,10 @@ class BlogPostService:
             )
         except Exception:
             self.db.rollback()
-            try:
-                await delete_file_from_oss(convert_oss_url_to_file_path(cover_url))
-            except Exception:
-                logger.exception("清理新博客封面失败: slug=%s", post_in.slug)
+            await cleanup_service.delete_file_after_commit(
+                convert_oss_url_to_file_path(cover_url),
+                source="blog.cover.rollback",
+            )
             raise
 
         # 若创建即发布，异步生成向量嵌入
@@ -165,6 +167,7 @@ class BlogPostService:
 
         old_cover_url = db_post.cover_image_url
         new_cover_url: str | None = None
+        cleanup_service = OssCleanupService(self.db)
         if file:
             new_cover_url = await upload_image(file, ImageUploadScene.cover)
             db_post.cover_image_url = new_cover_url
@@ -174,18 +177,18 @@ class BlogPostService:
         except Exception:
             self.db.rollback()
             if new_cover_url:
-                try:
-                    await delete_file_from_oss(convert_oss_url_to_file_path(new_cover_url))
-                except Exception:
-                    logger.exception("清理新博客封面失败: post_id=%s", db_post.id)
+                await cleanup_service.delete_file_after_commit(
+                    convert_oss_url_to_file_path(new_cover_url),
+                    source="blog.cover.rollback",
+                )
             db_post.cover_image_url = old_cover_url
             raise
 
         if new_cover_url and old_cover_url:
-            try:
-                await delete_file_from_oss(convert_oss_url_to_file_path(old_cover_url))
-            except Exception:
-                logger.exception("删除旧博客封面失败: post_id=%s", db_post.id)
+            await cleanup_service.delete_file_after_commit(
+                convert_oss_url_to_file_path(old_cover_url),
+                source="blog.cover",
+            )
 
         # 根据更新后的状态同步或删除向量嵌入
         embed_service = BlogPostEmbeddingService(self.db)
@@ -225,11 +228,12 @@ class BlogPostService:
         # 删除会影响公共列表和分类计数
         BlogCacheInvalidator.invalidate_all()
 
+        cleanup_service = OssCleanupService(self.db)
         for file_path in file_paths_to_delete:
-            try:
-                await delete_file_from_oss(file_path)
-            except Exception:
-                logger.exception("删除博客 OSS 文件失败: post_id=%s, file=%s", post_id, file_path)
+            await cleanup_service.delete_file_after_commit(
+                file_path,
+                source="blog.post.hard_delete",
+            )
 
     # ---------- 读操作（权限区分）----------
 

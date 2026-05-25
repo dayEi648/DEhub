@@ -33,7 +33,7 @@ class TestHardDeleteUser:
     @patch("app.services.user_service.forum_post_crud")
     @patch("app.services.user_service.forum_reply_crud")
     @patch("app.services.user_service.user_favorite_crud")
-    @patch("app.services.user_service.delete_file_from_oss_sync")
+    @patch("app.services.user_service.OssCleanupService.delete_file_after_commit_sync")
     @patch("app.services.user_service.convert_oss_url_to_file_path")
     @patch("app.services.user_service.get_sync_redis_client")
     @patch("app.services.user_service.delete_checkpoint_sync")
@@ -48,7 +48,7 @@ class TestHardDeleteUser:
         mock_delete_checkpoint,
         mock_get_sync_redis,
         mock_convert_oss,
-        mock_delete_oss_sync,
+        mock_cleanup_file,
         mock_user_fav_crud,
         mock_forum_reply_crud,
         mock_forum_post_crud,
@@ -89,7 +89,7 @@ class TestHardDeleteUser:
 
         # 验证头像删除
         mock_convert_oss.assert_called_once_with(target_user.avatar_url)
-        mock_delete_oss_sync.assert_called_once()
+        mock_cleanup_file.assert_called_once()
 
         # 验证区主转移
         mock_forum_zone_crud.update_zones_manager_by_old_manager.assert_called_once_with(
@@ -153,7 +153,7 @@ class TestHardDeleteUser:
     @patch("app.services.user_service.forum_post_crud")
     @patch("app.services.user_service.forum_reply_crud")
     @patch("app.services.user_service.user_favorite_crud")
-    @patch("app.services.user_service.delete_file_from_oss_sync")
+    @patch("app.services.user_service.OssCleanupService.delete_file_after_commit_sync")
     @patch("app.services.user_service.get_sync_redis_client")
     @patch("app.services.user_service.BlogCacheInvalidator.invalidate_blog_posts")
     @patch("app.services.user_service.ForumCacheInvalidator.invalidate_forum_posts")
@@ -164,7 +164,7 @@ class TestHardDeleteUser:
         mock_invalidate_forum_posts,
         mock_invalidate_blog_posts,
         mock_get_sync_redis,
-        mock_delete_oss_sync,
+        mock_cleanup_file,
         mock_user_fav_crud,
         mock_forum_reply_crud,
         mock_forum_post_crud,
@@ -189,7 +189,7 @@ class TestHardDeleteUser:
 
         service.hard_delete_user(42, admin_user)
 
-        mock_delete_oss_sync.assert_not_called()
+        mock_cleanup_file.assert_not_called()
         mock_user_crud.hard_delete_user.assert_called_once()
         mock_invalidate_blog_posts.assert_called_once()
         mock_invalidate_forum_posts.assert_called_once()
@@ -250,14 +250,14 @@ class TestHardDeleteUser:
         mock_invalidate_forum_zones.assert_called_once()
 
     @patch("app.services.user_service.user_crud")
-    @patch("app.services.user_service.delete_file_from_oss_sync")
+    @patch("app.services.user_service.OssCleanupService.delete_file_after_commit_sync")
     @patch("app.services.user_service.forum_zone_crud")
     @patch("app.services.user_service.get_sync_redis_client")
     def test_critical_cleanup_failure_aborts_delete(
         self,
         mock_get_sync_redis,
         mock_forum_zone_crud,
-        mock_delete_oss_sync,
+        mock_cleanup_file,
         mock_user_crud,
         service,
         admin_user,
@@ -269,7 +269,7 @@ class TestHardDeleteUser:
         mock_user_crud.get_user_by_id.return_value = target_user
 
         # 头像删除失败属于非关键步骤，不应中断流程
-        mock_delete_oss_sync.side_effect = RuntimeError("OSS error")
+        mock_cleanup_file.side_effect = RuntimeError("OSS error")
         # 关键步骤失败（区主管理转移）应中断硬删除
         mock_forum_zone_crud.update_zones_manager_by_old_manager.side_effect = RuntimeError(
             "DB error"
