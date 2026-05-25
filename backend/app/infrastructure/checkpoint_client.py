@@ -6,11 +6,14 @@
 import logging
 
 from app.core.config import settings
-from app.redis_client import get_checkpoint_redis_client
+from app.redis_client import get_checkpoint_redis_client, get_sync_redis_client
 
 from .redis_checkpoint import AsyncRedisCheckpointSaver
 
 logger = logging.getLogger(__name__)
+
+_CKPT_PREFIX = "dehub:ckpt"
+_WRITE_PREFIX = "dehub:write"
 
 _checkpointer: AsyncRedisCheckpointSaver | None = None
 
@@ -59,3 +62,18 @@ async def delete_checkpoint(thread_id: str) -> None:
     cp = get_checkpointer()
     await cp.adelete_thread(thread_id)
     logger.info("Deleted checkpoint for thread %s", thread_id)
+
+
+def delete_checkpoint_sync(thread_id: str) -> None:
+    """同步删除指定 thread 的 checkpoint 与 writes。
+
+    用于同步上下文中（如 hard_delete_user）清理 Redis checkpoint 数据。
+    """
+    redis = get_sync_redis_client()
+    pipe = redis.pipeline()
+    for key in redis.scan_iter(match=f"{_CKPT_PREFIX}:{thread_id}:*"):
+        pipe.delete(key)
+    for key in redis.scan_iter(match=f"{_WRITE_PREFIX}:{thread_id}:*"):
+        pipe.delete(key)
+    pipe.execute()
+    logger.info("Deleted checkpoint & writes for thread %s (sync)", thread_id)

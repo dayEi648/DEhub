@@ -1,7 +1,5 @@
 """Comments 模块集成测试。"""
 
-import pytest
-
 
 class TestCommentList:
     def test_list_comments(self, auth_client, blog_post, normal_user, db_session):
@@ -39,7 +37,6 @@ class TestCommentAuthenticatedOperations:
         assert data["content"] == "这是一条新评论"
         assert data["target_id"] == blog_post.id
 
-    @pytest.mark.xfail(reason="已知存量 BUG：comment_service.delete_comment 删除对象后仍访问其属性，导致 ObjectDeletedError")
     def test_delete_comment(self, auth_client, blog_post, normal_user, db_session):
         """评论作者或管理员删除评论应返回 204。"""
         from app.models.comment import Comment

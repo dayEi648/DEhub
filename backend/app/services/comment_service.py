@@ -227,10 +227,11 @@ class CommentService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="评论不存在",
             )
+        target_type = db_comment.target_type
         self._require_owner_or_admin(current_user, db_comment.user_id)
 
         # 若删除的是博客表层评论，先级联删除其下所有里层回复与嵌套回复
-        if db_comment.target_type == "blog_post" and db_comment.parent_id is None:
+        if target_type == "blog_post" and db_comment.parent_id is None:
             child_comments = comment_crud.get_comments_by_parent_id(
                 self.db, comment_id
             )
@@ -244,7 +245,7 @@ class CommentService:
         comment_crud.delete_comment(self.db, comment_id)
 
         # 博客评论由数据库触发器维护 comment_count，Service 层需显式失效缓存
-        if db_comment.target_type == "blog_post":
+        if target_type == "blog_post":
             BlogCacheInvalidator.invalidate_blog_posts()
 
     def list_comments(

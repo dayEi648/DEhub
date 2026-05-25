@@ -6,7 +6,7 @@
 
 import logging
 
-from langchain_core.tools import tool
+from langchain_core.tools import ToolException, tool
 
 from app.core.config import settings
 from app.db.session import SessionLocal
@@ -58,8 +58,8 @@ def search_blog(query: str) -> str:
             parts.append("\n".join(lines))
 
         return "\n\n".join(parts)
-    except Exception:
+    except Exception as exc:
         logger.exception("博客向量检索失败")
-        return "博客检索服务暂时不可用。"
+        raise ToolException("博客检索服务暂时不可用。") from exc
     finally:
         db.close()

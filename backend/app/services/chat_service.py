@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import unicodedata
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -49,14 +50,23 @@ class ChatService:
 
     @staticmethod
     def _extract_ai_content(msg: AIMessage) -> str:
-        """从 AIMessage 中提取可展示的文本内容。"""
-        if isinstance(msg.content, str):
-            content = msg.content or ""
+        """从 AIMessage 中提取可展示的文本内容，兼容字符串与列表型 content。"""
+        content = msg.content
+        if isinstance(content, str):
+            text = content or ""
+        elif isinstance(content, list):
+            parts: list[str] = []
+            for part in content:
+                if isinstance(part, dict):
+                    parts.append(str(part.get("text") or part.get("content") or ""))
+                else:
+                    parts.append(str(part))
+            text = "".join(parts)
         else:
-            content = ""
-        if not content:
-            content = msg.additional_kwargs.get("reasoning_content", "") or ""
-        return content
+            text = str(content) if content is not None else ""
+        if not text:
+            text = msg.additional_kwargs.get("reasoning_content", "") or ""
+        return text
 
     @staticmethod
     def _has_displayable_content(message) -> bool:
@@ -87,6 +97,7 @@ class ChatService:
 
     def __init__(self, db: Session, permission_level: int = 0):
         self.db = db
+        self.permission_level = permission_level
         self.graph = get_chat_graph(permission_level=permission_level)
         self.profile_service = UserProfileService(db)
         self._background_tasks: set[asyncio.Task] = set()
@@ -99,9 +110,9 @@ class ChatService:
             if msg.role == "user":
                 messages.append(HumanMessage(content=msg.content))
             elif msg.role == "assistant":
-                kwargs: dict = {}
+                ai_kwargs: dict = {}
                 if msg.meta and msg.meta.get("tool_calls"):
-                    kwargs["tool_calls"] = [
+                    ai_kwargs["tool_calls"] = [
                         {
                             "id": tc.get("id"),
                             "name": tc.get("name"),
@@ -110,17 +121,17 @@ class ChatService:
                         }
                         for tc in msg.meta["tool_calls"]
                     ]
-                messages.append(AIMessage(content=msg.content, **kwargs))
+                messages.append(AIMessage(content=msg.content, **ai_kwargs))
             elif msg.role == "system":
                 messages.append(SystemMessage(content=msg.content))
             elif msg.role == "tool":
-                kwargs: dict = {}
+                tool_kwargs: dict = {}
                 if msg.meta:
                     if msg.meta.get("tool_call_id"):
-                        kwargs["tool_call_id"] = msg.meta["tool_call_id"]
+                        tool_kwargs["tool_call_id"] = msg.meta["tool_call_id"]
                     if msg.meta.get("name"):
-                        kwargs["name"] = msg.meta["name"]
-                messages.append(ToolMessage(content=msg.content, **kwargs))
+                        tool_kwargs["name"] = msg.meta["name"]
+                messages.append(ToolMessage(content=msg.content, **tool_kwargs))
         return messages
 
     async def _restore_state_from_db(
@@ -148,6 +159,38 @@ class ChatService:
             conversation_id,
             len(history),
         )
+
+    @staticmethod
+    def _extract_current_turn_messages(result_messages: list) -> list:
+        """从结果消息列表中提取当前轮次新增的消息。
+
+        当 history_len 不可靠（结果列表比历史短）时，
+        从最后一个 HumanMessage 之后截取当前轮次消息。
+        HumanMessage 本身已在调用 Graph 前持久化，故跳过。
+        若找不到 HumanMessage，兜底保留最终 AIMessage 避免漏持久化。
+        """
+        for i in range(len(result_messages) - 1, -1, -1):
+            if isinstance(result_messages[i], HumanMessage):
+                return result_messages[i + 1:]
+        # 未找到 HumanMessage 边界，至少保留最终 AIMessage
+        for i in range(len(result_messages) - 1, -1, -1):
+            if isinstance(result_messages[i], AIMessage):
+                return [result_messages[i]]
+        return []
+
+    @staticmethod
+    def _safe_truncate(text: str, max_len: int) -> str:
+        """安全截断文本，回退到最后一个非组合字符边界。
+
+        避免切断组合字符（如拼音声调、阿拉伯文变音符号等）。
+        注意：不处理 ZWJ 序列和区域指示符等复杂 emoji 组合。
+        """
+        if len(text) <= max_len:
+            return text
+        pos = max_len
+        while pos > 0 and unicodedata.category(text[pos]) == "Mn":
+            pos -= 1
+        return text[:pos] if pos > 0 else text[:max_len]
 
     @staticmethod
     def _count_user_message_chars(messages: list) -> int:
@@ -189,7 +232,7 @@ class ChatService:
             if len(goal) < 5:
                 return None
             if len(goal) > 200:
-                goal = goal[:197] + "..."
+                goal = ChatService._safe_truncate(goal, 197) + "..."
             return goal
         except Exception:
             logger.exception("生成 current_goal 失败，保留旧值")
@@ -330,8 +373,44 @@ class ChatService:
             logger.exception("Graph 调用失败，保留用户消息")
             raise
 
-        # 兜底检查：确保 Graph 正常结束于 AIMessage
-        final_msg = result["messages"][-1]
+        # 遍历本轮严格新增的消息，分类持久化
+        final_msg = await self._persist_new_messages(
+            result, history_len, conversation_id
+        )
+
+        # 归一化：is_edit 为兼容旧字段，skip_side_effects 优先
+        skip_side_effects = chat_in.skip_side_effects or chat_in.is_edit
+
+        # 后台任务调度
+        self._schedule_side_effects(
+            skip_side_effects, human_count_before, chat_in, conversation_id, user_id
+        )
+
+        # 提取最终回复文本用于接口返回
+        final_content = self._extract_ai_content(final_msg)
+
+        return ChatResponse(
+            response=final_content,
+            conversation_id=conversation_id,
+        )
+
+    async def _persist_new_messages(
+        self,
+        result: dict,
+        history_len: int,
+        conversation_id: int,
+    ) -> AIMessage:
+        """校验 Graph 返回结果并持久化本轮新增消息，返回最终 AIMessage。"""
+        # 兜底检查：确保 messages 非空且最后一条是 AIMessage
+        messages = result.get("messages")
+        if not messages or not isinstance(messages, list):
+            logger.error("Graph 返回异常: messages=%s", messages)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="AI 回复生成异常",
+            )
+
+        final_msg = messages[-1]
         if not isinstance(final_msg, AIMessage):
             logger.error(
                 "Graph 返回的最后一条消息不是 AIMessage: type=%s", type(final_msg)
@@ -341,10 +420,19 @@ class ChatService:
                 detail="AI 回复生成异常",
             )
 
-        # 遍历本轮严格新增的消息，分类持久化
-        for msg in result["messages"][history_len:]:
+        result_messages = result.get("messages") or []
+        if history_len <= len(result_messages):
+            candidate_messages = result_messages[history_len:]
+        else:
+            logger.warning(
+                "Graph messages length shrank: history_len=%s result_len=%s",
+                history_len,
+                len(result_messages),
+            )
+            candidate_messages = self._extract_current_turn_messages(result_messages)
+
+        for msg in candidate_messages:
             if isinstance(msg, HumanMessage):
-                # 用户输入已在调用 Graph 之前持久化，跳过
                 continue
 
             if isinstance(msg, AIMessage):
@@ -385,45 +473,46 @@ class ChatService:
                     },
                 )
 
-        # 标题生成（后台异步执行，不阻塞响应）
-        if not chat_in.is_edit:
+        return final_msg
+
+    def _schedule_side_effects(
+        self,
+        skip_side_effects: bool,
+        human_count_before: int,
+        chat_in: ChatRequest,
+        conversation_id: int,
+        user_id: int,
+    ) -> None:
+        """调度后台任务：标题生成与用户画像更新。"""
+        if skip_side_effects:
+            return
+
+        task = asyncio.create_task(
+            self._run_in_new_session(
+                self._ensure_title_async, chat_in, conversation_id
+            )
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+        human_count_after = human_count_before + 1
+        if (
+            human_count_after > 0
+            and human_count_after % self._PROFILE_UPDATE_INTERVAL == 0
+        ):
             task = asyncio.create_task(
                 self._run_in_new_session(
-                    self._ensure_title_async, chat_in, conversation_id
+                    self._maybe_update_profile_async, user_id, conversation_id
                 )
             )
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
 
-        # 用户画像更新判断：每 N 条用户消息触发一次（编辑消息时不触发）
-        if not chat_in.is_edit:
-            human_count_after = human_count_before + 1
-            if (
-                human_count_after > 0
-                and human_count_after % self._PROFILE_UPDATE_INTERVAL == 0
-            ):
-                task = asyncio.create_task(
-                    self._run_in_new_session(
-                        self._maybe_update_profile_async, user_id, conversation_id
-                    )
-                )
-                self._background_tasks.add(task)
-                task.add_done_callback(self._background_tasks.discard)
-
-        # 提取最终回复文本用于接口返回
-        final_content = self._extract_ai_content(final_msg)
-
-        return ChatResponse(
-            response=final_content,
-            conversation_id=conversation_id,
-        )
-
-    @staticmethod
-    async def _run_in_new_session(method, *args) -> None:
+    async def _run_in_new_session(self, method, *args) -> None:
         """在新 Session 中异步运行指定方法，用于后台任务隔离。"""
         try:
             with SessionLocal() as db:
-                service = ChatService(db)
+                service = ChatService(db, permission_level=self.permission_level)
                 bound = getattr(service, method.__name__)
                 await bound(*args)
         except Exception:
@@ -611,8 +700,11 @@ class ChatService:
             )
         _require_owner(conv, user_id)
 
-        # 清理 Redis checkpoint，再物理删除 DB 记录（级联删除 messages）
-        await delete_checkpoint(str(conversation_id))
+        # 先删除数据库记录，成功后再清理 Redis checkpoint
         await asyncio.to_thread(
             conv_crud.delete_ai_conversation, self.db, conversation_id
         )
+        try:
+            await delete_checkpoint(str(conversation_id))
+        except Exception:
+            logger.exception("清理 AI 对话 checkpoint 失败: conv=%s", conversation_id)

@@ -36,11 +36,15 @@ class TestHardDeleteUser:
     @patch("app.services.user_service.delete_file_from_oss_sync")
     @patch("app.services.user_service.convert_oss_url_to_file_path")
     @patch("app.services.user_service.get_sync_redis_client")
-    @patch("app.services.user_service.delete_checkpoint", new_callable=MagicMock)
-    @patch("app.services.user_service.asyncio.run")
+    @patch("app.services.user_service.delete_checkpoint_sync")
+    @patch("app.services.user_service.BlogCacheInvalidator.invalidate_blog_posts")
+    @patch("app.services.user_service.ForumCacheInvalidator.invalidate_forum_posts")
+    @patch("app.services.user_service.ForumCacheInvalidator.invalidate_forum_zones")
     def test_cascade_delete_all_associations(
         self,
-        mock_asyncio_run,
+        mock_invalidate_forum_zones,
+        mock_invalidate_forum_posts,
+        mock_invalidate_blog_posts,
         mock_delete_checkpoint,
         mock_get_sync_redis,
         mock_convert_oss,
@@ -66,7 +70,10 @@ class TestHardDeleteUser:
         # 模拟 AI 对话
         conv = MagicMock()
         conv.id = 100
-        mock_ai_conv_crud.list_ai_conversations_by_user.return_value = ([conv], 1)
+        mock_ai_conv_crud.list_ai_conversations_by_user.side_effect = [
+            ([conv], 1),
+            ([], 0),
+        ]
 
         # 模拟评论
         mock_comment_crud.get_comment_ids_by_user_id.return_value = [11, 12]
@@ -94,7 +101,9 @@ class TestHardDeleteUser:
             service.db, 100, auto_commit=False
         )
         mock_delete_checkpoint.assert_called_once_with("100")
-        mock_asyncio_run.assert_called_once()
+        mock_invalidate_blog_posts.assert_called_once()
+        mock_invalidate_forum_posts.assert_called_once()
+        mock_invalidate_forum_zones.assert_called_once()
 
         # 验证评论清理：先删点赞，再删评论（含子评论）
         mock_comment_crud.delete_comment_likes_by_comment_ids.assert_called_once_with(
@@ -138,12 +147,30 @@ class TestHardDeleteUser:
         assert "用户不存在" in exc_info.value.detail
 
     @patch("app.services.user_service.user_crud")
+    @patch("app.services.user_service.forum_zone_crud")
+    @patch("app.services.user_service.ai_conversation_crud")
+    @patch("app.services.user_service.comment_crud")
+    @patch("app.services.user_service.forum_post_crud")
+    @patch("app.services.user_service.forum_reply_crud")
+    @patch("app.services.user_service.user_favorite_crud")
     @patch("app.services.user_service.delete_file_from_oss_sync")
     @patch("app.services.user_service.get_sync_redis_client")
+    @patch("app.services.user_service.BlogCacheInvalidator.invalidate_blog_posts")
+    @patch("app.services.user_service.ForumCacheInvalidator.invalidate_forum_posts")
+    @patch("app.services.user_service.ForumCacheInvalidator.invalidate_forum_zones")
     def test_user_without_avatar(
         self,
+        mock_invalidate_forum_zones,
+        mock_invalidate_forum_posts,
+        mock_invalidate_blog_posts,
         mock_get_sync_redis,
         mock_delete_oss_sync,
+        mock_user_fav_crud,
+        mock_forum_reply_crud,
+        mock_forum_post_crud,
+        mock_comment_crud,
+        mock_ai_conv_crud,
+        mock_forum_zone_crud,
         mock_user_crud,
         service,
         admin_user,
@@ -154,26 +181,43 @@ class TestHardDeleteUser:
         target_user.avatar_url = None
         mock_user_crud.get_user_by_id.return_value = target_user
         mock_user_crud.hard_delete_user.return_value = 1
+        mock_ai_conv_crud.list_ai_conversations_by_user.return_value = ([], 0)
+        mock_comment_crud.get_comment_ids_by_user_id.return_value = []
+        mock_comment_crud.get_child_comment_ids_by_parent_ids.return_value = []
+        mock_forum_post_crud.get_post_ids_by_user_id.return_value = []
         mock_get_sync_redis.return_value = MagicMock()
 
         service.hard_delete_user(42, admin_user)
 
         mock_delete_oss_sync.assert_not_called()
         mock_user_crud.hard_delete_user.assert_called_once()
+        mock_invalidate_blog_posts.assert_called_once()
+        mock_invalidate_forum_posts.assert_called_once()
+        mock_invalidate_forum_zones.assert_called_once()
 
     @patch("app.services.user_service.user_crud")
+    @patch("app.services.user_service.forum_zone_crud")
+    @patch("app.services.user_service.ai_conversation_crud")
     @patch("app.services.user_service.comment_crud")
     @patch("app.services.user_service.forum_post_crud")
     @patch("app.services.user_service.forum_reply_crud")
     @patch("app.services.user_service.user_favorite_crud")
     @patch("app.services.user_service.get_sync_redis_client")
+    @patch("app.services.user_service.BlogCacheInvalidator.invalidate_blog_posts")
+    @patch("app.services.user_service.ForumCacheInvalidator.invalidate_forum_posts")
+    @patch("app.services.user_service.ForumCacheInvalidator.invalidate_forum_zones")
     def test_user_with_no_associations(
         self,
+        mock_invalidate_forum_zones,
+        mock_invalidate_forum_posts,
+        mock_invalidate_blog_posts,
         mock_get_sync_redis,
         mock_user_fav_crud,
         mock_forum_reply_crud,
         mock_forum_post_crud,
         mock_comment_crud,
+        mock_ai_conv_crud,
+        mock_forum_zone_crud,
         mock_user_crud,
         service,
         admin_user,
@@ -185,6 +229,7 @@ class TestHardDeleteUser:
         mock_user_crud.get_user_by_id.return_value = target_user
         mock_user_crud.hard_delete_user.return_value = 1
 
+        mock_ai_conv_crud.list_ai_conversations_by_user.return_value = ([], 0)
         mock_comment_crud.get_comment_ids_by_user_id.return_value = []
         mock_comment_crud.get_child_comment_ids_by_parent_ids.return_value = []
         mock_forum_post_crud.get_post_ids_by_user_id.return_value = []
@@ -200,6 +245,9 @@ class TestHardDeleteUser:
         mock_forum_post_crud.delete_post.assert_not_called()
 
         mock_user_crud.hard_delete_user.assert_called_once()
+        mock_invalidate_blog_posts.assert_called_once()
+        mock_invalidate_forum_posts.assert_called_once()
+        mock_invalidate_forum_zones.assert_called_once()
 
     @patch("app.services.user_service.user_crud")
     @patch("app.services.user_service.delete_file_from_oss_sync")

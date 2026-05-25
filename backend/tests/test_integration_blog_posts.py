@@ -1,7 +1,8 @@
 """Blog Posts 模块集成测试。"""
 
-import pytest
+import json
 from io import BytesIO
+from unittest.mock import patch
 
 
 class TestBlogPostListAndDetail:
@@ -31,8 +32,10 @@ class TestBlogPostListAndDetail:
 
 
 class TestBlogPostAdminOperations:
-    def test_create_blog_post(self, auth_client, blog_category):
+    @patch("app.services.blog_post_service.upload_image")
+    def test_create_blog_post(self, mock_upload_image, auth_client, blog_category):
         """管理员创建文章应返回 201。"""
+        mock_upload_image.return_value = "https://oss.example.com/covers/test.jpg"
         post_in = {
             "title": "新建文章",
             "slug": "new-post",
@@ -42,19 +45,17 @@ class TestBlogPostAdminOperations:
             "tags": ["tag1"],
             "status": "draft",
         }
-        with open("../frontend/test-screenshots/login.png", "rb") as f:
-            file_data = {"file": ("cover.png", f, "image/png")}
-            response = auth_client.post(
-                "/api/v1/blog_posts/",
-                data={"post_in": __import__("json").dumps(post_in)},
-                files=file_data,
-            )
-        # 由于 OSS / 图片处理可能在测试环境不可用，实际业务层可能返回 500
-        # 这里验证接口层能正确解析 multipart 并通过文件类型校验
-        assert response.status_code in (201, 500)
-        if response.status_code == 201:
-            data = response.json()
-            assert data["title"] == "新建文章"
+        file_data = {"file": ("cover.png", BytesIO(b"fake-image"), "image/png")}
+        response = auth_client.post(
+            "/api/v1/blog_posts/",
+            data={"post_in": json.dumps(post_in)},
+            files=file_data,
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["title"] == "新建文章"
+        assert data["cover_image_url"] == "https://oss.example.com/covers/test.jpg"
 
     def test_publish_blog_post(self, auth_client, blog_post):
         """管理员发布草稿文章。"""

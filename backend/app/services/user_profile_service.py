@@ -66,7 +66,8 @@ class UserProfileService:
                 if isinstance(judge_response.content, str)
                 else ""
             )
-            if judge_result.lower() not in ("true", "是", "yes", "1"):
+            judge_clean = judge_result.lower().strip(".,!?。！？ \t\n")
+            if judge_clean not in ("true", "是", "是的", "yes", "1", "对", "对的", "正确"):
                 logger.debug(
                     "画像判断为无需更新: user=%s conv=%s",
                     user_id,

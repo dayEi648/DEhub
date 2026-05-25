@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.models.ai_conversation import AIConversation
 
@@ -36,7 +37,10 @@ def update_conversation_title(
     result = (
         db.query(AIConversation)
         .filter(AIConversation.id == conversation_id)
-        .update({"title": title}, synchronize_session=False)
+        .update(
+            {"title": title, "updated_at": func.now()},
+            synchronize_session=False,
+        )
     )
     db.commit()
     return result
@@ -45,12 +49,14 @@ def update_conversation_title(
 def update_last_message_at(
     db: Session, conversation_id: int
 ) -> int:
-    """更新对话的 last_message_at 为当前时间。"""
-    from sqlalchemy import func
+    """更新对话的 last_message_at 和 updated_at 为当前时间。"""
     result = (
         db.query(AIConversation)
         .filter(AIConversation.id == conversation_id)
-        .update({"last_message_at": func.now()}, synchronize_session=False)
+        .update(
+            {"last_message_at": func.now(), "updated_at": func.now()},
+            synchronize_session=False,
+        )
     )
     db.commit()
     return result
