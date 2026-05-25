@@ -138,22 +138,18 @@ class ForumPostService:
             post_id=post_id,
         )
 
-        # 级联删除帖子正文中的内嵌 OSS 图片
+        file_paths_to_delete: list[str] = []
+
+        # 级联清理帖子正文中的内嵌 OSS 图片，实际删除在数据库删除成功后执行。
         post_image_urls = extract_oss_image_urls_from_markdown(db_post.content)
         for url in post_image_urls:
-            try:
-                delete_file_from_oss_sync(convert_oss_url_to_file_path(url))
-            except Exception:
-                logger.exception("删除论坛帖子内嵌图片失败: post_id=%s, url=%s", post_id, url)
+            file_paths_to_delete.append(convert_oss_url_to_file_path(url))
 
-        # 级联删除回复正文中的内嵌 OSS 图片
+        # 级联清理回复正文中的内嵌 OSS 图片，实际删除在数据库删除成功后执行。
         for reply in replies:
             reply_image_urls = extract_oss_image_urls_from_markdown(reply.content)
             for url in reply_image_urls:
-                try:
-                    delete_file_from_oss_sync(convert_oss_url_to_file_path(url))
-                except Exception:
-                    logger.exception("删除论坛回复内嵌图片失败: reply_id=%s, url=%s", reply.id, url)
+                file_paths_to_delete.append(convert_oss_url_to_file_path(url))
 
         # 级联删除该帖子下所有回复评论（comments 无外键约束，需显式删除）
         reply_ids = [reply.id for reply in replies]
@@ -168,6 +164,12 @@ class ForumPostService:
 
         forum_post_crud.delete_post(self.db, post_id)
         ForumCacheInvalidator.invalidate_forum_posts(zone_id=zone_id)
+
+        for file_path in file_paths_to_delete:
+            try:
+                delete_file_from_oss_sync(file_path)
+            except Exception:
+                logger.exception("删除论坛帖子关联 OSS 文件失败: post_id=%s, file=%s", post_id, file_path)
 
     def get_post(self, post_id: int) -> ForumPost:
         """

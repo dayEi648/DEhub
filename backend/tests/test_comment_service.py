@@ -465,3 +465,39 @@ class TestForumReplyServiceDelete:
         mock_delete_file.assert_called_once_with("forum/replies/20260101/a.jpg")
         mock_reply_crud.delete_reply.assert_called_once_with(service.db, 5)
         mock_post_crud.decrement_reply_count.assert_called_once_with(service.db, 100)
+
+    @patch("app.services.forum_reply_service.forum_reply_crud")
+    @patch("app.services.forum_reply_service.forum_post_crud")
+    @patch("app.services.forum_reply_service.comment_crud")
+    @patch("app.services.forum_reply_service.is_zone_manager")
+    @patch("app.services.forum_reply_service.extract_oss_image_urls_from_markdown")
+    @patch("app.services.forum_reply_service.convert_oss_url_to_file_path")
+    @patch("app.services.forum_reply_service.delete_file_from_oss_sync")
+    def test_delete_reply_db_failure_should_not_delete_oss_files(
+        self,
+        mock_delete_file,
+        mock_convert_path,
+        mock_extract_urls,
+        mock_is_manager,
+        mock_comment_crud,
+        mock_post_crud,
+        mock_reply_crud,
+        service,
+        current_user,
+    ):
+        reply = MagicMock()
+        reply.id = 5
+        reply.user_id = 1
+        reply.post_id = 100
+        reply.content = "reply content"
+        mock_reply_crud.get_reply_by_id.return_value = reply
+        mock_is_manager.return_value = False
+        mock_extract_urls.return_value = ["https://oss.example.com/forum/replies/a.jpg"]
+        mock_convert_path.return_value = "forum/replies/a.jpg"
+        mock_comment_crud.get_comments.return_value = ([], 0)
+        mock_reply_crud.delete_reply.side_effect = RuntimeError("db failed")
+
+        with pytest.raises(RuntimeError):
+            service.delete_reply(5, current_user)
+
+        mock_delete_file.assert_not_called()

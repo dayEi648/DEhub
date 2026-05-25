@@ -22,6 +22,7 @@ from app.schemas.chat import ChatRequest, ChatResponse, MessageResponse
 from app.services.user_profile_service import UserProfileService
 
 logger = logging.getLogger(__name__)
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
 
 
 def _require_owner(conv: AIConversation, user_id: int) -> None:
@@ -100,7 +101,7 @@ class ChatService:
         self.permission_level = permission_level
         self.graph = get_chat_graph(permission_level=permission_level)
         self.profile_service = UserProfileService(db)
-        self._background_tasks: set[asyncio.Task] = set()
+        self._background_tasks = _BACKGROUND_TASKS
 
     @staticmethod
     def _db_messages_to_lc_messages(db_messages: list) -> list:

@@ -104,13 +104,12 @@ class ForumReplyService:
 
         self._can_modify_reply(db_reply, current_user)
 
-        # 级联删除该 reply 正文中的内嵌 OSS 图片
+        # 级联清理该 reply 正文中的内嵌 OSS 图片，实际删除在数据库删除成功后执行。
         image_urls = extract_oss_image_urls_from_markdown(db_reply.content)
-        for url in image_urls:
-            try:
-                delete_file_from_oss_sync(convert_oss_url_to_file_path(url))
-            except Exception:
-                logger.exception("删除论坛回复内嵌图片失败: reply_id=%s, url=%s", reply_id, url)
+        file_paths_to_delete = [
+            convert_oss_url_to_file_path(url)
+            for url in image_urls
+        ]
 
         # 级联删除该 reply 下的所有评论
         reply_comments, _ = comment_crud.get_comments(
@@ -135,6 +134,12 @@ class ForumReplyService:
 
         if post:
             ForumCacheInvalidator.invalidate_forum_posts(zone_id=post.zone_id)
+
+        for file_path in file_paths_to_delete:
+            try:
+                delete_file_from_oss_sync(file_path)
+            except Exception:
+                logger.exception("删除论坛回复内嵌图片失败: reply_id=%s, file=%s", reply_id, file_path)
 
     def list_replies_by_post(
         self, post_id: int, skip: int, limit: int, current_user: User

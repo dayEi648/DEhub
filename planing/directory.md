@@ -29,7 +29,7 @@ backend/                    # 后端工程（FastAPI）
 ├── tests/                  # 测试目录（含单元测试、集成测试与 conftest 共享 fixture）
 │   ├── conftest.py         # pytest 全局 fixture（测试数据库、认证客户端、工厂数据）
 │   ├── test_integration_*.py # API 集成测试（users / blog_posts / comments）
-│   └── test_*.py           # 单元测试（按模块拆分）
+│   └── test_*.py           # 单元测试与回归测试（按模块拆分）
 ├── pytest.ini              # pytest 配置（异步模式、测试路径、环境变量）
 ├── requirements.txt        # Python 依赖清单
 └── run.py                  # 应用启动入口
@@ -63,7 +63,7 @@ DEhub/                      # 项目根目录（前后端之外的全局文件�
 │   ├── 提示词开发计划.md     # AI 对话 System Prompt 固定部分与动态部分组装计划
 │   ├── 修复计划.md          # 论坛帖子列表瘦身、回复点赞计数与 Redis 缓存一致性修复计划
 │   ├── 前端代码检查报告.md   # 前端代码全面审查报告（问题清单与改进建议）
-│   └── 修复.md              # TDD 环境配置过程中发现的存量 BUG 与测试缺陷修复清单
+│   └── 修复.md              # 后端接口文档一致性与代码质量审查问题清单
 ├── sql/                    # SQL 建表语句
 ├── 废弃/                    # 废弃或归档文件
 ├── AGENTS.md               # Agent 开发规范与项目背景

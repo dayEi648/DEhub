@@ -50,6 +50,48 @@ async def test_update_user_without_file_should_not_touch_avatar(
 
 
 @pytest.mark.asyncio
+@patch("app.services.user_service.upload_image")
+@patch("app.services.user_service.delete_file_from_oss")
+@patch("app.services.user_service.user_crud.update_user")
+@patch("app.services.user_service.user_crud.get_user_by_id")
+async def test_update_user_db_failure_should_cleanup_new_avatar_only(
+    mock_get_user_by_id,
+    mock_update_user,
+    mock_delete_file_from_oss,
+    mock_upload_image,
+):
+    db = MagicMock()
+    service = UserService(db)
+
+    current_user = MagicMock()
+    current_user.id = 1
+    current_user.permission = 0
+
+    db_user = SimpleNamespace(
+        id=1,
+        username="old_name",
+        email="old@example.com",
+        created_at=datetime.now(),
+        permission=0,
+        is_deleted=False,
+        avatar_url="https://oss.example.com/avatar/old.jpg",
+        personal_profile="old profile",
+    )
+
+    mock_get_user_by_id.return_value = db_user
+    mock_upload_image.return_value = "https://oss.example.com/avatar/new.jpg"
+    mock_update_user.side_effect = RuntimeError("db failed")
+
+    user_in = UserUpdate(personal_profile="new profile")
+    with pytest.raises(RuntimeError):
+        await service.update_user(1, user_in, current_user, file=MagicMock())
+
+    calls = [str(c) for c in mock_delete_file_from_oss.await_args_list]
+    assert any("avatar/new.jpg" in call for call in calls)
+    assert not any("avatar/old.jpg" in call for call in calls)
+
+
+@pytest.mark.asyncio
 @patch("app.services.blog_post_service.asyncio.to_thread", new_callable=AsyncMock)
 @patch("app.services.blog_post_service.upload_image")
 @patch("app.services.blog_post_service.delete_file_from_oss")
@@ -82,3 +124,39 @@ async def test_update_blog_post_without_file_should_not_replace_cover(
 
     mock_delete_file_from_oss.assert_not_called()
     mock_upload_image.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("app.services.blog_post_service.upload_image")
+@patch("app.services.blog_post_service.delete_file_from_oss")
+@patch("app.services.blog_post_service.blog_post_crud.update_blog_post")
+@patch("app.services.blog_post_service.blog_post_crud.get_blog_post_by_id")
+async def test_update_blog_post_db_failure_should_cleanup_new_cover_only(
+    mock_get_blog_post_by_id,
+    mock_update_blog_post,
+    mock_delete_file_from_oss,
+    mock_upload_image,
+):
+    db = MagicMock()
+    service = BlogPostService(db)
+
+    current_user = MagicMock()
+    current_user.permission = 2
+
+    db_post = MagicMock()
+    db_post.id = 100
+    db_post.slug = "old-slug"
+    db_post.status = "draft"
+    db_post.cover_image_url = "https://oss.example.com/covers/old.jpg"
+
+    mock_get_blog_post_by_id.return_value = db_post
+    mock_upload_image.return_value = "https://oss.example.com/covers/new.jpg"
+    mock_update_blog_post.side_effect = RuntimeError("db failed")
+
+    post_in = BlogPostUpdate(title="new title")
+    with pytest.raises(RuntimeError):
+        await service.update_blog_post(100, post_in, current_user, file=MagicMock())
+
+    calls = [str(c) for c in mock_delete_file_from_oss.await_args_list]
+    assert any("covers/new.jpg" in call for call in calls)
+    assert not any("covers/old.jpg" in call for call in calls)

@@ -238,13 +238,13 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
 
     async def adelete_for_runs(self, run_ids: Sequence[str]) -> None:
         """当前业务未使用 run-level 删除。"""
-        pass
+        return None
 
     async def acopy_thread(
         self, source_thread_id: str, target_thread_id: str
     ) -> None:
         """当前业务未使用 copy。"""
-        pass
+        return None
 
     async def aprune(
         self,
@@ -253,4 +253,4 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
         strategy: str = "keep_latest",
     ) -> None:
         """Shallow 模式天然只有一个版本，无需 prune。"""
-        pass
+        return None

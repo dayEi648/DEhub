@@ -140,11 +140,15 @@ class UserService:
     ) -> UserListResponse:
         """
         获取用户列表（支持分页与筛选）
-        普通用户禁止查询已注销用户
+        管理员及以上可查询用户列表
         """
-        effective_include_deleted = (
-            include_deleted if (current_user and current_user.permission >= PermissionLevel.ADMIN) else False
-        )
+        if current_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="未认证",
+            )
+        self._require_admin(current_user)
+        effective_include_deleted = include_deleted
         items, total = user_crud.get_users(
             self.db,
             skip=skip,
@@ -192,17 +196,31 @@ class UserService:
         if user_in.email and user_in.email != db_user.email:
             self._ensure_email_unique(user_in.email, exclude_user_id=db_user.id)
 
+        old_avatar_url = db_user.avatar_url
+        new_avatar_url: str | None = None
         if file:
-            # 删除旧头像
-            if db_user.avatar_url:
-                try:
-                    await delete_file_from_oss(convert_oss_url_to_file_path(db_user.avatar_url))
-                except Exception:
-                    logger.exception("删除旧头像失败: user=%s", db_user.id)
-            # 上传新头像并直接赋值到 ORM 对象
-            db_user.avatar_url = await upload_image(file, ImageUploadScene.avatar)
+            new_avatar_url = await upload_image(file, ImageUploadScene.avatar)
+            db_user.avatar_url = new_avatar_url
 
-        return UserResponse.model_validate(user_crud.update_user(self.db, db_user, user_in))
+        try:
+            updated = user_crud.update_user(self.db, db_user, user_in)
+        except Exception:
+            self.db.rollback()
+            if new_avatar_url:
+                try:
+                    await delete_file_from_oss(convert_oss_url_to_file_path(new_avatar_url))
+                except Exception:
+                    logger.exception("清理新头像失败: user=%s", db_user.id)
+            db_user.avatar_url = old_avatar_url
+            raise
+
+        if new_avatar_url and old_avatar_url:
+            try:
+                await delete_file_from_oss(convert_oss_url_to_file_path(old_avatar_url))
+            except Exception:
+                logger.exception("删除旧头像失败: user=%s", db_user.id)
+
+        return UserResponse.model_validate(updated)
 
     def soft_delete_user(self, user_id: int, current_user: User, access_token: str | None = None) -> None:
         """

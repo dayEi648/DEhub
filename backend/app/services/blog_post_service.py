@@ -78,14 +78,23 @@ class BlogPostService:
         else:
             self._ensure_slug_unique(post_in.slug)
 
-        # 先上传再入库，避免上传失败时产生无效数据
+        # 先上传再入库，避免上传失败时产生无效数据；若后续入库失败则清理新文件。
         cover_url = await upload_image(file, ImageUploadScene.cover)
 
-        db_post = blog_post_crud.create_blog_post(self.db, post_in, current_user.id)
-
-        db_post.cover_image_url = cover_url
-        self.db.commit()
-        self.db.refresh(db_post)
+        try:
+            db_post = blog_post_crud.create_blog_post(
+                self.db,
+                post_in,
+                current_user.id,
+                cover_image_url=cover_url,
+            )
+        except Exception:
+            self.db.rollback()
+            try:
+                await delete_file_from_oss(convert_oss_url_to_file_path(cover_url))
+            except Exception:
+                logger.exception("清理新博客封面失败: slug=%s", post_in.slug)
+            raise
 
         # 若创建即发布，异步生成向量嵌入
         if db_post.status == "published":
@@ -154,17 +163,29 @@ class BlogPostService:
         if "slug" in update_data and update_data["slug"] != db_post.slug:
             self._ensure_slug_unique(update_data["slug"], exclude_post_id=db_post.id)
 
+        old_cover_url = db_post.cover_image_url
+        new_cover_url: str | None = None
         if file:
-            # 删除旧封面
-            if db_post.cover_image_url:
-                try:
-                    await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
-                except Exception:
-                    # 旧图删除失败不影响本次更新，避免用户更新请求整体失败
-                    logger.exception("删除旧博客封面失败: post_id=%s", db_post.id)
-            db_post.cover_image_url = await upload_image(file, ImageUploadScene.cover)
+            new_cover_url = await upload_image(file, ImageUploadScene.cover)
+            db_post.cover_image_url = new_cover_url
 
-        updated = blog_post_crud.update_blog_post(self.db, db_post, post_in)
+        try:
+            updated = blog_post_crud.update_blog_post(self.db, db_post, post_in)
+        except Exception:
+            self.db.rollback()
+            if new_cover_url:
+                try:
+                    await delete_file_from_oss(convert_oss_url_to_file_path(new_cover_url))
+                except Exception:
+                    logger.exception("清理新博客封面失败: post_id=%s", db_post.id)
+            db_post.cover_image_url = old_cover_url
+            raise
+
+        if new_cover_url and old_cover_url:
+            try:
+                await delete_file_from_oss(convert_oss_url_to_file_path(old_cover_url))
+            except Exception:
+                logger.exception("删除旧博客封面失败: post_id=%s", db_post.id)
 
         # 根据更新后的状态同步或删除向量嵌入
         embed_service = BlogPostEmbeddingService(self.db)
@@ -183,17 +204,15 @@ class BlogPostService:
     async def hard_delete_blog_post(self, post_id: int, current_user: User) -> None:
         self._require_super_admin(current_user)
         db_post = blog_post_crud.get_blog_post_by_id(self.db, post_id)
+        file_paths_to_delete: list[str] = []
         if db_post and db_post.cover_image_url:
-            await delete_file_from_oss(convert_oss_url_to_file_path(db_post.cover_image_url))
+            file_paths_to_delete.append(convert_oss_url_to_file_path(db_post.cover_image_url))
 
-        # 级联删除正文中的内嵌 OSS 图片
+        # 级联清理正文中的内嵌 OSS 图片，实际删除在数据库删除成功后执行。
         if db_post and db_post.content_md:
             image_urls = extract_oss_image_urls_from_markdown(db_post.content_md)
             for url in image_urls:
-                try:
-                    await delete_file_from_oss(convert_oss_url_to_file_path(url))
-                except Exception:
-                    logger.exception("删除博客正文内嵌图片失败: post_id=%s, url=%s", post_id, url)
+                file_paths_to_delete.append(convert_oss_url_to_file_path(url))
 
         # 硬删除前先清理向量嵌入（显式删除，不依赖数据库 CASCADE）
         embed_service = BlogPostEmbeddingService(self.db)
@@ -205,6 +224,12 @@ class BlogPostService:
 
         # 删除会影响公共列表和分类计数
         BlogCacheInvalidator.invalidate_all()
+
+        for file_path in file_paths_to_delete:
+            try:
+                await delete_file_from_oss(file_path)
+            except Exception:
+                logger.exception("删除博客 OSS 文件失败: post_id=%s, file=%s", post_id, file_path)
 
     # ---------- 读操作（权限区分）----------
 
@@ -246,6 +271,7 @@ class BlogPostService:
 
         # 增加浏览量
         blog_post_crud.increment_view_count(self.db, post_id)
+        self.db.refresh(db_post)
 
         return self._build_detail_response(db_post, current_user)
 
@@ -257,6 +283,7 @@ class BlogPostService:
 
         # 增加浏览量
         blog_post_crud.increment_view_count(self.db, db_post.id)
+        self.db.refresh(db_post)
 
         return self._build_detail_response(db_post, current_user)
 

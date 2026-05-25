@@ -4,6 +4,7 @@ import uuid
 import mimetypes
 import asyncio
 import filetype
+import re
 from enum import Enum
 from urllib.parse import urlparse
 from datetime import datetime
@@ -413,9 +414,6 @@ def convert_oss_url_to_file_path(oss_url: str) -> str:
     if settings.OSS_BUCKET_NAME and path.startswith(settings.OSS_BUCKET_NAME + "/"):
         path = path[len(settings.OSS_BUCKET_NAME) + 1:]
     return path
-
-
-import re
 
 _MD_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 

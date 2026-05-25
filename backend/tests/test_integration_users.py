@@ -2,6 +2,9 @@
 
 import pytest
 
+from app.core.security import get_current_user
+from app.main import app
+
 
 class TestUserRegister:
     def test_register_user_success(self, client):
@@ -93,3 +96,13 @@ class TestUserAdminOperations:
         assert data["total"] >= 1
         usernames = [u["username"] for u in data["items"]]
         assert normal_user.username in usernames
+
+    def test_normal_user_cannot_list_users(self, client, normal_user):
+        """普通登录用户不能枚举用户列表。"""
+        async def override_get_current_user():
+            return normal_user
+
+        app.dependency_overrides[get_current_user] = override_get_current_user
+        response = client.get("/api/v1/users/")
+
+        assert response.status_code == 403

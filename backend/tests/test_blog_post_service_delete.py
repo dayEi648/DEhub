@@ -120,3 +120,37 @@ async def test_hard_delete_no_embedded_images_should_only_delete_cover(
     mock_extract_urls.assert_called_once_with("纯文本没有图片")
     assert mock_delete_file_from_oss.await_count == 1
     mock_hard_delete.assert_called_once_with(db, 7)
+
+
+@pytest.mark.asyncio
+@patch("app.services.blog_post_service.asyncio.to_thread", new_callable=AsyncMock)
+@patch("app.services.blog_post_service.extract_oss_image_urls_from_markdown")
+@patch("app.services.blog_post_service.delete_file_from_oss")
+@patch("app.services.blog_post_service.blog_post_crud.hard_delete_blog_post")
+@patch("app.services.blog_post_service.blog_post_crud.get_blog_post_by_id")
+async def test_hard_delete_db_not_found_should_not_delete_oss_files(
+    mock_get_blog_post_by_id,
+    mock_hard_delete,
+    mock_delete_file_from_oss,
+    mock_extract_urls,
+    _mock_to_thread,
+):
+    db = MagicMock()
+    service = BlogPostService(db)
+
+    current_user = MagicMock()
+    current_user.permission = 2
+
+    db_post = MagicMock()
+    db_post.id = 7
+    db_post.cover_image_url = "https://cdn.example.com/covers/cover.jpg"
+    db_post.content_md = "![图](https://cdn.example.com/uploads/images/a.jpg)"
+
+    mock_get_blog_post_by_id.return_value = db_post
+    mock_extract_urls.return_value = ["https://cdn.example.com/uploads/images/a.jpg"]
+    mock_hard_delete.return_value = 0
+
+    with pytest.raises(Exception):
+        await service.hard_delete_blog_post(7, current_user)
+
+    mock_delete_file_from_oss.assert_not_called()

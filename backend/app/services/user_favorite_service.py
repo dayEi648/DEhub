@@ -103,6 +103,7 @@ class UserFavoriteService:
         Returns:
             bool: 是否已收藏
         """
+        self._get_visible_blog_post(post_id, current_user)
         existing = favorite_crud.get_blog_post_favorite(
             self.db, current_user.id, post_id
         )
@@ -249,6 +250,12 @@ class UserFavoriteService:
         Returns:
             bool: 是否已收藏
         """
+        post = forum_post_crud.get_post_by_id(self.db, post_id)
+        if not post:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="帖子不存在",
+            )
         existing = favorite_crud.get_post_favorite(
             self.db, current_user.id, post_id
         )

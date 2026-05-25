@@ -45,7 +45,7 @@ def get_user(
 def list_users(
     skip: int = 0,
     limit: int = Query(default=20, ge=1, le=100),
-    include_deleted: bool = Query(default=False, description="是否包含已注销用户（仅管理员有效）"),
+    include_deleted: bool = Query(default=False, description="是否包含已注销用户"),
     username: str | None = Query(default=None, description="用户名模糊筛选"),
     email: str | None = Query(default=None, description="邮箱模糊筛选"),
     permission: int | None = Query(default=None, ge=0, le=2, description="权限值筛选"),

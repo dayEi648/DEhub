@@ -107,7 +107,12 @@ def get_blog_posts_count(
     return query.count()
 
 
-def create_blog_post(db: Session, post_in: BlogPostCreate, user_id: int) -> BlogPost:
+def create_blog_post(
+    db: Session,
+    post_in: BlogPostCreate,
+    user_id: int,
+    cover_image_url: str | None = None,
+) -> BlogPost:
     """
     创建文章
     Args:
@@ -117,7 +122,10 @@ def create_blog_post(db: Session, post_in: BlogPostCreate, user_id: int) -> Blog
     Returns:
         BlogPost: 文章对象
     """
-    db_post = BlogPost(**post_in.model_dump(), user_id=user_id)
+    post_data = post_in.model_dump()
+    if cover_image_url is not None:
+        post_data["cover_image_url"] = cover_image_url
+    db_post = BlogPost(**post_data, user_id=user_id)
     db.add(db_post)
     db.commit()
     db.refresh(db_post)
