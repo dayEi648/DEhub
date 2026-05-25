@@ -176,8 +176,9 @@ test.describe('AI chat page', () => {
     await expect(page.locator('h1:has-text("AI 对话实验室")')).toBeVisible()
     await expect(page.locator('text=旧对话')).toBeVisible()
     await expect(page.locator('text=你好，我是 AI 助手。')).toBeVisible()
-    await expect(page.locator('text=好的，我帮你联网搜索一下。')).toBeVisible()
     await expect(page.locator('text=根据联网搜索结果，我整理如下。')).toBeVisible()
+    // 包含 tool_calls 的 assistant 消息应对普通用户隐藏
+    await expect(page.locator('text=好的，我帮你联网搜索一下。')).toHaveCount(0)
     await expect(page.locator('text=工具返回的原始搜索结果')).toHaveCount(0)
     await expect(page.locator('label:has-text("包含隐藏消息")')).toHaveCount(0)
     expect(capturedIncludeHiddenValues).toContain('false')

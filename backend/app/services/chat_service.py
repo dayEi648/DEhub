@@ -77,11 +77,19 @@ class ChatService:
 
     @classmethod
     def _is_visible_message(cls, message) -> bool:
-        """默认消息列表中仅展示用户消息和有正文的 AI 回复。"""
+        """默认消息列表中仅展示用户消息和有正文的 AI 回复。
+
+        包含 tool_calls 的 AIMessage 对普通用户隐藏，仅管理员查看完整消息流时可见。
+        """
         if message.role == "user":
             return True
         if message.role == "assistant":
-            return cls._has_displayable_content(message)
+            if not cls._has_displayable_content(message):
+                return False
+            # 包含 tool_calls 的 AIMessage 视为中间决策消息，对普通用户隐藏
+            if message.meta and message.meta.get("tool_calls"):
+                return False
+            return True
         return False
 
     @staticmethod
@@ -449,7 +457,7 @@ class ChatService:
                             }
                             for tc in msg.tool_calls
                         ],
-                        "display": bool(content.strip()),
+                        "display": False,
                     }
                 await asyncio.to_thread(
                     msg_crud.create_conversation_message,

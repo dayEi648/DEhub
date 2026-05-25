@@ -39,7 +39,21 @@ function hasDisplayableContent(message: AIMessage) {
 }
 
 function isDefaultVisibleMessage(message: AIMessage) {
-  return (message.role === 'user' || message.role === 'assistant') && hasDisplayableContent(message)
+  if (!hasDisplayableContent(message)) {
+    return false
+  }
+  if (message.role === 'user') {
+    return true
+  }
+  if (message.role === 'assistant') {
+    // 包含 tool_calls 的 AIMessage 视为中间决策消息，对普通用户隐藏
+    const meta = message.meta
+    if (meta && Array.isArray(meta.tool_calls) && meta.tool_calls.length > 0) {
+      return false
+    }
+    return true
+  }
+  return false
 }
 
 export default function AIChatPage() {

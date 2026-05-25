@@ -157,7 +157,7 @@ class TestChatServiceChat:
 
         assert result.response == "根据联网搜索结果，我整理如下。"
         kwargs1 = mock_create_msg.call_args_list[1].kwargs
-        assert kwargs1["metadata"]["display"] is True
+        assert kwargs1["metadata"]["display"] is False
         assert kwargs1["metadata"]["tool_calls"][0]["name"] == "web_search"
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
@@ -222,10 +222,10 @@ class TestGetMessages:
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.list_conversation_messages")
-    async def test_keeps_tool_call_assistant_content_visible_by_default(
+    async def test_hides_tool_call_assistant_content_by_default(
         self, mock_list, mock_get_conv
     ):
-        """带 tool_calls 但有正文的 assistant 消息应作为普通可见回复返回。"""
+        """带 tool_calls 的 assistant 消息默认应对普通用户隐藏。"""
         mock_conv = MagicMock()
         mock_conv.user_id = 1
         mock_get_conv.return_value = mock_conv
@@ -235,7 +235,7 @@ class TestGetMessages:
             "assistant",
             "好的，我帮你联网搜索一下。",
             {
-                "display": True,
+                "display": False,
                 "tool_calls": [{"id": "call_1", "name": "web_search"}],
             },
         )
@@ -246,10 +246,8 @@ class TestGetMessages:
         result = await self.service.get_messages(1, 1)
 
         assert [msg.content for msg in result] == [
-            "好的，我帮你联网搜索一下。",
             "根据联网搜索结果，我整理如下。",
         ]
-        assert result[0].meta is None
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.list_conversation_messages")
