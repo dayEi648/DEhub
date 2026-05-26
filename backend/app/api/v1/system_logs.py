@@ -6,14 +6,6 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.core.permissions import require_admin
 from app.core.security import get_current_user
-from app.crud.system_log import (
-    batch_resolve_logs,
-    delete_log,
-    get_log_by_id,
-    get_logs,
-    get_stats,
-    resolve_log,
-)
 from app.models.user import User
 from app.schemas.system_log import (
     BatchResolveResponse,
@@ -22,6 +14,7 @@ from app.schemas.system_log import (
     SystemLogResponse,
     SystemLogStatsResponse,
 )
+from app.services.system_log_service import SystemLogService
 
 router = APIRouter(prefix="/system_logs", tags=["系统日志监控"])
 
@@ -46,8 +39,7 @@ def list_system_logs(
     支持按日志级别、是否已处理、模块名、时间范围筛选，默认按时间倒序排列。
     """
     require_admin(current_user)
-    logs, total = get_logs(
-        db,
+    logs, total = SystemLogService(db).list_logs(
         skip=skip,
         limit=limit,
         level=level,
@@ -68,7 +60,7 @@ def get_system_log_stats(
     获取日志统计概览（管理员及以上权限）。
     """
     require_admin(current_user)
-    stats = get_stats(db)
+    stats = SystemLogService(db).get_stats()
     return SystemLogStatsResponse(**stats)
 
 
@@ -85,7 +77,9 @@ def batch_resolve_system_logs(
         {"resolved_count": 实际更新的条数}
     """
     require_admin(current_user)
-    count = batch_resolve_logs(db, req.ids, resolved_by=current_user.id)
+    count = SystemLogService(db).batch_resolve_logs(
+        req.ids, resolved_by=current_user.id
+    )
     return BatchResolveResponse(resolved_count=count)
 
 
@@ -99,7 +93,7 @@ def get_system_log(
     查看单条日志详情（管理员及以上权限）。
     """
     require_admin(current_user)
-    log = get_log_by_id(db, log_id)
+    log = SystemLogService(db).get_log(log_id)
     if not log:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="日志不存在"
@@ -117,7 +111,7 @@ def resolve_system_log(
     将指定日志标记为已处理（管理员及以上权限）。
     """
     require_admin(current_user)
-    log = resolve_log(db, log_id, resolved_by=current_user.id)
+    log = SystemLogService(db).resolve_log(log_id, resolved_by=current_user.id)
     if not log:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="日志不存在"
@@ -135,7 +129,7 @@ def delete_system_log(
     删除指定日志（管理员及以上权限）。
     """
     require_admin(current_user)
-    deleted = delete_log(db, log_id)
+    deleted = SystemLogService(db).delete_log(log_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="日志不存在"

@@ -140,7 +140,7 @@ def increment_post_view_count(db: Session, post_id: int) -> int:
     return result
 
 
-def increment_reply_count(db: Session, post_id: int) -> int:
+def increment_reply_count(db: Session, post_id: int, auto_commit: bool = True) -> int:
     """
     增加帖子回复数
     Args:
@@ -153,11 +153,12 @@ def increment_reply_count(db: Session, post_id: int) -> int:
         {"reply_count": ForumPost.reply_count + 1},
         synchronize_session=False,
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result
 
 
-def decrement_reply_count(db: Session, post_id: int) -> int:
+def decrement_reply_count(db: Session, post_id: int, auto_commit: bool = True) -> int:
     """
     减少帖子回复数（SQL 层面兜底下限为 0）
     Args:
@@ -170,5 +171,6 @@ def decrement_reply_count(db: Session, post_id: int) -> int:
         {"reply_count": func.greatest(ForumPost.reply_count - 1, 0)},
         synchronize_session=False,
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result

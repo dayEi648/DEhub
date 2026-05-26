@@ -358,13 +358,6 @@ class ChatService:
             pos -= 1
         return text[:pos] if pos > 0 else text[:max_len]
 
-    @staticmethod
-    def _count_user_message_chars(messages: list) -> int:
-        """计算消息列表中所有 HumanMessage 的内容总字数（字符数）。"""
-        return sum(
-            len(m.content) for m in messages if isinstance(m, HumanMessage) and isinstance(m.content, str)
-        )
-
     @classmethod
     def _compact_aware_messages(cls, messages: list) -> list:
         """返回最新 compact summary 及其后的消息；未压缩则返回原消息。"""

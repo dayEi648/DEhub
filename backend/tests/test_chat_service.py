@@ -308,33 +308,6 @@ class TestGetConversationIfOwned:
         assert exc_info.value.status_code == 404
 
 
-class TestCountUserMessageChars:
-    """测试 _count_user_message_chars 静态方法。"""
-
-    def test_counts_human_message_chars(self):
-        """应正确计算 HumanMessage 的内容字符数。"""
-        messages = [
-            HumanMessage(content="你好"),
-            AIMessage(content="Hello"),
-            HumanMessage(content="世界"),
-        ]
-        result = ChatService._count_user_message_chars(messages)
-        assert result == 4  # "你好" = 2, "世界" = 2
-
-    def test_skips_non_human_messages(self):
-        """非 HumanMessage 不应被计入。"""
-        messages = [
-            AIMessage(content="AI reply"),
-            HumanMessage(content="用户输入"),
-        ]
-        result = ChatService._count_user_message_chars(messages)
-        assert result == 4  # "用户输入" = 4
-
-    def test_empty_list(self):
-        """空消息列表应返回 0。"""
-        assert ChatService._count_user_message_chars([]) == 0
-
-
 class TestChatCompact:
     """测试 AIchat compact 相关辅助逻辑。"""
 

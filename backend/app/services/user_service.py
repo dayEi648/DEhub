@@ -466,9 +466,10 @@ class UserService:
             iat = payload.get("iat")
             try:
                 revoked_at = float(revoked_at_str)
+                issued_at = float(iat) if iat is not None else None
             except (ValueError, TypeError):
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌校验失败")
-            if iat and float(iat) < revoked_at:
+            if issued_at is not None and issued_at < revoked_at:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="用户已注销",

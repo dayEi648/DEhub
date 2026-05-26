@@ -8,9 +8,6 @@ from app.storage.oss import (
     ImageUploadScene,
     SCENE_CONFIG,
     upload_image,
-    upload_user_avatar,
-    upload_blog_cover,
-    upload_generic_image,
     compress_image,
     ALLOWED_IMAGE_TYPES,
     _build_oss_file_url,
@@ -103,38 +100,6 @@ class TestUploadImageUnified:
         with pytest.raises(HTTPException) as exc_info:
             await upload_image(mock_file, "nonexistent_scene")  # type: ignore[arg-type]
         assert exc_info.value.status_code == 400
-
-
-class TestBackwardCompatibility:
-    """验证旧便捷函数作为兼容层仍能正常工作"""
-
-    @pytest.mark.asyncio
-    @patch("app.storage.oss.upload_image")
-    async def test_upload_user_avatar_delegates_to_upload_image(self, mock_upload):
-        mock_upload.return_value = "https://example.com/avatar.jpg"
-        mock_file = MagicMock(spec=UploadFile)
-        url = await upload_user_avatar(mock_file)
-        assert url == "https://example.com/avatar.jpg"
-        mock_upload.assert_awaited_once_with(mock_file, ImageUploadScene.avatar)
-
-    @pytest.mark.asyncio
-    @patch("app.storage.oss.upload_image")
-    async def test_upload_blog_cover_delegates_to_upload_image(self, mock_upload):
-        mock_upload.return_value = "https://example.com/cover.jpg"
-        mock_file = MagicMock(spec=UploadFile)
-        url = await upload_blog_cover(mock_file)
-        assert url == "https://example.com/cover.jpg"
-        mock_upload.assert_awaited_once_with(mock_file, ImageUploadScene.cover)
-
-    @pytest.mark.asyncio
-    @patch("app.storage.oss.upload_image")
-    async def test_upload_generic_image_delegates_to_upload_image(self, mock_upload):
-        mock_upload.return_value = "https://example.com/generic.jpg"
-        mock_file = MagicMock(spec=UploadFile)
-        url = await upload_generic_image(mock_file)
-        assert url == "https://example.com/generic.jpg"
-        mock_upload.assert_awaited_once_with(mock_file, ImageUploadScene.generic)
-
 
 class TestCompressImageDefaults:
     """验证 compress_image 默认值使用 MAX_OSS_IMAGE_SIZE"""

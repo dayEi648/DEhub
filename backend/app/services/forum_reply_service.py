@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class ForumReplyService:
-    _REPLY_COMMENT_DELETE_LIMIT = 10000
-
     def __init__(self, db: Session):
         self.db = db
 
@@ -73,10 +71,18 @@ class ForumReplyService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="帖子不存在"
             )
 
-        db_reply = forum_reply_crud.create_reply(
-            self.db, reply_in, current_user.id
-        )
-        forum_post_crud.increment_reply_count(self.db, post_id)
+        try:
+            db_reply = forum_reply_crud.create_reply(
+                self.db, reply_in, current_user.id, auto_commit=False
+            )
+            forum_post_crud.increment_reply_count(
+                self.db, post_id, auto_commit=False
+            )
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
         # 重新查询以加载 user 关联，避免延迟加载问题
         refreshed = forum_reply_crud.get_reply_by_id(self.db, db_reply.id)
 
@@ -109,25 +115,33 @@ class ForumReplyService:
         ]
 
         # 级联删除该 reply 下的所有评论
-        reply_comments, _ = comment_crud.get_comments(
+        comment_ids = comment_crud.get_comment_ids_by_target_ids(
             self.db,
             target_type="forum_reply",
-            target_id=reply_id,
-            limit=self._REPLY_COMMENT_DELETE_LIMIT,  # 足够大的上限以覆盖所有评论
+            target_ids=[reply_id],
         )
-        if reply_comments:
-            comment_ids = [c.id for c in reply_comments]
-            comment_crud.delete_comment_likes_by_comment_ids(self.db, comment_ids)
-            comment_crud.delete_comments_by_ids(self.db, comment_ids)
-
-        # 级联删除该回复的点赞记录
-        forum_reply_crud.delete_forum_reply_likes_by_reply_ids(
-            self.db, [reply_id]
-        )
-
         post = forum_post_crud.get_post_by_id(self.db, db_reply.post_id)
-        forum_reply_crud.delete_reply(self.db, reply_id)
-        forum_post_crud.decrement_reply_count(self.db, db_reply.post_id)
+        try:
+            if comment_ids:
+                comment_crud.delete_comment_likes_by_comment_ids(
+                    self.db, comment_ids, auto_commit=False
+                )
+                comment_crud.delete_comments_by_ids(
+                    self.db, comment_ids, auto_commit=False
+                )
+
+            # 级联删除该回复的点赞记录
+            forum_reply_crud.delete_forum_reply_likes_by_reply_ids(
+                self.db, [reply_id], auto_commit=False
+            )
+            forum_reply_crud.delete_reply(self.db, reply_id, auto_commit=False)
+            forum_post_crud.decrement_reply_count(
+                self.db, db_reply.post_id, auto_commit=False
+            )
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
 
         if post:
             ForumCacheInvalidator.invalidate_forum_posts(zone_id=post.zone_id)

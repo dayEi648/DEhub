@@ -132,6 +132,26 @@ class TestForumPostListCache:
 class TestForumPostCacheInvalidation:
     """测试帖子写操作后缓存失效。"""
 
+    @patch("app.services.forum_post_service.forum_post_crud.increment_post_view_count")
+    @patch("app.services.forum_post_service.forum_post_crud.get_post_by_id")
+    def test_get_post_returns_incremented_view_count(self, mock_get_post, mock_increment):
+        db = MagicMock()
+        service = ForumPostService(db)
+        db_post = _make_mock_post()
+        db_post.view_count = 0
+        mock_get_post.return_value = db_post
+
+        def refresh_side_effect(post):
+            post.view_count = 1
+
+        db.refresh.side_effect = refresh_side_effect
+
+        result = service.get_post(1)
+
+        mock_increment.assert_called_once_with(db, 1)
+        db.refresh.assert_called_once_with(db_post)
+        assert result.view_count == 1
+
     @patch("app.services.forum_post_service.ForumCacheInvalidator.invalidate_forum_posts")
     @patch("app.services.forum_post_service.forum_post_crud.create_post")
     @patch("app.services.forum_post_service.forum_post_crud.get_post_by_id")
@@ -227,6 +247,9 @@ class TestForumReplyCacheInvalidation:
 
         reply_in = MagicMock()
         service.create_reply(1, reply_in, current_user)
+        mock_create.assert_called_once_with(db, reply_in, 1, auto_commit=False)
+        mock_inc.assert_called_once_with(db, 1, auto_commit=False)
+        db.commit.assert_called_once()
         mock_invalidate.assert_called_once_with(zone_id=1)
 
     @patch("app.services.forum_reply_service.is_zone_manager")

@@ -125,10 +125,6 @@ def render_chat_system_prompt(
     return f"{CHAT_FIXED_SYSTEM_PROMPT}\n\n{dynamic_content}"
 
 
-# 兼容 alias：保留旧名称，便于后续逐步迁移引用
-CHAT_DEFAULT_SYSTEM_PROMPT = CHAT_FIXED_SYSTEM_PROMPT
-
-
 # -------------------------------------------------------------------
 # Current Goal Generation Prompt（small model 用）
 # -------------------------------------------------------------------

@@ -50,7 +50,12 @@ def get_replies_by_post_id(
     return items, total
 
 
-def create_reply(db: Session, reply_in: ForumReplyCreate, user_id: int) -> ForumReply:
+def create_reply(
+    db: Session,
+    reply_in: ForumReplyCreate,
+    user_id: int,
+    auto_commit: bool = True,
+) -> ForumReply:
     """
     创建回复
     Args:
@@ -62,7 +67,10 @@ def create_reply(db: Session, reply_in: ForumReplyCreate, user_id: int) -> Forum
     """
     db_reply = ForumReply(**reply_in.model_dump(), user_id=user_id)
     db.add(db_reply)
-    db.commit()
+    if auto_commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(db_reply)
     return db_reply
 
@@ -79,7 +87,7 @@ def get_all_replies_by_post_id(db: Session, post_id: int) -> list[ForumReply]:
     return db.query(ForumReply).filter(ForumReply.post_id == post_id).all()
 
 
-def delete_reply(db: Session, reply_id: int) -> int:
+def delete_reply(db: Session, reply_id: int, auto_commit: bool = True) -> int:
     """
     删除回复（物理删除）
     Args:
@@ -93,7 +101,8 @@ def delete_reply(db: Session, reply_id: int) -> int:
         .filter(ForumReply.id == reply_id)
         .delete(synchronize_session=False)
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result
 
 

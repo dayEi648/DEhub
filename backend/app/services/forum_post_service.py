@@ -155,11 +155,21 @@ class ForumPostService:
             target_type="forum_reply",
             target_ids=reply_ids,
         )
-        if comment_ids:
-            comment_crud.delete_comment_likes_by_comment_ids(self.db, comment_ids)
-            comment_crud.delete_comments_by_ids(self.db, comment_ids)
+        try:
+            if comment_ids:
+                comment_crud.delete_comment_likes_by_comment_ids(
+                    self.db, comment_ids, auto_commit=False
+                )
+                comment_crud.delete_comments_by_ids(
+                    self.db, comment_ids, auto_commit=False
+                )
 
-        forum_post_crud.delete_post(self.db, post_id)
+            forum_post_crud.delete_post(self.db, post_id, auto_commit=False)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
         ForumCacheInvalidator.invalidate_forum_posts(zone_id=zone_id)
 
         cleanup_service = OssCleanupService()
@@ -186,6 +196,7 @@ class ForumPostService:
             )
 
         forum_post_crud.increment_post_view_count(self.db, post_id)
+        self.db.refresh(db_post)
         return db_post
 
     def list_posts(

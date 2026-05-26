@@ -147,7 +147,16 @@ async def get_current_user(token: str = Depends(get_token_from_header), db: Sess
     revoked_at_str = await redis.get(f"user_revoked:{user_id}")
     if revoked_at_str:
         iat = payload.get("iat")
-        if iat and float(iat) < float(revoked_at_str):
+        try:
+            revoked_at = float(revoked_at_str)
+            issued_at = float(iat) if iat is not None else None
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="令牌校验失败",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if issued_at is not None and issued_at < revoked_at:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="用户已注销",

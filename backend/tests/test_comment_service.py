@@ -447,25 +447,34 @@ class TestForumReplyServiceDelete:
         comment1.id = 21
         comment2 = MagicMock()
         comment2.id = 22
-        mock_comment_crud.get_comments.return_value = ([comment1, comment2], 2)
+        mock_comment_crud.get_comment_ids_by_target_ids.return_value = [21, 22]
 
         service.delete_reply(5, current_user)
 
-        mock_comment_crud.get_comments.assert_called_once_with(
-            service.db, target_type="forum_reply", target_id=5, limit=10000
+        mock_comment_crud.get_comment_ids_by_target_ids.assert_called_once_with(
+            service.db, target_type="forum_reply", target_ids=[5]
         )
+        mock_comment_crud.get_comments.assert_not_called()
         mock_comment_crud.delete_comment_likes_by_comment_ids.assert_called_once_with(
-            service.db, [21, 22]
+            service.db, [21, 22], auto_commit=False
         )
         mock_comment_crud.delete_comments_by_ids.assert_called_once_with(
-            service.db, [21, 22]
+            service.db, [21, 22], auto_commit=False
         )
         mock_extract_urls.assert_called_once_with("reply content")
         mock_convert_path.assert_called_once_with("https://oss.example.com/forum/replies/20260101/a.jpg")
         mock_cleanup_file.assert_called_once()
         assert "forum/replies/20260101/a.jpg" in str(mock_cleanup_file.call_args)
-        mock_reply_crud.delete_reply.assert_called_once_with(service.db, 5)
-        mock_post_crud.decrement_reply_count.assert_called_once_with(service.db, 100)
+        mock_reply_crud.delete_forum_reply_likes_by_reply_ids.assert_called_once_with(
+            service.db, [5], auto_commit=False
+        )
+        mock_reply_crud.delete_reply.assert_called_once_with(
+            service.db, 5, auto_commit=False
+        )
+        mock_post_crud.decrement_reply_count.assert_called_once_with(
+            service.db, 100, auto_commit=False
+        )
+        service.db.commit.assert_called_once()
 
     @patch("app.services.forum_reply_service.forum_reply_crud")
     @patch("app.services.forum_reply_service.forum_post_crud")
@@ -495,10 +504,48 @@ class TestForumReplyServiceDelete:
         mock_is_manager.return_value = False
         mock_extract_urls.return_value = ["https://oss.example.com/forum/replies/a.jpg"]
         mock_convert_path.return_value = "forum/replies/a.jpg"
-        mock_comment_crud.get_comments.return_value = ([], 0)
+        mock_comment_crud.get_comment_ids_by_target_ids.return_value = []
         mock_reply_crud.delete_reply.side_effect = RuntimeError("db failed")
 
         with pytest.raises(RuntimeError):
             service.delete_reply(5, current_user)
 
+        mock_cleanup_file.assert_not_called()
+        service.db.rollback.assert_called_once()
+
+    @patch("app.services.forum_reply_service.forum_reply_crud")
+    @patch("app.services.forum_reply_service.forum_post_crud")
+    @patch("app.services.forum_reply_service.comment_crud")
+    @patch("app.services.forum_reply_service.is_zone_manager")
+    @patch("app.services.forum_reply_service.extract_oss_image_urls_from_markdown")
+    @patch("app.services.forum_reply_service.convert_oss_url_to_file_path")
+    @patch("app.services.forum_reply_service.OssCleanupService.delete_file_after_commit_sync")
+    def test_delete_reply_commit_failure_rolls_back_and_skips_oss_cleanup(
+        self,
+        mock_cleanup_file,
+        mock_convert_path,
+        mock_extract_urls,
+        mock_is_manager,
+        mock_comment_crud,
+        mock_post_crud,
+        mock_reply_crud,
+        service,
+        current_user,
+    ):
+        reply = MagicMock()
+        reply.id = 5
+        reply.user_id = 1
+        reply.post_id = 100
+        reply.content = "reply content"
+        mock_reply_crud.get_reply_by_id.return_value = reply
+        mock_is_manager.return_value = False
+        mock_extract_urls.return_value = ["https://oss.example.com/forum/replies/a.jpg"]
+        mock_convert_path.return_value = "forum/replies/a.jpg"
+        mock_comment_crud.get_comment_ids_by_target_ids.return_value = []
+        service.db.commit.side_effect = RuntimeError("commit failed")
+
+        with pytest.raises(RuntimeError):
+            service.delete_reply(5, current_user)
+
+        service.db.rollback.assert_called_once()
         mock_cleanup_file.assert_not_called()

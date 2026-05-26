@@ -358,41 +358,6 @@ def delete_file_from_oss_sync(file_path: str) -> None:
         raise HTTPException(status_code=500, detail=f"删除文件失败: {str(e)}")
 
 
-# ── 兼容层：旧便捷函数，内部调用统一的 upload_image ──
-
-async def upload_user_avatar(file: UploadFile) -> str:
-    """
-    上传用户头像（自动压缩后上传）
-    Args:
-        file: 上传文件
-    Returns:
-        str: 文件URL
-    """
-    return await upload_image(file, ImageUploadScene.avatar)
-
-
-async def upload_blog_cover(file: UploadFile) -> str:
-    """
-    上传博客封面图（自动压缩后上传）
-    Args:
-        file: 上传文件
-    Returns:
-        str: 文件URL
-    """
-    return await upload_image(file, ImageUploadScene.cover)
-
-
-async def upload_generic_image(file: UploadFile) -> str:
-    """
-    上传通用图片（自动压缩后上传）
-    Args:
-        file: 上传文件
-    Returns:
-        str: 文件URL
-    """
-    return await upload_image(file, ImageUploadScene.generic)
-
-
 def convert_oss_url_to_file_path(oss_url: str) -> str:
     """
     将OSS url转为 file_path
