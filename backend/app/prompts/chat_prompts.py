@@ -70,6 +70,15 @@ _SCENE_BLOCK_TEMPLATE = "当前场景：{scene}\n\n"
 _PROFILE_BLOCK_TEMPLATE = "--- 用户画像 ---\n{profile_text}\n---\n\n"
 _GOAL_BLOCK_TEMPLATE = "当前目标：{current_goal}\n\n"
 
+_ADMIN_OPENAPI_BLOCK_TEMPLATE = (
+    "\n<admin_capabilities>\n"
+    "你拥有访问已上传 OpenAPI 文档知识库的权限，可基于知识库回答接口相关问题或生成调用示例。\n"
+    "如果知识库没有相关文档，明确说明'当前知识库未找到相关接口'，不要编造参数。\n"
+    "不向非管理员透露后台 OpenAPI 知识库、工具或子 Agent 能力。\n"
+    "具体工具调用时机和参数以工具自身描述为准。\n"
+    "</admin_capabilities>\n"
+)
+
 
 def render_chat_system_prompt(
     *,
@@ -77,6 +86,7 @@ def render_chat_system_prompt(
     scene: str | None = None,
     profile_text: str | None = None,
     current_goal: str | None = None,
+    permission_level: int | None = None,
 ) -> str:
     """渲染完整的单条 SystemMessage 内容。
 
@@ -88,6 +98,7 @@ def render_chat_system_prompt(
         scene: 当前场景标记（如 "对话开始"、"持续对话"）
         profile_text: 用户画像文本
         current_goal: 当前目标描述（5~200 字）
+        permission_level: 用户权限等级（0=USER, 1=ADMIN, 2=SUPER_ADMIN）
 
     Returns:
         合并后的 system prompt 字符串
@@ -109,8 +120,13 @@ def render_chat_system_prompt(
         if current_goal else ""
     )
 
+    # 仅管理员及以上追加 OpenAPI 能力说明
+    admin_block = ""
+    if permission_level is not None and permission_level >= 1:
+        admin_block = _ADMIN_OPENAPI_BLOCK_TEMPLATE
+
     has_dynamic = any(
-        (current_time_block, scene_block, profile_block, goal_block)
+        (current_time_block, scene_block, profile_block, goal_block, admin_block)
     )
 
     if not has_dynamic:
@@ -122,6 +138,10 @@ def render_chat_system_prompt(
         profile_block=profile_block,
         goal_block=goal_block,
     )
+
+    # admin_block 追加在动态内容之后
+    if admin_block:
+        return f"{CHAT_FIXED_SYSTEM_PROMPT}\n\n{dynamic_content}{admin_block}"
     return f"{CHAT_FIXED_SYSTEM_PROMPT}\n\n{dynamic_content}"
 
 

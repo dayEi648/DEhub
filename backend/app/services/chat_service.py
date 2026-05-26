@@ -605,6 +605,7 @@ class ChatService:
                         "profile_text": profile_text,
                         "prompt_scene": prompt_scene,
                         "current_goal": current_goal,
+                        "permission_level": self.permission_level,
                     },
                     config=config,
                 )

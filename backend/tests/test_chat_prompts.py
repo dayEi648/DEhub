@@ -69,6 +69,49 @@ class TestRenderChatSystemPrompt:
         assert "用户是前端开发者" in result
         assert "当前目标：学习 React 19 新特性" in result
 
+    # ------------------------------------------------------------------
+    # permission_level OpenAPI 权限注入
+    # ------------------------------------------------------------------
+
+    def test_user_prompt_no_openapi_capability(self):
+        """普通用户（permission_level=0）Prompt 不应包含 OpenAPI 能力描述。"""
+        result = render_chat_system_prompt(
+            current_time="2026-05-24 14:30",
+            permission_level=0,
+        )
+        assert "OpenAPI" not in result
+        assert "知识库" not in result
+        assert "admin_capabilities" not in result
+
+    def test_user_prompt_none_permission_no_openapi(self):
+        """permission_level=None 时 Prompt 不应包含 OpenAPI 能力描述。"""
+        result = render_chat_system_prompt(
+            current_time="2026-05-24 14:30",
+            permission_level=None,
+        )
+        assert "OpenAPI" not in result
+        assert "知识库" not in result
+        assert "admin_capabilities" not in result
+
+    def test_admin_prompt_includes_openapi_capability(self):
+        """管理员（permission_level=1）Prompt 应包含 OpenAPI 能力描述。"""
+        result = render_chat_system_prompt(
+            current_time="2026-05-24 14:30",
+            permission_level=1,
+        )
+        assert "admin_capabilities" in result
+        assert "OpenAPI 文档知识库" in result
+        assert "当前知识库未找到相关接口" in result
+
+    def test_super_admin_prompt_includes_openapi_capability(self):
+        """超级管理员（permission_level=2）Prompt 应包含 OpenAPI 能力描述。"""
+        result = render_chat_system_prompt(
+            current_time="2026-05-24 14:30",
+            permission_level=2,
+        )
+        assert "admin_capabilities" in result
+        assert "OpenAPI 文档知识库" in result
+
 
 class TestRenderCurrentGoalPrompt:
     """测试 render_current_goal_prompt 渲染逻辑。"""

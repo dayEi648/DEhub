@@ -2,7 +2,7 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, ai_chat as chat, user_favorites, uploads, system_logs
+from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, ai_chat as chat, user_favorites, uploads, system_logs, openapi_knowledge
 from app.core.exceptions import (
     http_exception_handler,
     validation_exception_handler,
@@ -74,6 +74,7 @@ app.include_router(user_favorites.router_favorites, prefix="/api/v1")
 app.include_router(user_favorites.router_follows, prefix="/api/v1")
 app.include_router(uploads.router, prefix="/api/v1")
 app.include_router(system_logs.router, prefix="/api/v1")
+app.include_router(openapi_knowledge.router, prefix="/api/v1")
 
 @app.get("/")
 def root():

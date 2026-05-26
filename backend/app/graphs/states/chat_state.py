@@ -13,3 +13,4 @@ class ChatState(AgentState):
     profile_text: str | None = None
     prompt_scene: str | None = None
     current_goal: str | None = None
+    permission_level: int | None = None
