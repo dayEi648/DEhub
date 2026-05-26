@@ -4,6 +4,7 @@
 """
 
 import hashlib
+import inspect
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
@@ -20,6 +21,12 @@ class TestUploadDocument:
 
     def _make_file(self, content: bytes, filename: str = "api.json"):
         return {"file": (filename, BytesIO(content), "application/json")}
+
+    @staticmethod
+    def _consume_background_task(coro):
+        """消费并关闭上传接口创建的协程，避免测试产生 unawaited warning。"""
+        if inspect.iscoroutine(coro):
+            coro.close()
 
     def test_normal_user_upload_returns_403(self, client: TestClient, normal_user):
         """普通用户上传应返回 403。"""
@@ -52,7 +59,9 @@ class TestUploadDocument:
     def test_admin_upload_returns_document_id(self, auth_client: TestClient):
         """管理员上传应返回 document_id 和 pending 状态。"""
         with patch("app.api.v1.openapi_knowledge.background_task_manager") as mock_btm:
-            mock_btm.create_task = MagicMock()
+            mock_btm.create_task = MagicMock(
+                side_effect=lambda coro, name=None: self._consume_background_task(coro)
+            )
             resp = auth_client.post(
                 "/api/v1/openapi_knowledge/documents/upload",
                 files=self._make_file(b'{"openapi":"3.0.0","paths":{}}'),
@@ -95,7 +104,9 @@ class TestUploadDocument:
         old_id = old_doc.id
 
         with patch("app.api.v1.openapi_knowledge.background_task_manager") as mock_btm:
-            mock_btm.create_task = MagicMock()
+            mock_btm.create_task = MagicMock(
+                side_effect=lambda coro, name=None: self._consume_background_task(coro)
+            )
             resp = auth_client.post(
                 "/api/v1/openapi_knowledge/documents/upload",
                 files=self._make_file(content, "api.json"),
