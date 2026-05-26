@@ -83,7 +83,7 @@ class OpenAPIEmbeddingService:
                 )
             )
 
-        # 入库
+        # 入库（统一事务，避免部分提交导致状态不一致）
         inserted = 0
         for chunk, embedding in zip(new_chunks, embeddings):
             chunk_id = chunk["chunk_id"]
@@ -103,6 +103,7 @@ class OpenAPIEmbeddingService:
                         description=chunk.get("description"),
                         tags=chunk.get("tags"),
                         operation_id=chunk.get("operation_id"),
+                        commit=False,
                     )
                 else:
                     crud.update_endpoint_embedding(
@@ -117,6 +118,7 @@ class OpenAPIEmbeddingService:
                         description=chunk.get("description"),
                         tags=chunk.get("tags"),
                         operation_id=chunk.get("operation_id"),
+                        commit=False,
                     )
                 inserted += 1
             except Exception as exc:
@@ -124,6 +126,7 @@ class OpenAPIEmbeddingService:
                 logger.exception("端点向量入库失败: chunk_id=%s", chunk_id)
                 raise RuntimeError(f"端点向量入库失败: chunk_id={chunk_id}") from exc
 
+        self.db.commit()
         logger.info(
             "OpenAPI 向量同步完成: doc_id=%s, 新端点=%s, 入库=%s",
             document_id,

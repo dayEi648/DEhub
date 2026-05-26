@@ -46,6 +46,12 @@ async def _process_openapi_document(document_id: int, content: bytes, filename: 
         try:
             crud.update_document_status(db, document_id, "processing")
 
+            # 并发安全检查：文档可能在上传后被删除
+            doc = crud.get_document_by_id(db, document_id)
+            if doc is None:
+                logger.warning("文档在解析前已被删除，终止后台任务: doc_id=%s", document_id)
+                return
+
             chunks = parser.parse(content, filename, document_id)
 
             # 向量入库

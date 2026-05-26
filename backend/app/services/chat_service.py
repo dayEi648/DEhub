@@ -739,6 +739,7 @@ class ChatService:
             scene=result.get("prompt_scene"),
             profile_text=result.get("profile_text"),
             current_goal=result.get("current_goal"),
+            permission_level=self.permission_level,
         )
         token_messages = [SystemMessage(content=system_prompt), *messages]
         try:

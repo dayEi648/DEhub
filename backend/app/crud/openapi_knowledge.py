@@ -159,6 +159,7 @@ def create_endpoint_embedding(
     description: str | None = None,
     tags: list[str] | None = None,
     operation_id: str | None = None,
+    commit: bool = True,
 ) -> OpenAPIEndpointEmbedding:
     """创建端点向量记录。
 
@@ -175,6 +176,7 @@ def create_endpoint_embedding(
         description: OpenAPI description（可选）
         tags: 标签列表（可选）
         operation_id: OpenAPI operationId（可选）
+        commit: 是否立即提交事务，默认 True；批量场景由调用方统一控制时可设为 False
 
     Returns:
         新建的 OpenAPIEndpointEmbedding 记录
@@ -193,8 +195,9 @@ def create_endpoint_embedding(
         operation_id=operation_id,
     )
     db.add(ep)
-    db.commit()
-    db.refresh(ep)
+    if commit:
+        db.commit()
+        db.refresh(ep)
     return ep
 
 
@@ -222,8 +225,27 @@ def update_endpoint_embedding(
     description: str | None = None,
     tags: list[str] | None = None,
     operation_id: str | None = None,
+    commit: bool = True,
 ) -> OpenAPIEndpointEmbedding:
-    """更新已有端点向量记录。"""
+    """更新已有端点向量记录。
+
+    Args:
+        db: 数据库会话
+        endpoint: 待更新的端点记录
+        path: API 路径
+        method: HTTP 方法
+        content: 用于 RAG 的端点文本
+        embedding: 向量
+        content_hash: 端点内容 hash（可选）
+        summary: OpenAPI summary（可选）
+        description: OpenAPI description（可选）
+        tags: 标签列表（可选）
+        operation_id: OpenAPI operationId（可选）
+        commit: 是否立即提交事务，默认 True；批量场景由调用方统一控制时可设为 False
+
+    Returns:
+        更新后的 OpenAPIEndpointEmbedding 记录
+    """
     endpoint.path = path
     endpoint.method = method.upper()
     endpoint.content = content
@@ -233,8 +255,9 @@ def update_endpoint_embedding(
     endpoint.description = description
     endpoint.tags = tags
     endpoint.operation_id = operation_id
-    db.commit()
-    db.refresh(endpoint)
+    if commit:
+        db.commit()
+        db.refresh(endpoint)
     return endpoint
 
 
