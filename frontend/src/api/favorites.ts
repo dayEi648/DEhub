@@ -1,7 +1,6 @@
 import request from '../utils/request'
 import type { BlogPostListResponse } from '../types/blog'
-import type { ForumPostListResponse } from '../types/forum'
-import type { ForumZone } from '../types/forum'
+import type { PostFavoriteListResponse, ZoneFollowListResponse } from '../types/forum'
 
 // ===== Blog Post Favorites =====
 
@@ -24,7 +23,7 @@ export function getBlogPostFavoriteStatus(postId: number) {
 // ===== Forum Post Favorites =====
 
 export function getFavoriteForumPosts(params: { skip?: number; limit?: number } = {}) {
-  return request.get<ForumPostListResponse>('/favorites/forum-posts', { params })
+  return request.get<PostFavoriteListResponse>('/favorites/forum-posts', { params })
 }
 
 export function favoriteForumPost(postId: number) {
@@ -40,11 +39,6 @@ export function getForumPostFavoriteStatus(postId: number) {
 }
 
 // ===== Zone Follows =====
-
-export interface ZoneFollowListResponse {
-  items: ForumZone[]
-  total: number
-}
 
 export function getFollowedZones(params: { skip?: number; limit?: number } = {}) {
   return request.get<ZoneFollowListResponse>('/follows/zones', { params })

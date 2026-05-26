@@ -27,8 +27,15 @@ export function createUser(data: CreateUserData) {
   return request.post<User>('/users/', data)
 }
 
-export function updateUser(userId: number, data: UpdateUserData | FormData) {
-  return request.put<User>(`/users/${userId}`, data)
+export function updateUser(userId: number, data: UpdateUserData, file?: File) {
+  const formData = new FormData()
+  formData.append('user_in', JSON.stringify(data))
+  if (file) {
+    formData.append('file', file)
+  }
+  return request.put<User>(`/users/${userId}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
 }
 
 export function deleteUser(userId: number) {

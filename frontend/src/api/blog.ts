@@ -44,9 +44,7 @@ export interface BlogPostUpdateData {
 export function createBlogPost(data: BlogPostCreateData, file: File) {
   const formData = new FormData()
   formData.append('post_in', JSON.stringify(data))
-  if (file) {
-    formData.append('file', file)
-  }
+  formData.append('file', file)
   return request.post<BlogPostDetailResponse>('/blog_posts/', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })

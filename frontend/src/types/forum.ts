@@ -88,3 +88,13 @@ export interface ForumReplyListParams {
 export interface ForumReplyCreateData {
   content: string
 }
+
+export interface PostFavoriteListResponse {
+  items: ForumPost[]
+  total: number
+}
+
+export interface ZoneFollowListResponse {
+  items: ForumZone[]
+  total: number
+}

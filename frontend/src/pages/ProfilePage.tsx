@@ -361,18 +361,13 @@ export default function ProfilePage() {
 
     setSavingProfile(true)
     try {
-      const formData = new FormData()
       const userIn = {
         username: editUsername.trim(),
         email: editEmail.trim(),
         personal_profile: editProfile.trim() || undefined,
       }
-      formData.append('user_in', JSON.stringify(userIn))
-      if (avatarFile) {
-        formData.append('file', avatarFile)
-      }
 
-      const res = await updateUser(userId, formData)
+      const res = await updateUser(userId, userIn, avatarFile || undefined)
       setUserState(res.data)
       setUser(res.data)
       setIsEditing(false)

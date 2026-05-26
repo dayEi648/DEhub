@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { clearAuth, getRefreshToken } from './auth'
+import { clearAuth, getRefreshToken, setToken, setRefreshToken, setUser } from './auth'
 import { refreshToken } from '../api/users'
 
 const request = axios.create({
@@ -46,11 +46,11 @@ request.interceptors.response.use(
           try {
             const res = await refreshToken({ refresh_token: rt })
             const newToken = res.data.access_token
-            localStorage.setItem('token', newToken)
+            setToken(newToken)
             if (res.data.refresh_token) {
-              localStorage.setItem('refresh_token', res.data.refresh_token)
+              setRefreshToken(res.data.refresh_token)
             }
-            localStorage.setItem('user', JSON.stringify(res.data.user))
+            setUser(res.data.user)
             onRefreshed(newToken)
             isRefreshing = false
             originalRequest.headers.Authorization = `Bearer ${newToken}`
