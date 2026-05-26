@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, func, CheckConstraint
+from sqlalchemy import String, DateTime, func, CheckConstraint, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
@@ -23,4 +23,4 @@ class User(Base):
     permission: Mapped[int] = mapped_column(default=0, nullable=False)
     is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    personal_profile: Mapped[str | None] = mapped_column(nullable=True)
+    personal_profile: Mapped[str | None] = mapped_column(Text, nullable=True)

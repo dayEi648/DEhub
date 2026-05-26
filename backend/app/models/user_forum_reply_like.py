@@ -13,10 +13,10 @@ class UserForumReplyLike(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     reply_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("forum_replies.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("forum_replies.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False
     )
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

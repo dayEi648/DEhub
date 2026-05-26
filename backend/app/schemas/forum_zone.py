@@ -31,7 +31,6 @@ class ForumZoneResponse(ForumZoneBase):
     id: int
     manager_id: int
     manager: UserBriefInfo
-    view_count: int
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

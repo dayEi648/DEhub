@@ -17,7 +17,6 @@ def _make_mock_zone():
     zone.zone_name = "Test Zone"
     zone.description = None
     zone.manager_id = 1
-    zone.view_count = 0
     zone.created_at = datetime.now(timezone.utc)
     zone.manager = MagicMock()
     zone.manager.id = 1

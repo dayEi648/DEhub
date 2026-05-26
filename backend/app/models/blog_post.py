@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, func, BigInteger, ARRAY, Integer, ForeignKey
+from sqlalchemy import String, DateTime, func, BigInteger, ARRAY, Integer, ForeignKey, CheckConstraint
 from sqlalchemy.dialects.postgresql import TEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
@@ -13,6 +13,10 @@ if TYPE_CHECKING:
 
 class BlogPost(Base):
     __tablename__ = "blog_posts"
+
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'published')", name="ck_blog_posts_status"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(64), nullable=False)
