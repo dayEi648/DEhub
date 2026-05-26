@@ -28,13 +28,13 @@ class Settings(BaseSettings):
     LLM_MAIN_API_KEY: str = Field(default="")
     LLM_MAIN_BASE_URL: str = Field(default="")
     LLM_MAIN_MODEL: str = Field(default="")
-    LLM_MAIN_MAX_TOKENS: int = Field(default=800000)
+    LLM_MAIN_MAX_TOKENS: int = Field(default=50000)
     LLM_MAIN_TEMPERATURE: float = Field(default=0.6)
     LLM_MAIN_TIMEOUT: int = Field(default=60)
     LLM_SMALL_API_KEY: str = Field(default="")
     LLM_SMALL_BASE_URL: str = Field(default="")
     LLM_SMALL_MODEL: str = Field(default="")
-    LLM_SMALL_MAX_TOKENS: int = Field(default=500000)
+    LLM_SMALL_MAX_TOKENS: int = Field(default=50000)
     LLM_SMALL_TEMPERATURE: float = Field(default=0.6)
     LLM_SMALL_TIMEOUT: int = Field(default=60)
 
@@ -107,6 +107,17 @@ class Settings(BaseSettings):
 
     # RAG 向量检索相似度阈值（低于此值的结果不会注入 AI 上下文）
     RAG_MIN_SIMILARITY: float = Field(default=0.6)
+
+    # ---------- 博客文章配置 ----------
+    # 生成摘要的正文字数阈值（去除 Markdown 标记后的有效字符数）
+    BLOG_SUMMARY_CONTENT_THRESHOLD: int = Field(default=2000)
+    # 摘要字数范围
+    BLOG_SUMMARY_MIN_LENGTH: int = Field(default=500)
+    BLOG_SUMMARY_MAX_LENGTH: int = Field(default=2000)
+    # 摘要生成 LLM 超时（秒）
+    BLOG_SUMMARY_LLM_TIMEOUT: int = Field(default=180)
+    # 博客向量文本最大长度（超过则截断到句子边界）
+    BLOG_EMBEDDING_MAX_TEXT_LENGTH: int = Field(default=6000)
 
     @property
     def EMBEDDING_DIMENSION_EFFECTIVE(self) -> int:

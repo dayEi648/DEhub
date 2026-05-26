@@ -11,8 +11,6 @@ from app.schemas.blog_post import (
     BlogPostResponse,
     BlogPostDetailResponse,
     BlogPostListResponse,
-    GenerateSummaryRequest,
-    GenerateSummaryResponse,
 )
 from app.services.blog_post_service import BlogPostService
 
@@ -134,21 +132,6 @@ def get_blog_post_by_slug(
     """
     service = BlogPostService(db)
     return service.get_blog_post_by_slug(slug, current_user)
-
-
-@router.post("/generate-summary", response_model=GenerateSummaryResponse)
-async def generate_summary(
-    req: GenerateSummaryRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> GenerateSummaryResponse:
-    """
-    AI 自动生成文章摘要（超级管理员专属）
-    正文需至少 100 字符
-    """
-    service = BlogPostService(db)
-    summary = await service.generate_summary(req.content_md, current_user)
-    return GenerateSummaryResponse(summary=summary)
 
 
 @router.get("/", response_model=BlogPostListResponse)

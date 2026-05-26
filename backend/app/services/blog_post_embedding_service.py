@@ -12,9 +12,6 @@ from app.schemas.blog_post_embedding import BlogPostSearchResult
 
 logger = logging.getLogger(__name__)
 
-# 向量化文本的最大字符数（text-embedding-v4 上下文充裕的安全阈值）
-_MAX_EMBEDDING_TEXT_LENGTH = 6000
-
 
 class BlogPostEmbeddingService:
     """
@@ -36,24 +33,28 @@ class BlogPostEmbeddingService:
         """
         将文章各字段拼接为待嵌入的单一文本。
 
-        优先级：标题 > 摘要 > 标签 > 正文。
-        超长时截断到最近的句子边界，确保标题和摘要一定保留。
+        策略：
+        - 有摘要时：标题 + 标签 + 摘要
+        - 无摘要时：标题 + 标签 + 正文
+
+        超长时截断到最近的句子边界，确保标题一定保留。
         """
         parts = [f"标题：{post.title}"]
-
-        if post.summary:
-            parts.append(f"摘要：{post.summary}")
 
         if post.tags:
             tags_str = ", ".join(str(t) for t in post.tags)
             parts.append(f"标签：{tags_str}")
 
-        parts.append(f"正文：{post.content_md}")
+        if post.summary:
+            parts.append(f"摘要：{post.summary}")
+        else:
+            parts.append(f"正文：{post.content_md}")
 
         text = "\n\n".join(parts)
-        if len(text) > _MAX_EMBEDDING_TEXT_LENGTH:
+        max_length = settings.BLOG_EMBEDDING_MAX_TEXT_LENGTH
+        if len(text) > max_length:
             # 截断到最近的句子边界，避免语义断裂
-            truncated = text[:_MAX_EMBEDDING_TEXT_LENGTH]
+            truncated = text[:max_length]
             # 从末尾向前查找句子结束符
             last_break = max(
                 truncated.rfind("。"),

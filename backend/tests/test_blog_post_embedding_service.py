@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from app.core.config import settings
 from app.services.blog_post_embedding_service import BlogPostEmbeddingService
 
 
@@ -18,7 +19,7 @@ class TestBuildEmbeddingText:
         post.content_md = "这是第一句。这是第二句。这是第三句。" + "x" * 10000
 
         text = BlogPostEmbeddingService._build_embedding_text(post)
-        assert len(text) <= 6000
+        assert len(text) <= settings.BLOG_EMBEDDING_MAX_TEXT_LENGTH
         # 最后一个字符应该是句子结束符
         assert text[-1] in {"。", ".", "\n"}
 

@@ -256,10 +256,10 @@ class TestBlogPostCacheInvalidation:
     @patch("app.services.blog_post_service.blog_post_crud.get_blog_post_by_slug")
     @patch("app.services.blog_post_service.blog_post_crud.get_blog_post_by_id")
     @patch("app.services.blog_post_service.blog_post_crud.create_blog_post")
-    async def test_create_published_post_invalidates_cache(
+    async def test_create_draft_post_does_not_invalidate_cache(
         self, mock_create, mock_get_by_id, mock_get_slug, mock_embed_cls, mock_invalidate
     ):
-        """创建 published 文章后应失效缓存。"""
+        """创建 draft 文章后不应触发缓存失效（草稿不影响公共列表）。"""
         db = MagicMock()
         service = BlogPostService(db)
         current_user = MagicMock()
@@ -267,11 +267,13 @@ class TestBlogPostCacheInvalidation:
 
         post_in = MagicMock()
         post_in.slug = "test"
-        post_in.model_dump.return_value = {"title": "t", "status": "published"}
+        post_in.content_md = "short content"
+        post_in.model_copy.return_value = post_in
+        post_in.model_dump.return_value = {"title": "t", "status": "draft"}
 
         mock_get_slug.return_value = None
         db_post = MagicMock()
-        db_post.status = "published"
+        db_post.status = "draft"
         db_post.id = 1
         mock_create.return_value = db_post
         mock_get_by_id.return_value = db_post
@@ -280,7 +282,7 @@ class TestBlogPostCacheInvalidation:
             mock_upload.return_value = "http://cover.jpg"
             await service.create_blog_post(post_in, current_user, MagicMock())
 
-        mock_invalidate.assert_called_once()
+        mock_invalidate.assert_not_called()
 
     @pytest.mark.asyncio
     @patch("app.services.blog_post_service.BlogCacheInvalidator.invalidate_all")

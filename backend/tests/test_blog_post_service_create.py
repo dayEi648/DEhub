@@ -24,11 +24,9 @@ async def test_create_blog_post_upload_fail_should_not_create_post(
     post_in = BlogPostCreate(
         title="t",
         slug="test-slug",
-        summary="s",
         content_md="c",
         category_id=1,
         tags=[],
-        status="draft",
     )
 
     mock_get_blog_post_by_slug.return_value = None
@@ -61,11 +59,9 @@ async def test_create_blog_post_db_failure_should_cleanup_uploaded_cover(
     post_in = BlogPostCreate(
         title="t",
         slug="test-slug",
-        summary="s",
         content_md="c",
         category_id=1,
         tags=[],
-        status="draft",
     )
 
     mock_get_blog_post_by_slug.return_value = None

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { X, Plus, Trash2, Sparkles } from 'lucide-react'
+import { X, Plus, Trash2 } from 'lucide-react'
 import { validateImageFile, createImagePreview } from '../utils/upload'
 import { uploadImage } from '../api/upload'
-import { generateBlogSummary } from '../api/blog'
 import type { BlogCategoryWithPostCount, BlogPostListItem } from '../types/blog'
 
 interface BlogPostEditItem extends BlogPostListItem {
@@ -17,11 +16,9 @@ interface BlogEditorModalProps {
   onSubmit: (data: {
     title: string
     slug: string
-    summary: string
     content_md: string
     category_id: number
     tags: string[]
-    status: 'draft' | 'published'
     file?: File
   }) => void
   submitting?: boolean
@@ -37,37 +34,30 @@ export default function BlogEditorModal({
   const isEdit = !!post
   const [title, setTitle] = useState('')
   const [slug, setSlug] = useState('')
-  const [summary, setSummary] = useState('')
   const [contentMd, setContentMd] = useState('')
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState<number>(categories[0]?.id ?? 0)
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
-  const [status, setStatus] = useState<'draft' | 'published'>('draft')
-  const [generatingSummary, setGeneratingSummary] = useState(false)
 
   useEffect(() => {
     if (post) {
       setTitle(post.title)
       setSlug(post.slug)
-      setSummary(post.summary || '')
       setContentMd((post as unknown as { content_md?: string }).content_md || '')
       setCoverFile(null)
       setCoverPreview(post.cover_image_url || null)
       setCategoryId(post.category_id)
       setTags(post.tags || [])
-      setStatus(post.status as 'draft' | 'published')
     } else {
       setTitle('')
       setSlug('')
-      setSummary('')
       setContentMd('')
       setCoverFile(null)
       setCoverPreview(null)
       setCategoryId(categories[0]?.id ?? 0)
       setTags([])
-      setStatus('draft')
     }
   }, [post, categories])
 
@@ -160,31 +150,11 @@ export default function BlogEditorModal({
     onSubmit({
       title: title.trim(),
       slug: slug.trim(),
-      summary: summary.trim(),
       content_md: contentMd.trim(),
       category_id: categoryId,
       tags,
-      status,
       file: coverFile ?? undefined,
     })
-  }
-
-  const handleGenerateSummary = async () => {
-    const content = contentMd.trim()
-    if (content.length < 100) {
-      toast.error('正文至少 100 字符后才能生成摘要')
-      return
-    }
-    setGeneratingSummary(true)
-    try {
-      const res = await generateBlogSummary(content)
-      setSummary(res.data.summary)
-      toast.success('摘要已生成')
-    } catch {
-      toast.error('摘要生成失败，请稍后重试')
-    } finally {
-      setGeneratingSummary(false)
-    }
   }
 
   const inputStyle: React.CSSProperties = {
@@ -281,38 +251,7 @@ export default function BlogEditorModal({
             </div>
           </div>
 
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--spacing-sm)' }}>
-              <label style={labelStyle}>摘要</label>
-              <button
-                type="button"
-                onClick={handleGenerateSummary}
-                disabled={generatingSummary || submitting || contentMd.trim().length < 100}
-                style={{
-                  height: 30,
-                  padding: '0 12px',
-                  borderRadius: 'var(--rounded-pill)',
-                  border: '1px solid var(--color-hairline)',
-                  backgroundColor: 'var(--color-surface-card)',
-                  color: 'var(--color-ink)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: generatingSummary || submitting || contentMd.trim().length < 100 ? 'not-allowed' : 'pointer',
-                  opacity: generatingSummary || submitting || contentMd.trim().length < 100 ? 0.55 : 1,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  marginBottom: 'var(--spacing-xs)',
-                }}
-              >
-                <Sparkles size={13} />
-                {generatingSummary ? '生成中…' : '轻量 AI 生成'}
-              </button>
-            </div>
-            <input type="text" placeholder="文章摘要" style={inputStyle} value={summary} onChange={(e) => setSummary(e.target.value)} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isEdit ? '1fr 1fr' : '1fr', gap: 'var(--spacing-md)' }}>
             <div>
               <label style={labelStyle}>分类 *</label>
               <select
@@ -327,17 +266,21 @@ export default function BlogEditorModal({
                 ))}
               </select>
             </div>
-            <div>
-              <label style={labelStyle}>状态</label>
-              <select
-                style={inputStyle}
-                value={status}
-                onChange={(e) => setStatus(e.target.value as 'draft' | 'published')}
-              >
-                <option value="draft">草稿</option>
-                <option value="published">已发布</option>
-              </select>
-            </div>
+            {isEdit && (
+              <div>
+                <label style={labelStyle}>状态</label>
+                <div
+                  style={{
+                    ...inputStyle,
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: 'var(--color-muted)',
+                  }}
+                >
+                  {post?.status === 'published' ? '已发布' : '草稿'}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

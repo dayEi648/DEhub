@@ -20,17 +20,19 @@ class BlogPostBase(BaseModel):
 class BlogPostCreate(BlogPostBase):
     """创建博客文章请求"""
     slug: str | None = Field(default=None, min_length=1, max_length=255)
+    # summary 继承自 BlogPostBase (Optional[str])，服务层会强制设为 None
+    status: str = Field(default="draft", pattern=r"^(draft)$")  # 强制草稿
 
 
 class BlogPostUpdate(BaseModel):
-    """更新博客文章请求：全可选"""
+    """更新博客文章请求：全可选。不允许前端修改摘要和状态（发布请使用专用接口）。"""
     title: Optional[str] = Field(default=None, min_length=1, max_length=64)
     slug: Optional[str] = Field(default=None, min_length=1, max_length=255)
-    summary: Optional[str] = None
+    summary: Optional[str] = None  # 后端内部使用，前端传入会被忽略
     content_md: Optional[str] = None
     category_id: Optional[int] = Field(default=None, ge=1)
     tags: Optional[list[str]] = None
-    status: Optional[str] = Field(default=None, pattern=r"^(draft|published)$")
+    status: Optional[str] = Field(default=None, pattern=r"^(draft|published)$")  # 后端会忽略此字段
 
 
 class BlogPostResponse(BlogPostBase):
@@ -83,11 +85,4 @@ class BlogPostDetailResponse(BlogPostResponse):
     next_post: Optional[BlogPostListItem] = None
 
 
-class GenerateSummaryRequest(BaseModel):
-    """AI 生成摘要请求"""
-    content_md: str = Field(min_length=100, description="Markdown 正文，至少 100 字符")
 
-
-class GenerateSummaryResponse(BaseModel):
-    """AI 生成摘要响应"""
-    summary: str

@@ -20,7 +20,9 @@ from app.crud import blog_post as blog_post_crud
 from app.utils.slug import generate_unique_slug
 from app.storage.oss import upload_image, ImageUploadScene, convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
 from app.services.oss_cleanup_service import OssCleanupService
-from app.infrastructure.llm_client import get_llm_small_client
+import re
+
+from app.infrastructure.llm_client import create_llm_small_client
 from app.services.blog_post_embedding_service import BlogPostEmbeddingService
 from app.infrastructure.cache import (
     build_cache_key,
@@ -31,6 +33,7 @@ from app.infrastructure.cache import (
 )
 from app.infrastructure.cache_invalidator import BlogCacheInvalidator
 from app.core.config import settings
+from app.prompts.blog_prompts import render_blog_summary_prompt
 from langchain_core.messages import SystemMessage, HumanMessage
 
 logger = logging.getLogger(__name__)
@@ -65,10 +68,67 @@ class BlogPostService:
 
     # ---------- 写操作（超管专属）----------
 
+    @staticmethod
+    def _count_content_chars(content_md: str) -> int:
+        """统计 Markdown 正文去除标记后的纯文本有效字符数（空白不计入）。"""
+        text = content_md
+        # 去除代码块
+        text = re.sub(r'```[\s\S]*?```', '\n', text)
+        # 去除行内代码
+        text = re.sub(r'`[^`]*`', '', text)
+        # 去除图片
+        text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
+        # 去除链接（保留文本）
+        text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
+        # 去除标题标记
+        text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+        # 去除粗体/斜体标记
+        text = re.sub(r'\*\*|__|\*|_', '', text)
+        # 去除列表标记
+        text = re.sub(r'^[\*\-\+]\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
+        # 去除引用标记
+        text = re.sub(r'^>\s?', '', text, flags=re.MULTILINE)
+        # 去除水平线（支持前后空格）
+        text = re.sub(r'^\s*-{3,}\s*$', '', text, flags=re.MULTILINE)
+        # 去除 HTML 标签
+        text = re.sub(r'<[^>]+>', '', text)
+        # 去除表格竖线分隔符
+        text = re.sub(r'\|', ' ', text)
+        # 将连续空白（换行、空格、制表符）压缩为单个空格，避免格式空白影响字数
+        text = re.sub(r'\s+', ' ', text)
+        return len(text.strip())
+
+    async def _auto_generate_summary(self, content_md: str) -> str | None:
+        """
+        自动为长文生成摘要。仅在正文字数超过阈值时调用。
+        失败时返回 None（不抛异常，避免阻塞创建/更新流程）。
+        """
+        system_prompt, user_prompt = render_blog_summary_prompt(
+            content_md=content_md,
+            min_length=settings.BLOG_SUMMARY_MIN_LENGTH,
+            max_length=settings.BLOG_SUMMARY_MAX_LENGTH,
+        )
+        try:
+            client = create_llm_small_client(timeout=settings.BLOG_SUMMARY_LLM_TIMEOUT)
+            response = await client.ainvoke([
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt),
+            ])
+            summary = str(response.content).strip()
+            if summary:
+                return summary
+        except Exception as e:
+            logger.warning("AI 摘要生成失败: %s", e)
+        return None
+
     async def create_blog_post(
         self, post_in: BlogPostCreate, current_user: User, file: UploadFile
     ) -> BlogPost:
         self._require_super_admin(current_user)
+
+        # 强制为草稿，忽略前端传入的摘要
+        post_in = post_in.model_copy(update={"status": "draft", "summary": None})
 
         # 若未提供 slug，根据标题自动生成
         if not post_in.slug:
@@ -78,6 +138,13 @@ class BlogPostService:
             post_in = post_in.model_copy(update={"slug": slug})
         else:
             self._ensure_slug_unique(post_in.slug)
+
+        # 根据正文长度自动判断是否需要生成摘要
+        content_chars = self._count_content_chars(post_in.content_md)
+        if content_chars > settings.BLOG_SUMMARY_CONTENT_THRESHOLD:
+            summary = await self._auto_generate_summary(post_in.content_md)
+            if summary:
+                post_in = post_in.model_copy(update={"summary": summary})
 
         # 先上传再入库，避免上传失败时产生无效数据；若后续入库失败则清理新文件。
         cover_url = await upload_image(file, ImageUploadScene.cover)
@@ -98,12 +165,7 @@ class BlogPostService:
             )
             raise
 
-        # 若创建即发布，异步生成向量嵌入
-        if db_post.status == "published":
-            embed_service = BlogPostEmbeddingService(self.db)
-            await asyncio.to_thread(embed_service.sync_post_embedding, db_post.id)
-            # 发布状态的文章会影响公共列表和分类计数
-            BlogCacheInvalidator.invalidate_all()
+        # 创建即 draft，无需生成向量嵌入
 
         # 重新查询以加载 category 关联，避免延迟加载问题
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
@@ -162,6 +224,25 @@ class BlogPostService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
 
         update_data = post_in.model_dump(exclude_unset=True)
+
+        # 禁止前端修改摘要和状态
+        update_data.pop("summary", None)
+        update_data.pop("status", None)
+
+        # 如果正文发生实际变化，重新判断字数并生成/清除摘要
+        new_content = update_data.get("content_md")
+        if new_content is not None and new_content != db_post.content_md:
+            content_chars = self._count_content_chars(new_content)
+            if content_chars > settings.BLOG_SUMMARY_CONTENT_THRESHOLD:
+                summary = await self._auto_generate_summary(new_content)
+            else:
+                summary = None
+            update_data["summary"] = summary
+            db_post.summary = summary  # 提前赋值，避免 CRUD 层覆盖
+
+        # 重新构造 post_in（已去掉 status，并加入后端生成的 summary）
+        post_in = BlogPostUpdate.model_validate(update_data)
+
         if "slug" in update_data and update_data["slug"] != db_post.slug:
             self._ensure_slug_unique(update_data["slug"], exclude_post_id=db_post.id)
 
@@ -375,33 +456,4 @@ class BlogPostService:
 
     # ---------- AI 辅助功能 ----------
 
-    async def generate_summary(self, content_md: str, current_user: User) -> str:
-        """
-        调用 LLM 根据文章正文生成摘要
-        Args:
-            content_md: Markdown 正文
-            current_user: 当前用户
-        Returns:
-            str: 生成的摘要
-        """
-        self._require_super_admin(current_user)
 
-        prompt = (
-            "请根据以下 Markdown 格式的文章正文，生成一段 20~200 字的中文摘要。"
-            "摘要应准确概括文章核心内容，语言简洁流畅，不要包含 Markdown 标记。"
-            "只输出摘要正文，不要添加任何前缀、标题或解释。\n\n"
-            f"{content_md}"
-        )
-
-        response = await get_llm_small_client().ainvoke([
-            SystemMessage(content="你是一位专业的技术博客编辑，擅长提炼文章要点。"),
-            HumanMessage(content=prompt),
-        ])
-
-        summary = str(response.content).strip()
-        if not summary:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="摘要生成失败，请稍后重试"
-            )
-        return summary

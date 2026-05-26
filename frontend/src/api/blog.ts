@@ -28,21 +28,17 @@ export function createBlogCategory(data: BlogCategoryCreateData) {
 export interface BlogPostCreateData {
   title: string
   slug?: string
-  summary?: string
   content_md: string
   category_id: number
   tags?: string[]
-  status?: 'draft' | 'published'
 }
 
 export interface BlogPostUpdateData {
   title?: string
   slug?: string
-  summary?: string
   content_md?: string
   category_id?: number
   tags?: string[]
-  status?: 'draft' | 'published'
 }
 
 export function createBlogPost(data: BlogPostCreateData, file: File) {
@@ -79,6 +75,3 @@ export function unpublishBlogPost(postId: number) {
   return request.post<BlogPostDetailResponse>(`/blog_posts/${postId}/unpublish`)
 }
 
-export function generateBlogSummary(contentMd: string) {
-  return request.post<{ summary: string }>('/blog_posts/generate-summary', { content_md: contentMd })
-}

@@ -111,6 +111,21 @@ def get_llm_small_client() -> ChatOpenAI:
     return _llm_small_client
 
 
+def create_llm_small_client(timeout: int | None = None) -> ChatOpenAI:
+    """
+    创建一个临时的小模型 ChatOpenAI 实例，可覆盖 timeout。
+    用于需要比全局单例更长/更短超时时间的场景（如长文摘要生成）。
+    """
+    return ChatOpenAI(
+        api_key=settings.LLM_SMALL_API_KEY,
+        base_url=normalize_openai_base_url(settings.LLM_SMALL_BASE_URL),
+        model=settings.LLM_SMALL_MODEL,
+        max_tokens=settings.LLM_SMALL_MAX_TOKENS,
+        temperature=settings.LLM_SMALL_TEMPERATURE,
+        timeout=timeout if timeout is not None else settings.LLM_SMALL_TIMEOUT,
+    )
+
+
 def close_llm_client() -> None:
     """释放全局主模型单例引用。"""
     global _llm_client

@@ -140,6 +140,25 @@ def blog_post(db_session, admin_user, blog_category):
 
 
 @pytest.fixture
+def draft_blog_post(db_session, admin_user, blog_category):
+    """创建一篇草稿状态的博客文章。"""
+    post = BlogPost(
+        title="草稿文章",
+        slug="draft-post",
+        summary=None,
+        content_md="# Draft\n\n这是一篇草稿文章。",
+        user_id=admin_user.id,
+        category_id=blog_category.id,
+        status="draft",
+        tags=["draft"],
+    )
+    db_session.add(post)
+    db_session.commit()
+    db_session.refresh(post)
+    return post
+
+
+@pytest.fixture
 def auth_client(db_session, admin_user):
     """
     已认证的 TestClient，默认以 admin_user 身份访问。
