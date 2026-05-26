@@ -138,9 +138,6 @@ celerybeat.pid
 *.aof
 *.pid
 
-# Postgresql
-sql/
-
 # RabbitMQ
 mnesia/
 rabbitmq/
@@ -234,7 +231,7 @@ DESIGN.md
 
 workflow.md
 
-planing/
 png/
+Fonts/
 
 
