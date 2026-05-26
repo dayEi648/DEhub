@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isAxiosError } from 'axios'
 import { toast } from 'sonner'
 import { Archive, Bot, MessageSquarePlus, Send, ShieldAlert, Trash2 } from 'lucide-react'
+import { parseErrorMessage } from '../utils/error'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useNavigate } from 'react-router-dom'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import { useLogout } from '../hooks/useLogout'
@@ -14,18 +15,6 @@ import type { AIConversationItem, AIMessage } from '../types/aiChat'
 
 const CONVERSATION_PAGE_SIZE = 20
 const MESSAGE_PAGE_SIZE = 100
-
-function parseErrorMessage(error: unknown, fallback = '操作失败，请稍后重试'): string {
-  if (!isAxiosError(error)) return fallback
-  const data = error.response?.data
-  if (data && typeof data === 'object' && 'message' in data) {
-    const maybeMessage = data.message
-    if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
-      return maybeMessage
-    }
-  }
-  return fallback
-}
 
 function roleLabel(role: AIMessage['role']) {
   if (role === 'assistant') return 'AI'
@@ -64,6 +53,7 @@ function isDefaultVisibleMessage(message: AIMessage) {
 }
 
 export default function AIChatPage() {
+  const navigate = useNavigate()
   const handleLogout = useLogout()
   const [conversations, setConversations] = useState<AIConversationItem[]>([])
   const [conversationTotal, setConversationTotal] = useState(0)
@@ -358,6 +348,15 @@ export default function AIChatPage() {
                   />
                   包含隐藏消息
                 </label>
+              )}
+              {canViewHiddenMessages && (
+                <button
+                  type="button"
+                  className="ai-chat-panel__admin-link"
+                  onClick={() => navigate('/admin/openapi-knowledge')}
+                >
+                  接口知识库
+                </button>
               )}
             </div>
           </header>

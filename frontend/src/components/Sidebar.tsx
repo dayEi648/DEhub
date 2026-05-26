@@ -8,6 +8,7 @@ import {
   LogOut,
   User,
   Home,
+  Database,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { logout } from '../api/users'
@@ -22,6 +23,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/admin/logs', label: '日志管理', icon: <ScrollText size={18} /> },
   { to: '/admin/users', label: '用户管理', icon: <Users size={18} /> },
+  { to: '/admin/openapi-knowledge', label: '接口知识库', icon: <Database size={18} /> },
   { to: '/admin/content', label: '内容管理', icon: <FileText size={18} /> },
   { to: '/admin/settings', label: '系统设置', icon: <Settings size={18} /> },
 ]
