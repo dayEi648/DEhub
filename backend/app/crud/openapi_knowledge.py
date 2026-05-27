@@ -21,18 +21,6 @@ def create_document(
     content_hash: str,
     status: str = "pending",
 ) -> OpenAPIDocument:
-    """创建 OpenAPI 文档记录。
-
-    Args:
-        db: 数据库会话
-        uploaded_by: 上传用户 ID
-        filename: 原始文件名
-        content_hash: 文件内容 MD5 hash
-        status: 初始状态，默认 pending
-
-    Returns:
-        新建的 OpenAPIDocument 记录
-    """
     doc = OpenAPIDocument(
         uploaded_by=uploaded_by,
         filename=filename,
@@ -65,11 +53,6 @@ def list_documents(
     limit: int = 20,
     status: str | None = None,
 ) -> tuple[list[OpenAPIDocument], int]:
-    """分页查询文档列表，支持按状态过滤。
-
-    Returns:
-        (文档列表, 总数)
-    """
     query = db.query(OpenAPIDocument)
     if status:
         query = query.filter(OpenAPIDocument.status == status)
@@ -92,19 +75,6 @@ def update_document_status(
     chunk_count: int | None = None,
     error_message: str | None = None,
 ) -> OpenAPIDocument | None:
-    """更新文档解析状态。
-
-    Args:
-        db: 数据库会话
-        document_id: 文档 ID
-        status: 新状态
-        endpoint_count: 解析出的端点数量（可选）
-        chunk_count: 写入向量的分片数量（可选）
-        error_message: 失败原因（可选）
-
-    Returns:
-        更新后的记录，或 None（文档不存在）
-    """
     doc = get_document_by_id(db, document_id)
     if doc is None:
         return None
@@ -123,15 +93,6 @@ def update_document_status(
 
 
 def delete_document(db: Session, document_id: int) -> bool:
-    """删除文档及其级联端点向量。
-
-    Args:
-        db: 数据库会话
-        document_id: 文档 ID
-
-    Returns:
-        是否成功删除（记录存在且被删除）
-    """
     result = (
         db.query(OpenAPIDocument)
         .filter(OpenAPIDocument.id == document_id)
@@ -161,26 +122,6 @@ def create_endpoint_embedding(
     operation_id: str | None = None,
     commit: bool = True,
 ) -> OpenAPIEndpointEmbedding:
-    """创建端点向量记录。
-
-    Args:
-        db: 数据库会话
-        document_id: 所属文档 ID
-        chunk_id: 端点分片唯一 ID
-        path: API 路径
-        method: HTTP 方法
-        content: 用于 RAG 的端点文本
-        embedding: 向量
-        content_hash: 端点内容 hash（可选）
-        summary: OpenAPI summary（可选）
-        description: OpenAPI description（可选）
-        tags: 标签列表（可选）
-        operation_id: OpenAPI operationId（可选）
-        commit: 是否立即提交事务，默认 True；批量场景由调用方统一控制时可设为 False
-
-    Returns:
-        新建的 OpenAPIEndpointEmbedding 记录
-    """
     ep = OpenAPIEndpointEmbedding(
         document_id=document_id,
         chunk_id=chunk_id,
@@ -227,25 +168,6 @@ def update_endpoint_embedding(
     operation_id: str | None = None,
     commit: bool = True,
 ) -> OpenAPIEndpointEmbedding:
-    """更新已有端点向量记录。
-
-    Args:
-        db: 数据库会话
-        endpoint: 待更新的端点记录
-        path: API 路径
-        method: HTTP 方法
-        content: 用于 RAG 的端点文本
-        embedding: 向量
-        content_hash: 端点内容 hash（可选）
-        summary: OpenAPI summary（可选）
-        description: OpenAPI description（可选）
-        tags: 标签列表（可选）
-        operation_id: OpenAPI operationId（可选）
-        commit: 是否立即提交事务，默认 True；批量场景由调用方统一控制时可设为 False
-
-    Returns:
-        更新后的 OpenAPIEndpointEmbedding 记录
-    """
     endpoint.path = path
     endpoint.method = method.upper()
     endpoint.content = content
@@ -269,11 +191,6 @@ def list_endpoints(
     method: str | None = None,
     tag: str | None = None,
 ) -> tuple[list[OpenAPIEndpointEmbedding], int]:
-    """分页查询端点列表，支持按文档、方法、标签过滤。
-
-    Returns:
-        (端点列表, 总数)
-    """
     query = db.query(OpenAPIEndpointEmbedding)
 
     if document_id is not None:
@@ -298,15 +215,6 @@ def list_endpoints(
 
 
 def delete_endpoint_by_id(db: Session, endpoint_id: int) -> bool:
-    """按 ID 删除单个端点向量记录。
-
-    Args:
-        db: 数据库会话
-        endpoint_id: 端点 ID
-
-    Returns:
-        是否成功删除
-    """
     result = (
         db.query(OpenAPIEndpointEmbedding)
         .filter(OpenAPIEndpointEmbedding.id == endpoint_id)
@@ -323,21 +231,6 @@ def search_similar(
     method: str | None = None,
     document_id: int | None = None,
 ) -> list[tuple[OpenAPIEndpointEmbedding, float]]:
-    """基于余弦距离检索最相似的 OpenAPI 端点向量。
-
-    使用 pgvector 的 ``<=>``（余弦距离）算子，距离越小越相似。
-    返回结果按距离升序排列。
-
-    Args:
-        db: 数据库会话
-        query_embedding: 查询向量
-        top_k: 返回结果数量上限
-        method: 可选 HTTP 方法过滤
-        document_id: 可选文档 ID 过滤
-
-    Returns:
-        list[tuple[OpenAPIEndpointEmbedding, float]]: (向量记录, 距离) 列表
-    """
     where_clauses = []
     params: dict = {
         "embedding": query_embedding,

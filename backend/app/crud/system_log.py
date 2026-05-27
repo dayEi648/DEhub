@@ -16,12 +16,6 @@ def get_logs(
     created_after: datetime | None = None,
     created_before: datetime | None = None,
 ) -> tuple[list[SystemLog], int]:
-    """
-    分页查询系统日志。
-
-    Returns:
-        (日志列表, 总条数)
-    """
     query = db.query(SystemLog)
 
     if level:
@@ -51,12 +45,6 @@ def get_log_by_id(db: Session, log_id: int) -> SystemLog | None:
 
 
 def resolve_log(db: Session, log_id: int, resolved_by: int) -> SystemLog | None:
-    """
-    将指定日志标记为已处理。
-
-    Returns:
-        更新后的日志对象；若不存在则返回 None。
-    """
     log = db.query(SystemLog).filter(SystemLog.id == log_id).first()
     if not log:
         return None
@@ -72,12 +60,6 @@ def resolve_log(db: Session, log_id: int, resolved_by: int) -> SystemLog | None:
 def batch_resolve_logs(
     db: Session, log_ids: list[int], resolved_by: int
 ) -> int:
-    """
-    批量标记日志为已处理。
-
-    Returns:
-        实际更新的条数。
-    """
     now = datetime.now(timezone.utc)
     result = (
         db.query(SystemLog)
@@ -96,12 +78,6 @@ def batch_resolve_logs(
 
 
 def delete_log(db: Session, log_id: int) -> bool:
-    """
-    删除指定日志。
-
-    Returns:
-        是否成功删除。
-    """
     result = (
         db.query(SystemLog)
         .filter(SystemLog.id == log_id)
@@ -112,12 +88,6 @@ def delete_log(db: Session, log_id: int) -> bool:
 
 
 def get_stats(db: Session) -> dict[str, int]:
-    """
-    获取日志统计概览。
-
-    Returns:
-        包含 total、total_unresolved、warn_count、error_count、critical_count 的字典。
-    """
     total = db.query(SystemLog).count()
     total_unresolved = (
         db.query(SystemLog).filter(SystemLog.is_resolved == False).count()

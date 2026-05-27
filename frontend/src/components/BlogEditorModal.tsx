@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
+import BaseModal from './BaseModal'
 import { validateImageFile, createImagePreview } from '../utils/upload'
-import { uploadImage } from '../api/upload'
+import { usePasteImageUpload } from '../hooks/usePasteImageUpload'
 import type { BlogCategoryWithPostCount, BlogPostListItem } from '../types/blog'
 
 interface BlogPostEditItem extends BlogPostListItem {
@@ -45,7 +46,7 @@ export default function BlogEditorModal({
     if (post) {
       setTitle(post.title)
       setSlug(post.slug)
-      setContentMd((post as unknown as { content_md?: string }).content_md || '')
+      setContentMd(post.content_md || '')
       setCoverFile(null)
       setCoverPreview(post.cover_image_url || null)
       setCategoryId(post.category_id)
@@ -93,57 +94,7 @@ export default function BlogEditorModal({
     }
   }
 
-  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData.items
-    let imageFile: File | null = null
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i]
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile()
-        if (file) {
-          imageFile = file
-          break
-        }
-      }
-    }
-
-    if (!imageFile) return
-
-    e.preventDefault()
-    const error = validateImageFile(imageFile)
-    if (error) {
-      toast.error(error)
-      return
-    }
-
-    const textarea = e.currentTarget
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-
-    toast.promise(
-      uploadImage(imageFile, 'generic').then((res) => {
-        const imageUrl = res.data.url
-        const alt = imageFile!.name.replace(/\.[^/.]+$/, '') || '图片'
-        const markdown = `![${alt}](${imageUrl})`
-        const newContent = contentMd.slice(0, start) + markdown + contentMd.slice(end)
-        setContentMd(newContent)
-        // 将光标移到插入内容之后
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + markdown.length
-          textarea.focus()
-        }, 0)
-      }),
-      {
-        loading: '正在上传图片...',
-        success: '图片上传成功',
-        error: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          return msg || '图片上传失败'
-        },
-      }
-    )
-  }
+  const { handlePaste } = usePasteImageUpload('generic')
 
   const handleSubmit = () => {
     if (!title.trim() || !contentMd.trim() || !categoryId) return
@@ -170,65 +121,48 @@ export default function BlogEditorModal({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        backgroundColor: 'rgba(20,20,19,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--spacing-xl)',
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--color-canvas)',
-          borderRadius: 'var(--rounded-lg)',
-          width: '100%',
-          maxWidth: 720,
-          maxHeight: '90vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(20,20,19,0.15)',
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--spacing-lg) var(--spacing-xl)',
-            borderBottom: '1px solid var(--color-hairline)',
-          }}
-        >
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 500, margin: 0, color: 'var(--color-ink)' }}>
-            {isEdit ? '编辑文章' : '新建文章'}
-          </h2>
+    <BaseModal
+      title={<h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 500, margin: 0 }}>{isEdit ? '编辑文章' : '新建文章'}</h2>}
+      onClose={onClose}
+      maxWidth={720}
+      footer={
+        <>
           <button
             onClick={onClose}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--rounded-full)',
-              backgroundColor: 'var(--color-surface-card)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--color-muted)',
+              height: 40,
+              padding: '0 20px',
+              borderRadius: 'var(--rounded-md)',
+              backgroundColor: 'var(--color-canvas)',
+              color: 'var(--color-ink)',
+              border: '1px solid var(--color-hairline)',
+              fontSize: 14,
+              fontWeight: 500,
               cursor: 'pointer',
             }}
           >
-            <X size={16} />
+            取消
           </button>
-        </div>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !title.trim() || !contentMd.trim() || !categoryId || (!isEdit && !coverFile)}
+            style={{
+              height: 40,
+              padding: '0 20px',
+              borderRadius: 'var(--rounded-md)',
+              backgroundColor: submitting ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              color: 'var(--color-on-primary)',
+              fontSize: 14,
+              fontWeight: 500,
+              border: 'none',
+              cursor: submitting || !title.trim() || !contentMd.trim() || !categoryId ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {submitting ? '保存中…' : '保存'}
+          </button>
+        </>
+      }
+    >
 
         {/* Body */}
         <div
@@ -422,58 +356,17 @@ export default function BlogEditorModal({
               }}
               value={contentMd}
               onChange={(e) => setContentMd(e.target.value)}
-              onPaste={handlePaste}
+              onPaste={(e) =>
+                handlePaste(e, (md, s, end) => {
+                  const newContent = contentMd.slice(0, s) + md + contentMd.slice(end)
+                  setContentMd(newContent)
+                })
+              }
             />
           </div>
         </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 'var(--spacing-sm)',
-            padding: 'var(--spacing-md) var(--spacing-xl)',
-            borderTop: '1px solid var(--color-hairline)',
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              height: 40,
-              padding: '0 20px',
-              borderRadius: 'var(--rounded-md)',
-              backgroundColor: 'var(--color-canvas)',
-              color: 'var(--color-ink)',
-              border: '1px solid var(--color-hairline)',
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            取消
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || !title.trim() || !contentMd.trim() || !categoryId || (!isEdit && !coverFile)}
-            style={{
-              height: 40,
-              padding: '0 20px',
-              borderRadius: 'var(--rounded-md)',
-              backgroundColor: submitting ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
-              color: 'var(--color-on-primary)',
-              fontSize: 14,
-              fontWeight: 500,
-              border: 'none',
-              cursor: submitting || !title.trim() || !contentMd.trim() || !categoryId ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {submitting ? '保存中…' : '保存'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </BaseModal>
   )
 }
 

@@ -22,16 +22,7 @@ def render_blog_summary_prompt(
     min_length: int,
     max_length: int,
 ) -> tuple[str, str]:
-    """渲染博客长文摘要生成的 prompt。
-
-    Args:
-        content_md: Markdown 格式的文章正文
-        min_length: 摘要最小字数
-        max_length: 摘要最大字数
-
-    Returns:
-        (system_prompt, user_prompt) 元组
-    """
+    """渲染博客长文摘要生成的 prompt。"""
     user_prompt = _BLOG_SUMMARY_USER_PROMPT_TEMPLATE.format(
         min_length=min_length,
         max_length=max_length,

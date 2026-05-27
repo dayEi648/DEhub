@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { X } from 'lucide-react'
 import type { User, CreateUserData, UpdateUserData, UserPermission } from '../types/user'
+import BaseModal from './BaseModal'
 
 interface UserFormModalProps {
   user: User | null // null = create mode
@@ -83,83 +83,62 @@ export default function UserFormModal({ user, onClose, onSubmit }: UserFormModal
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(20, 20, 19, 0.4)',
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div
-        style={{
-          width: '90%',
-          maxWidth: 520,
-          maxHeight: '90vh',
-          backgroundColor: 'var(--color-canvas)',
-          borderRadius: 'var(--rounded-xl)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(20, 20, 19, 0.15)',
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--spacing-lg) var(--spacing-xl)',
-            borderBottom: '1px solid var(--color-hairline)',
-          }}
-        >
-          <h2
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 22,
-              fontWeight: 500,
-              margin: 0,
-              color: 'var(--color-ink)',
-            }}
-          >
-            {isEdit ? '编辑用户' : '创建用户'}
-          </h2>
+    <BaseModal
+      title={
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, margin: 0 }}>
+          {isEdit ? '编辑用户' : '创建用户'}
+        </h2>
+      }
+      onClose={onClose}
+      maxWidth={520}
+      borderRadius="xl"
+      footer={
+        <>
           <button
             onClick={onClose}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--rounded-full)',
-              backgroundColor: 'var(--color-surface-card)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--color-muted)',
+              height: 40,
+              padding: '0 20px',
+              borderRadius: 'var(--rounded-md)',
+              backgroundColor: 'var(--color-canvas)',
+              color: 'var(--color-ink)',
+              border: '1px solid var(--color-hairline)',
+              fontSize: 14,
+              fontWeight: 500,
             }}
           >
-            <X size={16} />
+            取消
           </button>
-        </div>
-
-        {/* Body */}
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            padding: 'var(--spacing-xl)',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--spacing-md)',
-          }}
-        >
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{
+              height: 40,
+              padding: '0 20px',
+              borderRadius: 'var(--rounded-md)',
+              backgroundColor: loading ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              color: 'var(--color-on-primary)',
+              fontSize: 14,
+              fontWeight: 500,
+              border: 'none',
+              cursor: loading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading ? '保存中…' : '保存'}
+          </button>
+        </>
+      }
+    >
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          padding: 'var(--spacing-xl)',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--spacing-md)',
+        }}
+      >
           <div>
             <label style={labelStyle}>用户名 *</label>
             <input
@@ -229,52 +208,7 @@ export default function UserFormModal({ user, onClose, onSubmit }: UserFormModal
           </div>
         </form>
 
-        {/* Footer */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 'var(--spacing-sm)',
-            padding: 'var(--spacing-md) var(--spacing-xl)',
-            borderTop: '1px solid var(--color-hairline)',
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              height: 40,
-              padding: '0 20px',
-              borderRadius: 'var(--rounded-md)',
-              backgroundColor: 'var(--color-canvas)',
-              color: 'var(--color-ink)',
-              border: '1px solid var(--color-hairline)',
-              fontSize: 14,
-              fontWeight: 500,
-            }}
-          >
-            取消
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            style={{
-              height: 40,
-              padding: '0 20px',
-              borderRadius: 'var(--rounded-md)',
-              backgroundColor: loading ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
-              color: 'var(--color-on-primary)',
-              fontSize: 14,
-              fontWeight: 500,
-              border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {loading ? '保存中…' : '保存'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </BaseModal>
   )
 }
 

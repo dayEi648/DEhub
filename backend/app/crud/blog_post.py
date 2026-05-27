@@ -3,14 +3,6 @@ from app.models.blog_post import BlogPost
 from app.schemas.blog_post import BlogPostCreate, BlogPostUpdate
 
 def get_blog_post_by_id(db: Session, post_id: int) -> BlogPost | None:
-    """
-    根据文章ID获取文章（自动 join 分类与作者信息）
-    Args:
-        db: 数据库会话
-        post_id: 文章ID
-    Returns:
-        BlogPost | None: 文章对象或None
-    """
     return (
         db.query(BlogPost)
         .options(joinedload(BlogPost.category), joinedload(BlogPost.user))
@@ -21,14 +13,6 @@ def get_blog_post_by_id(db: Session, post_id: int) -> BlogPost | None:
     )
 
 def get_blog_post_by_slug(db: Session, slug: str) -> BlogPost | None:
-    """
-    根据文章 slug 获取文章（自动 join 分类与作者信息）
-    Args:
-        db: 数据库会话
-        slug: 文章 slug
-    Returns:
-        BlogPost | None: 文章对象或None
-    """
     return (
         db.query(BlogPost)
         .options(joinedload(BlogPost.category), joinedload(BlogPost.user))
@@ -47,18 +31,6 @@ def get_blog_posts(
     tag: str | None = None,
     q: str | None = None
 ) -> list[BlogPost]:
-    """
-    获取文章列表（支持过滤与分页，自动 join 分类与作者信息）
-    Args:
-        db: 数据库会话
-        skip: 跳过数量
-        limit: 限制数量
-        status: 状态筛选
-        category_id: 分类ID筛选
-        tag: 标签筛选（精确匹配单个标签）
-    Returns:
-        list[BlogPost]: 文章列表
-    """
     query = db.query(BlogPost).options(joinedload(BlogPost.category), joinedload(BlogPost.user))
 
     if status:
@@ -80,19 +52,6 @@ def get_blog_posts_count(
     tag: str | None = None,
     q: str | None = None,
 ) -> int:
-    """
-    获取文章列表的总数量（与 get_blog_posts 使用相同的过滤条件）。
-
-    Args:
-        db: 数据库会话
-        status: 状态筛选
-        category_id: 分类ID筛选
-        tag: 标签筛选
-        q: 标题关键词搜索
-
-    Returns:
-        int: 符合条件的文章总数
-    """
     query = db.query(BlogPost)
 
     if status:
@@ -113,15 +72,6 @@ def create_blog_post(
     user_id: int,
     cover_image_url: str | None = None,
 ) -> BlogPost:
-    """
-    创建文章
-    Args:
-        db: 数据库会话
-        post_in: 文章创建请求
-        user_id: 作者用户ID
-    Returns:
-        BlogPost: 文章对象
-    """
     post_data = post_in.model_dump()
     if cover_image_url is not None:
         post_data["cover_image_url"] = cover_image_url
@@ -132,15 +82,6 @@ def create_blog_post(
     return db_post
 
 def update_blog_post(db: Session, db_post: BlogPost, post_in: BlogPostUpdate) -> BlogPost:
-    """
-    更新文章
-    Args:
-        db: 数据库会话
-        db_post: 文章对象
-        post_in: 文章更新请求
-    Returns:
-        BlogPost: 文章对象
-    """
     update_data = post_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_post, field, value)
@@ -149,14 +90,6 @@ def update_blog_post(db: Session, db_post: BlogPost, post_in: BlogPostUpdate) ->
     return db_post
 
 def hard_delete_blog_post(db: Session, post_id: int) -> int:
-    """
-    硬删除文章
-    Args:
-        db: 数据库会话
-        post_id: 文章ID
-    Returns:
-        int: 删除行数
-    """
     result = db.query(BlogPost).filter(
         BlogPost.id == post_id
     ).delete(synchronize_session=False)
@@ -164,14 +97,6 @@ def hard_delete_blog_post(db: Session, post_id: int) -> int:
     return result
 
 def increment_view_count(db: Session, post_id: int) -> int:
-    """
-    增加文章浏览量
-    Args:
-        db: 数据库会话
-        post_id: 文章ID
-    Returns:
-        int: 更新行数
-    """
     result = db.query(BlogPost).filter(
         BlogPost.id == post_id
     ).update(

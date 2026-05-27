@@ -26,16 +26,7 @@ def create_reply(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumReplyResponse:
-    """
-    发表回复（登录用户）
-    Args:
-        post_id: 帖子ID
-        data: 回复内容
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumReplyResponse: 回复响应
-    """
+    """发表回复（登录用户）。"""
     reply_in = ForumReplyCreate(post_id=post_id, content=data.content)
     service = ForumReplyService(db)
     return service.create_reply(post_id, reply_in, current_user)
@@ -49,17 +40,7 @@ def list_replies(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumReplyListResponse:
-    """
-    查询某帖子下的回复列表（分页）
-    Args:
-        post_id: 帖子ID
-        skip: 跳过数量
-        limit: 限制数量
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumReplyListResponse: 回复分页列表
-    """
+    """查询某帖子下的回复列表（分页）。"""
     service = ForumReplyService(db)
     items, total = service.list_replies_by_post(
         post_id=post_id, skip=skip, limit=limit, current_user=current_user
@@ -73,15 +54,7 @@ def delete_reply(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """
-    删除回复（作者本人 或 管理员 或 区主）
-    Args:
-        reply_id: 回复ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        None
-    """
+    """删除回复（作者本人、管理员或区主）。"""
     service = ForumReplyService(db)
     service.delete_reply(reply_id, current_user)
     return None
@@ -93,15 +66,7 @@ def like_reply(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """
-    点赞回复（登录用户）
-    Args:
-        reply_id: 回复ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        None
-    """
+    """点赞回复（登录用户）。"""
     service = ForumReplyService(db)
     service.like_reply(reply_id, current_user)
     return None
@@ -113,15 +78,7 @@ def unlike_reply(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """
-    取消点赞回复（登录用户）
-    Args:
-        reply_id: 回复ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        None
-    """
+    """取消点赞回复（登录用户）。"""
     service = ForumReplyService(db)
     service.unlike_reply(reply_id, current_user)
     return None

@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from pydantic.networks import validate_email
 from datetime import datetime
-from typing import Optional
 from pydantic import Field, field_validator
 
 
@@ -9,7 +8,7 @@ class UserBriefInfo(BaseModel):
     """精简用户信息（用于嵌套展示）"""
     id: int
     username: str
-    avatar_url: Optional[str] = None
+    avatar_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -21,16 +20,16 @@ class UserBase(BaseModel):
 # 创建请求，必须传密码
 class UserCreate(UserBase):
     password: str = Field(min_length=6, max_length=128)
-    permission: Optional[int] = Field(default=0, ge=0, le=2)
-    personal_profile: Optional[str] = Field(default=None)
+    permission: int | None = Field(default=0, ge=0, le=2)
+    personal_profile: str | None = Field(default=None)
 
 # 更新请求：全可选
 class UserUpdate(BaseModel):
-    username: Optional[str] = Field(min_length=3, max_length=64, default=None)
-    email: Optional[EmailStr] = None
-    password: Optional[str] = Field(min_length=6, max_length=128, default=None)
-    permission: Optional[int] = Field(default=None, ge=0, le=2)
-    personal_profile: Optional[str] = Field(default=None)
+    username: str | None = Field(min_length=3, max_length=64, default=None)
+    email: EmailStr | None = None
+    password: str | None = Field(min_length=6, max_length=128, default=None)
+    permission: int | None = Field(default=None, ge=0, le=2)
+    personal_profile: str | None = Field(default=None)
 
 # 响应对象：不返回密码
 class UserResponse(UserBase):
@@ -38,8 +37,8 @@ class UserResponse(UserBase):
     created_at: datetime
     permission: int
     is_deleted: bool
-    avatar_url: Optional[str] = None
-    personal_profile: Optional[str] = None
+    avatar_url: str | None = None
+    personal_profile: str | None = None
 
     # Pydantic v2 写法：允许从 ORM 对象读取属性
     model_config = ConfigDict(from_attributes=True)
@@ -77,11 +76,11 @@ class UserLogin(BaseModel):
 # 登录响应
 class UserLoginResponse(BaseModel):
     access_token: str
-    refresh_token: Optional[str] = None
+    refresh_token: str | None = None
     token_type: str = "Bearer"
     user: UserResponse
     access_token_expires_in: int
-    refresh_token_expires_in: Optional[int] = None
+    refresh_token_expires_in: int | None = None
 
 # 刷新令牌请求
 class RefreshTokenRequest(BaseModel):
@@ -89,7 +88,7 @@ class RefreshTokenRequest(BaseModel):
 
 # 登出请求
 class UserLogout(BaseModel):
-    refresh_token: Optional[str] = None
+    refresh_token: str | None = None
 
 # 用户分页列表响应
 class UserListResponse(BaseModel):

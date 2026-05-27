@@ -1,4 +1,3 @@
-from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -6,7 +5,7 @@ class BlogCategoryBase(BaseModel):
     """分类基础字段"""
     name: str = Field(min_length=1, max_length=64)
     slug: str = Field(min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class BlogCategoryCreate(BlogCategoryBase):
@@ -16,9 +15,9 @@ class BlogCategoryCreate(BlogCategoryBase):
 
 class BlogCategoryUpdate(BaseModel):
     """更新分类请求：全可选"""
-    name: Optional[str] = Field(default=None, min_length=1, max_length=64)
-    slug: Optional[str] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = None
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    slug: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
 
 
 class BlogCategoryResponse(BlogCategoryBase):

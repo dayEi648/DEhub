@@ -1,4 +1,5 @@
-import { X, CheckCircle } from 'lucide-react'
+import { CheckCircle } from 'lucide-react'
+import BaseModal from './BaseModal'
 import type { SystemLog } from '../types/systemLog'
 
 interface LogDetailModalProps {
@@ -22,82 +23,67 @@ export default function LogDetailModal({ log, onClose, onResolve }: LogDetailMod
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(20, 20, 19, 0.4)',
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div
-        style={{
-          width: '90%',
-          maxWidth: 720,
-          maxHeight: '90vh',
-          backgroundColor: 'var(--color-canvas)',
-          borderRadius: 'var(--rounded-xl)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(20, 20, 19, 0.15)',
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--spacing-lg) var(--spacing-xl)',
-            borderBottom: '1px solid var(--color-hairline)',
-          }}
-        >
-          <h2
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 22,
-              fontWeight: 500,
-              margin: 0,
-              color: 'var(--color-ink)',
-            }}
-          >
-            日志详情 #{log.id}
-          </h2>
+    <BaseModal
+      title={
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, margin: 0 }}>
+          日志详情 #{log.id}
+        </h2>
+      }
+      onClose={onClose}
+      maxWidth={720}
+      borderRadius="xl"
+      footer={
+        <>
           <button
             onClick={onClose}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--rounded-full)',
-              backgroundColor: 'var(--color-surface-card)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--color-muted)',
+              height: 40,
+              padding: '0 20px',
+              borderRadius: 'var(--rounded-md)',
+              backgroundColor: 'var(--color-canvas)',
+              color: 'var(--color-ink)',
+              border: '1px solid var(--color-hairline)',
+              fontSize: 14,
+              fontWeight: 500,
             }}
           >
-            <X size={16} />
+            关闭
           </button>
-        </div>
-
-        {/* Body */}
-        <div
-          style={{
-            padding: 'var(--spacing-xl)',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--spacing-lg)',
-          }}
-        >
+          {!log.is_resolved && (
+            <button
+              onClick={() => {
+                onResolve(log.id)
+                onClose()
+              }}
+              style={{
+                height: 40,
+                padding: '0 20px',
+                borderRadius: 'var(--rounded-md)',
+                backgroundColor: 'var(--color-success)',
+                color: '#fff',
+                fontSize: 14,
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <CheckCircle size={16} />
+              标记已处理
+            </button>
+          )}
+        </>
+      }
+    >
+      <div
+        style={{
+          padding: 'var(--spacing-xl)',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--spacing-lg)',
+        }}
+      >
           {/* Meta grid */}
           <div
             style={{
@@ -194,58 +180,7 @@ export default function LogDetailModal({ log, onClose, onResolve }: LogDetailMod
           )}
         </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 'var(--spacing-sm)',
-            padding: 'var(--spacing-md) var(--spacing-xl)',
-            borderTop: '1px solid var(--color-hairline)',
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              height: 40,
-              padding: '0 20px',
-              borderRadius: 'var(--rounded-md)',
-              backgroundColor: 'var(--color-canvas)',
-              color: 'var(--color-ink)',
-              border: '1px solid var(--color-hairline)',
-              fontSize: 14,
-              fontWeight: 500,
-            }}
-          >
-            关闭
-          </button>
-          {!log.is_resolved && (
-            <button
-              onClick={() => {
-                onResolve(log.id)
-                onClose()
-              }}
-              style={{
-                height: 40,
-                padding: '0 20px',
-                borderRadius: 'var(--rounded-md)',
-                backgroundColor: 'var(--color-success)',
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <CheckCircle size={16} />
-              标记已处理
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+    </BaseModal>
   )
 }
 

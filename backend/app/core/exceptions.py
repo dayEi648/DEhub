@@ -1,10 +1,15 @@
 import logging
-from fastapi import Request, status
+from fastapi import Request, status, HTTPException
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError, HTTPException
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
+
+
+def raise_not_found(resource_name: str) -> None:
+    """抛出 404 异常（保持 detail 文本与各 Service 层历史一致）。"""
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{resource_name}不存在")
 
 
 def _build_log_extra(request: Request, exc: Exception) -> dict:
@@ -27,15 +32,7 @@ def _build_log_extra(request: Request, exc: Exception) -> dict:
 
 
 def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    """
-    HTTP 异常处理器
-    处理主动抛出的 HTTPException（如 400 用户名已存在、404 用户不存在）
-    Args:
-        request: 请求对象
-        exc: HTTP 异常对象
-    Returns:
-        JSONResponse: JSON 响应
-    """
+    """HTTP 异常处理器（400/404 等主动抛出的业务异常）。"""
     if exc.status_code >= 500:
         extra = _build_log_extra(request, exc)
         logger.error("HTTP 异常: %s", exc.detail, extra=extra)
@@ -47,15 +44,7 @@ def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse
 
 
 def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    """
-    Validation 异常处理器
-    处理 Pydantic 参数校验失败（如 email 格式不对、必填字段缺失）
-    Args:
-        request: 请求对象
-        exc: Validation 异常对象
-    Returns:
-        JSONResponse: JSON 响应
-    """
+    """Pydantic 参数校验失败处理器（422）。"""
     extra = _build_log_extra(request, exc)
     extra["extra"]["validation_errors"] = exc.errors()
     logger.warning("请求参数校验失败: %s", exc.errors(), extra=extra)
@@ -70,15 +59,7 @@ def validation_exception_handler(request: Request, exc: RequestValidationError) 
 
 
 def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
-    """
-    SQLAlchemy 异常处理器
-    处理数据库异常（如连接断开、约束冲突）
-    Args:
-        request: 请求对象
-        exc: SQLAlchemy 异常对象
-    Returns:
-        JSONResponse: JSON 响应
-    """
+    """数据库异常处理器（500，隐藏堆栈）。"""
     extra = _build_log_extra(request, exc)
     logger.error("数据库异常: %s", exc, exc_info=(type(exc), exc, exc.__traceback__), extra=extra)
     return JSONResponse(
@@ -91,15 +72,7 @@ def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSON
 
 
 def catch_all_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """
-    全局异常处理器
-    兜底：捕获所有未预料的异常，防止泄露堆栈信息
-    Args:
-        request: 请求对象
-        exc: 异常对象
-    Returns:
-        JSONResponse: JSON 响应
-    """
+    """全局兜底异常处理器（500）。"""
     extra = _build_log_extra(request, exc)
     logger.error("发生未捕获的异常: %s", exc, exc_info=(type(exc), exc, exc.__traceback__), extra=extra)
     return JSONResponse(

@@ -32,11 +32,7 @@ class UserProfileService:
 
     @staticmethod
     def _build_compact_aware_transcript(messages: list) -> str:
-        """构造画像更新使用的压缩态 transcript。
-
-        如果数据库中已有 compact summary，则只使用最新 summary、summary 中记录的
-        retained_messages，以及 summary 之后的新消息。
-        """
+        """构造压缩态对话 transcript，含 compact summary 及其后新消息。"""
         latest_summary_index = None
         for index, msg in enumerate(messages):
             if msg.role == "assistant" and msg.meta and msg.meta.get("compact_summary"):
@@ -69,14 +65,7 @@ class UserProfileService:
     async def maybe_update_user_profile(
         self, user_id: int, conversation_id: int
     ) -> None:
-        """判断当前对话是否值得更新用户画像，如值得则执行更新。
-
-        流程：
-        1. 从数据库读取对话完整历史
-        2. 交给 small 模型判断是否有值得记录的信息（true/false）
-        3. false → 直接返回
-        4. true → 读取旧画像 → small 模型生成新画像 → upsert
-        """
+        """根据对话历史判断是否值得更新用户画像，值得则更新。"""
         try:
             messages = await asyncio.to_thread(
                 list_conversation_messages,

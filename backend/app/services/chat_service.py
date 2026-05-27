@@ -88,10 +88,7 @@ class ChatService:
 
     @classmethod
     def _is_visible_message(cls, message) -> bool:
-        """默认消息列表中仅展示用户消息和有正文的 AI 回复。
-
-        包含 tool_calls 的 AIMessage 对普通用户隐藏，仅管理员查看完整消息流时可见。
-        """
+        """默认消息列表中仅展示用户消息和有正文的 AI 回复；含 tool_calls 的对普通用户隐藏。"""
         if cls._is_compact_summary_db_message(message):
             return True
         if message.role == "user":
@@ -352,10 +349,8 @@ class ChatService:
     def _extract_current_turn_messages(result_messages: list) -> list:
         """从结果消息列表中提取当前轮次新增的消息。
 
-        当 history_len 不可靠（结果列表比历史短）时，
-        从最后一个 HumanMessage 之后截取当前轮次消息。
-        HumanMessage 本身已在调用 Graph 前持久化，故跳过。
-        若找不到 HumanMessage，兜底保留最终 AIMessage 避免漏持久化。
+        history_len 不可靠时从最后一个 HumanMessage 后截取，
+        找不到则兜底保留最终 AIMessage。
         """
         for i in range(len(result_messages) - 1, -1, -1):
             if isinstance(result_messages[i], HumanMessage):
@@ -368,11 +363,7 @@ class ChatService:
 
     @staticmethod
     def _safe_truncate(text: str, max_len: int) -> str:
-        """安全截断文本，回退到最后一个非组合字符边界。
-
-        避免切断组合字符（如拼音声调、阿拉伯文变音符号等）。
-        注意：不处理 ZWJ 序列和区域指示符等复杂 emoji 组合。
-        """
+        """安全截断文本，回退到最后一个非组合字符边界，避免切断组合字符。"""
         if len(text) <= max_len:
             return text
         pos = max_len
@@ -457,11 +448,7 @@ class ChatService:
         previous_goal: str | None,
         current_messages: list,
     ) -> str | None:
-        """根据对话上下文调用 small model 生成 current_goal。
-
-        Returns:
-            5~200 字的目标描述，或 None（生成失败或太短）
-        """
+        """根据对话上下文调用 small model 生成 current_goal，返回 5~200 字描述或 None。"""
         # compact 后只使用最新摘要及摘要后的新消息；未 compact 时限制最近消息数量。
         context_messages = self._compact_aware_messages(current_messages)
         transcript_lines = [
@@ -494,16 +481,7 @@ class ChatService:
             return previous_goal
 
     async def chat(self, chat_in: ChatRequest, user_id: int) -> ChatResponse:
-        """
-        对话服务。
-
-        Args:
-            chat_in: ChatRequest
-            user_id: 当前用户ID
-
-        Returns:
-            ChatResponse: 对话结果
-        """
+        """对话服务主入口。"""
         # 无 conversation_id 时自动创建新对话
         created_new_conversation = chat_in.conversation_id is None
         if created_new_conversation:
@@ -987,12 +965,7 @@ class ChatService:
     async def _ensure_title_async(
         self, chat_in: ChatRequest, conversation_id: int
     ) -> None:
-        """
-        智能生成或更新对话标题。
-
-        - 新对话首次消息：立即生成标题
-        - 已有对话：距上次消息超过 5 分钟则重新生成，否则只更新 last_message_at
-        """
+        """智能生成或更新对话标题。新对话立即生成，已有对话超时后重新生成。"""
         try:
             conv = await asyncio.to_thread(
                 conv_crud.get_ai_conversation_by_id, self.db, conversation_id
@@ -1050,19 +1023,7 @@ class ChatService:
     def get_conversation_if_owned(
         self, conversation_id: int, user_id: int
     ) -> AIConversation:
-        """
-        获取对话并校验权限。
-
-        - 对话不存在或已删除 → 抛 404
-        - 对话存在但不属于当前用户 → 抛 403
-
-        Args:
-            conversation_id: 对话 ID
-            user_id: 用户 ID
-
-        Returns:
-            AIConversation
-        """
+        """获取对话并校验权限，不存在抛 404，无权限抛 403。"""
         conv = conv_crud.get_ai_conversation_by_id(self.db, conversation_id)
         if conv is None:
             raise HTTPException(
@@ -1075,15 +1036,7 @@ class ChatService:
     async def list_conversations(
         self, user_id: int, skip: int = 0, limit: int = 20
     ) -> tuple[list[AIConversation], int]:
-        """
-        获取当前用户的对话列表（按最近时间倒序）。
-        Args:
-            user_id: 用户 ID
-            skip: 跳过数量
-            limit: 限制数量
-        Returns:
-            tuple[list[AIConversation], int]
-        """
+        """获取当前用户的对话列表（按最近时间倒序）。"""
         return await asyncio.to_thread(
             conv_crud.list_ai_conversations_by_user,
             self.db,
@@ -1100,21 +1053,7 @@ class ChatService:
         limit: int = 100,
         include_hidden: bool = False,
     ) -> list[MessageResponse]:
-        """
-        获取对话消息列表。
-
-        默认只返回 user 和有正文的 assistant 消息，避免隐藏工具细节泄露给普通用户。
-        仅当 include_hidden=True 时返回完整消息流与元数据（供管理监控使用）。
-
-        Args:
-            conversation_id: 对话 ID
-            user_id: 用户 ID
-            skip: 跳过数量
-            limit: 限制数量
-            include_hidden: 是否包含隐藏的中间消息
-        Returns:
-            list[MessageResponse]
-        """
+        """获取对话消息列表。默认过滤隐藏消息，include_hidden=True 时返回完整流。"""
         await asyncio.to_thread(
             self.get_conversation_if_owned, conversation_id, user_id
         )
@@ -1151,13 +1090,7 @@ class ChatService:
         ]
 
     async def delete_conversation(self, conversation_id: int, user_id: int) -> None:
-        """
-        物理删除对话，并清理 Checkpointer。
-
-        Args:
-            conversation_id: 对话 ID
-            user_id: 用户 ID
-        """
+        """物理删除对话，并清理 Checkpointer。"""
         conv = await asyncio.to_thread(
             conv_crud.get_ai_conversation_by_id, self.db, conversation_id
         )

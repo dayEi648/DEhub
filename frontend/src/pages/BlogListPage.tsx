@@ -18,6 +18,7 @@ import {
 } from '../api/blog'
 import { getUser } from '../utils/auth'
 import BlogEditorModal from '../components/BlogEditorModal'
+import BaseModal from '../components/BaseModal'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import Pagination from '../components/Pagination'
@@ -430,56 +431,13 @@ function CategoryCreateModal({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        backgroundColor: 'rgba(20,20,19,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--spacing-xl)',
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 480,
-          backgroundColor: 'var(--color-canvas)',
-          borderRadius: 'var(--rounded-lg)',
-          boxShadow: '0 8px 32px rgba(20,20,19,0.15)',
-          overflow: 'hidden',
-        }}
-      >
-        <div style={{ padding: 'var(--spacing-lg) var(--spacing-xl)', borderBottom: '1px solid var(--color-hairline)' }}>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 500, margin: 0, color: 'var(--color-ink)' }}>
-            创建博客分类
-          </h2>
-        </div>
-        <div style={{ padding: 'var(--spacing-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-          <div>
-            <label style={modalLabelStyle}>分类名称 *</label>
-            <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：工程实践" />
-          </div>
-          <div>
-            <label style={modalLabelStyle}>Slug</label>
-            <input style={inputStyle} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="留空自动生成" />
-          </div>
-          <div>
-            <label style={modalLabelStyle}>描述</label>
-            <textarea
-              style={{ ...inputStyle, height: 96, resize: 'vertical', fontFamily: 'var(--font-body)' }}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="分类说明"
-            />
-          </div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', padding: 'var(--spacing-md) var(--spacing-xl)', borderTop: '1px solid var(--color-hairline)' }}>
+    <BaseModal
+      title={<h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 500, margin: 0 }}>创建博客分类</h2>}
+      onClose={onClose}
+      maxWidth={480}
+      showCloseButton={false}
+      footer={
+        <>
           <button
             onClick={onClose}
             style={{
@@ -513,9 +471,29 @@ function CategoryCreateModal({
           >
             {submitting ? '创建中…' : '创建'}
           </button>
+        </>
+      }
+    >
+      <div style={{ padding: 'var(--spacing-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+          <div>
+            <label style={modalLabelStyle}>分类名称 *</label>
+            <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：工程实践" />
+          </div>
+          <div>
+            <label style={modalLabelStyle}>Slug</label>
+            <input style={inputStyle} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="留空自动生成" />
+          </div>
+          <div>
+            <label style={modalLabelStyle}>描述</label>
+            <textarea
+              style={{ ...inputStyle, height: 96, resize: 'vertical', fontFamily: 'var(--font-body)' }}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="分类说明"
+            />
+          </div>
         </div>
-      </div>
-    </div>
+    </BaseModal>
   )
 }
 

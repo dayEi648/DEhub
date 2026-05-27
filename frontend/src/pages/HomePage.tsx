@@ -18,6 +18,7 @@ import { getBlogPostList } from '../api/blog'
 import { getForumPostList, getForumZoneList } from '../api/forum'
 import AppTopNav from '../components/AppTopNav'
 import { useLogout } from '../hooks/useLogout'
+import { useViewport } from '../hooks/useViewport'
 import { formatDate } from '../utils/format'
 import type { BlogPostListItem } from '../types/blog'
 import type { ForumPostListItem, ForumZone } from '../types/forum'
@@ -27,16 +28,6 @@ interface HomeData {
   blogs: BlogPostListItem[]
   hotPosts: ForumPostListItem[]
   zones: ForumZone[]
-}
-
-function useViewport() {
-  const [vw, setVw] = useState(window.innerWidth)
-  useEffect(() => {
-    const onResize = () => setVw(window.innerWidth)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-  return vw
 }
 
 /* ─── Sub-components ─── */

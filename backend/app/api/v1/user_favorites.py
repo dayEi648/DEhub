@@ -29,15 +29,7 @@ def favorite_blog_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FavoriteStatusResponse:
-    """
-    收藏博客文章（登录用户）
-    Args:
-        post_id: 文章ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        FavoriteStatusResponse: 收藏状态
-    """
+    """收藏博客文章（登录用户）。"""
     service = UserFavoriteService(db)
     service.favorite_blog_post(post_id, current_user)
     return FavoriteStatusResponse(is_favorited=True)
@@ -53,15 +45,7 @@ def unfavorite_blog_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FavoriteStatusResponse:
-    """
-    取消收藏博客文章（登录用户）
-    Args:
-        post_id: 文章ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        FavoriteStatusResponse: 收藏状态
-    """
+    """取消收藏博客文章（登录用户）。"""
     service = UserFavoriteService(db)
     service.unfavorite_blog_post(post_id, current_user)
     return FavoriteStatusResponse(is_favorited=False)
@@ -76,15 +60,7 @@ def get_blog_post_favorite_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FavoriteStatusResponse:
-    """
-    查询当前用户是否收藏了指定博客文章（登录用户）
-    Args:
-        post_id: 文章ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        FavoriteStatusResponse: 收藏状态
-    """
+    """查询当前用户是否收藏了指定博客文章（登录用户）。"""
     service = UserFavoriteService(db)
     is_favorited = service.is_blog_post_favorited(post_id, current_user)
     return FavoriteStatusResponse(is_favorited=is_favorited)
@@ -100,16 +76,7 @@ def list_blog_post_favorites(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BlogPostFavoriteListResponse:
-    """
-    获取当前用户的博客文章收藏列表（分页）
-    Args:
-        skip: 跳过数量
-        limit: 限制数量
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        BlogPostFavoriteListResponse: 收藏列表
-    """
+    """获取当前用户的博客文章收藏列表（分页）。"""
     service = UserFavoriteService(db)
     return service.list_blog_post_favorites(skip, limit, current_user)
 
@@ -126,15 +93,7 @@ def follow_zone(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FollowStatusResponse:
-    """
-    关注分区（登录用户）
-    Args:
-        zone_id: 分区ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        FollowStatusResponse: 关注状态
-    """
+    """关注分区（登录用户）。"""
     service = UserFavoriteService(db)
     service.follow_zone(zone_id, current_user)
     return FollowStatusResponse(is_followed=True)
@@ -150,15 +109,7 @@ def unfollow_zone(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FollowStatusResponse:
-    """
-    取消关注分区（登录用户）
-    Args:
-        zone_id: 分区ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        FollowStatusResponse: 关注状态
-    """
+    """取消关注分区（登录用户）。"""
     service = UserFavoriteService(db)
     service.unfollow_zone(zone_id, current_user)
     return FollowStatusResponse(is_followed=False)
@@ -174,16 +125,7 @@ def list_zone_follows(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ZoneFollowListResponse:
-    """
-    获取当前用户的分区关注列表（分页）
-    Args:
-        skip: 跳过数量
-        limit: 限制数量
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ZoneFollowListResponse: 关注列表
-    """
+    """获取当前用户的分区关注列表（分页）。"""
     service = UserFavoriteService(db)
     return service.list_zone_follows(skip, limit, current_user)
 
@@ -200,15 +142,7 @@ def favorite_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FavoriteStatusResponse:
-    """
-    收藏论坛帖子（登录用户）
-    Args:
-        post_id: 帖子ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        FavoriteStatusResponse: 收藏状态
-    """
+    """收藏论坛帖子（登录用户）。"""
     service = UserFavoriteService(db)
     service.favorite_post(post_id, current_user)
     return FavoriteStatusResponse(is_favorited=True)
@@ -224,15 +158,7 @@ def unfavorite_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FavoriteStatusResponse:
-    """
-    取消收藏论坛帖子（登录用户）
-    Args:
-        post_id: 帖子ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        FavoriteStatusResponse: 收藏状态
-    """
+    """取消收藏论坛帖子（登录用户）。"""
     service = UserFavoriteService(db)
     service.unfavorite_post(post_id, current_user)
     return FavoriteStatusResponse(is_favorited=False)
@@ -247,15 +173,7 @@ def get_post_favorite_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FavoriteStatusResponse:
-    """
-    查询当前用户是否收藏了指定论坛帖子（登录用户）
-    Args:
-        post_id: 帖子ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        FavoriteStatusResponse: 收藏状态
-    """
+    """查询当前用户是否收藏了指定论坛帖子（登录用户）。"""
     service = UserFavoriteService(db)
     is_favorited = service.is_post_favorited(post_id, current_user)
     return FavoriteStatusResponse(is_favorited=is_favorited)
@@ -271,15 +189,6 @@ def list_post_favorites(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PostFavoriteListResponse:
-    """
-    获取当前用户的论坛帖子收藏列表（分页）
-    Args:
-        skip: 跳过数量
-        limit: 限制数量
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        PostFavoriteListResponse: 收藏列表
-    """
+    """获取当前用户的论坛帖子收藏列表（分页）。"""
     service = UserFavoriteService(db)
     return service.list_post_favorites(skip, limit, current_user)

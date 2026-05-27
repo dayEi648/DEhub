@@ -5,6 +5,8 @@ import type {
   BlogPostDetailResponse,
   BlogCategoryWithPostCount,
   BlogCategoryCreateData,
+  BlogPostCreateData,
+  BlogPostUpdateData,
 } from '../types/blog'
 
 export function getBlogPostList(params: BlogPostListParams = {}) {
@@ -24,22 +26,6 @@ export function createBlogCategory(data: BlogCategoryCreateData) {
 }
 
 /* ─── Blog Post Management (Super Admin) ─── */
-
-export interface BlogPostCreateData {
-  title: string
-  slug?: string
-  content_md: string
-  category_id: number
-  tags?: string[]
-}
-
-export interface BlogPostUpdateData {
-  title?: string
-  slug?: string
-  content_md?: string
-  category_id?: number
-  tags?: string[]
-}
 
 export function createBlogPost(data: BlogPostCreateData, file: File) {
   const formData = new FormData()

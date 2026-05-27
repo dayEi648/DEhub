@@ -21,15 +21,7 @@ def create_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumPostResponse:
-    """
-    发表帖子（登录用户）
-    Args:
-        post_in: 帖子创建请求
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumPostResponse: 帖子响应
-    """
+    """发表帖子（登录用户）。"""
     service = ForumPostService(db)
     return service.create_post(post_in, current_user)
 
@@ -43,18 +35,7 @@ def list_posts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumPostListResponse:
-    """
-    查询帖子列表（支持分区筛选、排序与分页）
-    Args:
-        zone_id: 分区ID筛选
-        sort_by: 排序方式，"created" 按发布时间倒序，"view" 按浏览量倒序
-        skip: 跳过数量
-        limit: 限制数量
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumPostListResponse: 帖子分页列表
-    """
+    """查询帖子列表（支持分区筛选、排序与分页）。"""
     service = ForumPostService(db)
     return service.list_posts(
         zone_id=zone_id, sort_by=sort_by, skip=skip, limit=limit
@@ -67,15 +48,7 @@ def get_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumPostResponse:
-    """
-    根据 ID 查询帖子详情（同时增加浏览量）
-    Args:
-        post_id: 帖子ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumPostResponse: 帖子详情
-    """
+    """根据 ID 查询帖子详情（同时增加浏览量）。"""
     service = ForumPostService(db)
     return service.get_post(post_id)
 
@@ -87,16 +60,7 @@ def update_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumPostResponse:
-    """
-    编辑帖子（作者本人 或 管理员及以上）
-    Args:
-        post_id: 帖子ID
-        post_in: 帖子更新请求
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumPostResponse: 更新后的帖子详情
-    """
+    """编辑帖子（作者本人或管理员及以上）。"""
     service = ForumPostService(db)
     return service.update_post(post_id, post_in, current_user)
 
@@ -107,15 +71,7 @@ def delete_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """
-    删除帖子（作者本人 或 管理员 或 区主）
-    Args:
-        post_id: 帖子ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        None
-    """
+    """删除帖子（作者本人、管理员或区主）。"""
     service = ForumPostService(db)
     service.delete_post(post_id, current_user)
     return None

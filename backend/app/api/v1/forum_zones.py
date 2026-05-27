@@ -21,15 +21,7 @@ def create_zone(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumZoneResponse:
-    """
-    创建分区（管理员及以上）
-    Args:
-        zone_in: 分区创建请求
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumZoneResponse: 分区响应
-    """
+    """创建分区（管理员及以上）。"""
     service = ForumZoneService(db)
     return service.create_zone(zone_in, current_user)
 
@@ -39,14 +31,7 @@ def list_zones(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List[ForumZoneResponse]:
-    """
-    查询所有分区列表
-    Args:
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        List[ForumZoneResponse]: 分区列表
-    """
+    """查询所有分区列表。"""
     service = ForumZoneService(db)
     return service.list_zones()
 
@@ -57,15 +42,7 @@ def get_zone(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumZoneResponse:
-    """
-    根据 ID 查询分区详情
-    Args:
-        zone_id: 分区ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumZoneResponse: 分区详情
-    """
+    """根据 ID 查询分区详情。"""
     service = ForumZoneService(db)
     return service.get_zone(zone_id)
 
@@ -76,15 +53,7 @@ def get_zone_by_slug(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumZoneResponse:
-    """
-    根据 slug 查询分区详情（SEO 友好）
-    Args:
-        slug: 分区 slug
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumZoneResponse: 分区详情
-    """
+    """根据 slug 查询分区详情（SEO 友好）。"""
     service = ForumZoneService(db)
     return service.get_zone_by_slug(slug)
 
@@ -96,16 +65,7 @@ def update_zone(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ForumZoneResponse:
-    """
-    编辑分区（管理员及以上 或 区主）
-    Args:
-        zone_id: 分区ID
-        zone_in: 分区更新请求
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        ForumZoneResponse: 更新后的分区详情
-    """
+    """编辑分区（管理员及以上或区主）。"""
     service = ForumZoneService(db)
     return service.update_zone(zone_id, zone_in, current_user)
 
@@ -116,16 +76,7 @@ def delete_zone(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """
-    删除分区（管理员及以上）
-    若该分区下还有帖子，将返回 400
-    Args:
-        zone_id: 分区ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        None
-    """
+    """删除分区（管理员及以上，若分区下还有帖子将返回 400）。"""
     service = ForumZoneService(db)
     service.delete_zone(zone_id, current_user)
     return None

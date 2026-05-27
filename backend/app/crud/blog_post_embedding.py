@@ -7,16 +7,6 @@ from app.models.blog_post_embedding import BlogPostEmbedding
 
 
 def get_embedding_by_post_id(db: Session, post_id: int) -> BlogPostEmbedding | None:
-    """
-    根据文章 ID 获取向量记录。
-
-    Args:
-        db: 数据库会话
-        post_id: 文章 ID
-
-    Returns:
-        BlogPostEmbedding | None
-    """
     return (
         db.query(BlogPostEmbedding)
         .filter(BlogPostEmbedding.post_id == post_id)
@@ -30,21 +20,6 @@ def upsert_embedding(
     embedding: list[float],
     content_hash: str | None = None,
 ) -> BlogPostEmbedding:
-    """
-    插入或更新文章的向量记录。
-
-    若 post_id 已存在则更新 embedding 和 content_hash，
-    否则新建记录。
-
-    Args:
-        db: 数据库会话
-        post_id: 文章 ID
-        embedding: 向量（维度由 EMBEDDING_DIMENSION 配置决定，默认 1024）
-        content_hash: 内容指纹，用于跳过无变化的重复嵌入
-
-    Returns:
-        BlogPostEmbedding: 更新或新建的记录
-    """
     existing = get_embedding_by_post_id(db, post_id)
     if existing:
         existing.embedding = embedding
@@ -65,16 +40,6 @@ def upsert_embedding(
 
 
 def delete_embedding_by_post_id(db: Session, post_id: int) -> bool:
-    """
-    根据文章 ID 删除向量记录。
-
-    Args:
-        db: 数据库会话
-        post_id: 文章 ID
-
-    Returns:
-        bool: 是否成功删除（记录存在且被删除）
-    """
     result = (
         db.query(BlogPostEmbedding)
         .filter(BlogPostEmbedding.post_id == post_id)
@@ -89,20 +54,6 @@ def search_similar(
     query_embedding: list[float],
     top_k: int = 5,
 ) -> list[tuple[BlogPostEmbedding, float]]:
-    """
-    基于余弦距离检索最相似的博客文章向量。
-
-    使用 pgvector 的 `<=>`（余弦距离）算子，距离越小越相似。
-    返回结果按距离升序排列。
-
-    Args:
-        db: 数据库会话
-        query_embedding: 查询向量
-        top_k: 返回结果数量上限
-
-    Returns:
-        list[tuple[BlogPostEmbedding, float]]: (向量记录, 距离) 列表
-    """
     stmt = text(
         """
         SELECT id, post_id, embedding, content_hash, created_at, updated_at,

@@ -70,12 +70,7 @@ def batch_resolve_system_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BatchResolveResponse:
-    """
-    批量标记日志为已处理（管理员及以上权限）。
-
-    Returns:
-        {"resolved_count": 实际更新的条数}
-    """
+    """批量标记日志为已处理（管理员及以上权限）。"""
     require_admin(current_user)
     count = SystemLogService(db).batch_resolve_logs(
         req.ids, resolved_by=current_user.id

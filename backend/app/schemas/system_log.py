@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,16 +9,16 @@ class SystemLogResponse(BaseModel):
 
     id: int
     level: str
-    module: Optional[str] = None
+    module: str | None = None
     message: str
-    exception: Optional[str] = None
-    trace_id: Optional[str] = None
-    user_id: Optional[int] = None
-    ip: Optional[str] = None
-    extra: Optional[dict[str, Any]] = None
+    exception: str | None = None
+    trace_id: str | None = None
+    user_id: int | None = None
+    ip: str | None = None
+    extra: dict[str, Any] | None = None
     is_resolved: bool
-    resolved_at: Optional[datetime] = None
-    resolved_by: Optional[int] = None
+    resolved_at: datetime | None = None
+    resolved_by: int | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

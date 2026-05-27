@@ -17,15 +17,7 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> UserResponse:
-    """
-    创建用户（管理员专属）
-    Args:
-        user_in: 用户创建请求
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        UserResponse: 用户响应
-    """
+    """创建用户（管理员专属）。"""
     service = UserService(db)
     user = service.create_user(user_in, current_user)
     return UserResponse.model_validate(user)
@@ -86,17 +78,7 @@ async def update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> UserResponse:
-    """
-    更新用户
-    Args:
-        user_id: 用户ID
-        user_in: 用户更新请求
-        file: 头像文件
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        UserResponse: 用户响应
-    """
+    """更新用户信息。"""
     service = UserService(db)
     user = await service.update_user(user_id, user_in, current_user, file)
     return UserResponse.model_validate(user)
@@ -132,14 +114,7 @@ def hard_delete_user(
 
 @router.post("/login", response_model=UserLoginResponse)
 def login(user_login: UserLogin, db: Session = Depends(get_db)) -> UserLoginResponse:
-    """
-    登录
-    Args:
-        user_login: 用户登录请求
-        db: 数据库会话
-    Returns:
-        UserLoginResponse: 用户登录响应
-    """
+    """用户登录。"""
     service = UserService(db)
     user, access_token, refresh_token = service.login_user(user_login)
     return UserLoginResponse(
@@ -153,14 +128,7 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)) -> UserLoginResp
 
 @router.post("/refresh-token", response_model=UserLoginResponse)
 async def refresh_access_token(req: RefreshTokenRequest, db: Session = Depends(get_db)) -> UserLoginResponse:
-    """
-    刷新访问令牌
-    Args:
-        req: 刷新令牌请求
-        db: 数据库会话
-    Returns:
-        UserLoginResponse: 用户登录响应
-    """
+    """刷新访问令牌。"""
     if not req.refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="刷新令牌不能为空")
     service = UserService(db)
@@ -181,16 +149,7 @@ async def logout(
     current_user: User = Depends(get_current_user),
     token: str = Depends(get_token_from_header),
 ) -> None:
-    """
-    登出
-    Args:
-        user_logout: 用户登出请求（可选 refresh_token）
-        db: 数据库会话
-        current_user: 当前登录用户
-        token: 访问令牌（来自 Authorization Header）
-    Returns:
-        None
-    """
+    """用户登出。"""
     service = UserService(db)
     await service.logout_user(token, user_logout)
 
@@ -201,29 +160,14 @@ async def change_password(
     current_user: User = Depends(get_current_user),
     token: str = Depends(get_token_from_header),
 ) -> None:
-    """
-    修改当前登录用户密码
-    修改成功后，该用户所有已有 Token 将自动失效，需重新登录
-    Args:
-        password_data: 密码修改请求
-        db: 数据库会话
-        current_user: 当前登录用户
-        token: 访问令牌（来自 Authorization Header）
-    """
+    """修改当前登录用户密码（修改后所有已有 Token 自动失效）。"""
     service = UserService(db)
     service.change_password(current_user, password_data, access_token=token)
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register(user_register: UserRegister, db: Session = Depends(get_db)) -> UserResponse:
-    """
-    注册用户
-    Args:
-        user_register: 用户注册请求
-        db: 数据库会话
-    Returns:
-        UserResponse: 用户响应
-    """
+    """用户注册。"""
     service = UserService(db)
     user = service.register_user(user_register)
     return UserResponse.model_validate(user)

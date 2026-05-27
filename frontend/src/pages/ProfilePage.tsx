@@ -34,7 +34,9 @@ import type { User as UserType } from '../types/user'
 import type { BlogPostListItem } from '../types/blog'
 import type { ForumPostListItem, ForumZone } from '../types/forum'
 
+import { parseErrorMessage } from '../utils/error'
 import { validateImageFile, createImagePreview } from '../utils/upload'
+import UserAvatar from '../components/UserAvatar'
 
 type TabKey = 'profile' | 'security' | 'favorites'
 type FavSubTab = 'zones' | 'posts' | 'blogs'
@@ -375,8 +377,7 @@ export default function ProfilePage() {
       setAvatarPreview(null)
       toast.success('个人资料已更新')
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast.error(msg || '更新失败，请重试')
+      toast.error(parseErrorMessage(err, '更新失败，请重试'))
     } finally {
       setSavingProfile(false)
     }
@@ -412,8 +413,7 @@ export default function ProfilePage() {
         navigate('/login', { replace: true })
       }, 1500)
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast.error(msg || '密码修改失败，请重试')
+      toast.error(parseErrorMessage(err, '密码修改失败，请重试'))
     } finally {
       setSavingPassword(false)
     }
@@ -450,8 +450,7 @@ export default function ProfilePage() {
       setFavoriteBlogs((prev) => prev.filter((b) => b.id !== postId))
       toast.success('已取消收藏')
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast.error(msg || '操作失败')
+      toast.error(parseErrorMessage(err, '操作失败'))
     }
   }
 
@@ -461,8 +460,7 @@ export default function ProfilePage() {
       setFavoritePosts((prev) => prev.filter((p) => p.id !== postId))
       toast.success('已取消收藏')
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast.error(msg || '操作失败')
+      toast.error(parseErrorMessage(err, '操作失败'))
     }
   }
 
@@ -599,35 +597,13 @@ export default function ProfilePage() {
           }}
         >
           <div style={{ position: 'relative' }}>
-            {user.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt="avatar"
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '2px solid var(--color-hairline)',
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--color-surface-card)',
-                  border: '2px solid var(--color-hairline)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--color-primary)',
-                }}
-              >
-                <UserIcon size={28} />
-              </div>
-            )}
+            <UserAvatar
+              url={user.avatar_url}
+              name={user.username}
+              size={64}
+              iconSize={28}
+              style={{ border: '2px solid var(--color-hairline)' }}
+            />
           </div>
           <div>
             <div style={{ fontSize: 18, fontWeight: 500, color: 'var(--color-ink)' }}>

@@ -308,21 +308,20 @@ async def upload_image(file: UploadFile, scene: ImageUploadScene) -> str:
     )
 
 
-async def delete_file_from_oss(file_path: str) -> None:
-    """
-    删除文件从OSS（异步版本）
-    Args:
-        file_path: 文件路径
-    Returns:
-        None
-    """
+def _delete_file_from_oss(file_path: str) -> None:
+    """从 OSS 删除单个文件的同步核心逻辑。"""
     if not file_path:
         return
+    bucket = _get_oss_bucket()
+    result = bucket.delete_object(file_path)
+    if result.status != 204:
+        raise HTTPException(status_code=500, detail="删除文件失败")
+
+
+async def delete_file_from_oss(file_path: str) -> None:
+    """删除文件从OSS（异步版本）"""
     try:
-        bucket = _get_oss_bucket()
-        result = await asyncio.to_thread(bucket.delete_object, file_path)
-        if result.status != 204:
-            raise HTTPException(status_code=500, detail="删除文件失败")
+        await asyncio.to_thread(_delete_file_from_oss, file_path)
     except HTTPException:
         raise
     except oss2.exceptions.OssError as e:
@@ -334,20 +333,9 @@ async def delete_file_from_oss(file_path: str) -> None:
 
 
 def delete_file_from_oss_sync(file_path: str) -> None:
-    """
-    删除文件从OSS（同步版本，供同步Service方法使用）
-    Args:
-        file_path: 文件路径
-    Returns:
-        None
-    """
-    if not file_path:
-        return
+    """删除文件从OSS（同步版本，供同步Service方法使用）"""
     try:
-        bucket = _get_oss_bucket()
-        result = bucket.delete_object(file_path)
-        if result.status != 204:
-            raise HTTPException(status_code=500, detail="删除文件失败")
+        _delete_file_from_oss(file_path)
     except HTTPException:
         raise
     except oss2.exceptions.OssError as e:

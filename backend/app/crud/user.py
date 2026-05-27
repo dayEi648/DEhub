@@ -4,38 +4,14 @@ from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash
 
 def get_user_by_id(db: Session, user_id: int) -> User | None:
-    """
-    根据用户ID获取用户
-    Args:
-        db: 数据库会话
-        user_id: 用户ID
-    Returns:
-        User | None: 用户对象或None
-    """
     return db.query(User).filter(User.id == user_id).first()
 
 
 def get_user_by_username(db: Session, username: str) -> User | None:
-    """
-    根据用户名获取用户
-    Args:
-        db: 数据库会话
-        username: 用户名
-    Returns:
-        User | None: 用户对象或None
-    """
     return db.query(User).filter(User.username == username).first()
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
-    """
-    根据邮箱获取用户
-    Args:
-        db: 数据库会话
-        email: 邮箱
-    Returns:
-        User | None: 用户对象或None
-    """
     return db.query(User).filter(User.email == email).first()
 
 
@@ -48,19 +24,6 @@ def get_users(
     email: str | None = None,
     permission: int | None = None,
 ) -> tuple[list[User], int]:
-    """
-    获取用户列表（支持分页与筛选）
-    Args:
-        db: 数据库会话
-        skip: 跳过数量
-        limit: 限制数量
-        include_deleted: 是否包含已逻辑删除的用户
-        username: 用户名模糊筛选
-        email: 邮箱模糊筛选
-        permission: 权限值筛选
-    Returns:
-        tuple[list[User], int]: 用户列表与总条数
-    """
     query = db.query(User)
     if not include_deleted:
         query = query.filter(User.is_deleted == False)
@@ -76,14 +39,6 @@ def get_users(
 
 
 def create_user(db: Session, user_in: UserCreate) -> User:
-    """
-    创建用户
-    Args:
-        db: 数据库会话
-        user_in: 用户创建请求
-    Returns:
-        User: 用户对象
-    """
     db_user = User(
         username=user_in.username,
         email=user_in.email,
@@ -97,15 +52,6 @@ def create_user(db: Session, user_in: UserCreate) -> User:
 
 
 def update_user(db: Session, db_user: User, user_in: UserUpdate) -> User:
-    """
-    更新用户
-    Args:
-        db: 数据库会话
-        db_user: 用户对象
-        user_in: 用户更新请求
-    Returns:
-        User: 用户对象
-    """
     # 只更新传了的字段
     update_data = user_in.model_dump(exclude_unset=True)
     # 如果更新密码，需要哈希后存入 hashed_password 字段
@@ -123,14 +69,6 @@ def update_user(db: Session, db_user: User, user_in: UserUpdate) -> User:
 
 
 def soft_delete_user(db: Session, user_id: int) -> int:
-    """
-    逻辑删除用户（注销）
-    Args:
-        db: 数据库会话
-        user_id: 用户ID
-    Returns:
-        int: 更新行数
-    """
     result = db.query(User).filter(
         User.id == user_id,
         User.is_deleted == False
@@ -140,14 +78,6 @@ def soft_delete_user(db: Session, user_id: int) -> int:
 
 
 def hard_delete_user(db: Session, user_id: int, auto_commit: bool = True) -> int:
-    """
-    硬删除用户（从数据库移除）
-    Args:
-        db: 数据库会话
-        user_id: 用户ID
-    Returns:
-        int: 删除数量
-    """
     deleted = db.query(User).filter(User.id == user_id).delete(synchronize_session=False)
     if auto_commit:
         db.commit()

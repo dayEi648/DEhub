@@ -16,15 +16,7 @@ def create_comment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> CommentResponse:
-    """
-    新增评论（登录用户）
-    Args:
-        comment_in: 评论创建请求
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        CommentResponse: 评论响应
-    """
+    """新增评论（登录用户）。"""
     service = CommentService(db)
     return service.create_comment(comment_in, current_user)
 
@@ -35,16 +27,7 @@ def delete_comment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """
-    删除评论（评论作者或管理员）
-    若删除博客表层评论，会自动级联删除其下所有里层回复与嵌套回复。
-    Args:
-        comment_id: 评论ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        None
-    """
+    """删除评论（评论作者或管理员，删除表层评论会级联删除其下所有嵌套回复）。"""
     service = CommentService(db)
     service.delete_comment(comment_id, current_user)
     return None
@@ -63,27 +46,7 @@ def list_comments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> CommentListResponse:
-    """
-    分页查询评论列表
-    - sort_by=time: 按创建时间倒序
-    - sort_by=hot: 按点赞数倒序
-    - parent_id 筛选某父级下的评论
-    - is_nested 筛选是否嵌套回复
-    - nested_parent_id 筛选引用某里层/回复评论的嵌套回复
-    Args:
-        target_type: 目标类型
-        target_id: 目标ID
-        parent_id: 父级ID
-        is_nested: 是否嵌套回复
-        nested_parent_id: 嵌套父级ID
-        sort_by: 排序方式，"time"（倒序）、"time_asc"（正序）或 "hot"
-        skip: 跳过数量
-        limit: 限制数量
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        CommentListResponse: 评论分页列表响应
-    """
+    """分页查询评论列表（支持排序、嵌套回复筛选）。"""
     service = CommentService(db)
     items, total = service.list_comments_with_like_state(
         target_type=target_type,
@@ -105,15 +68,7 @@ def like_comment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """
-    点赞评论（登录用户）
-    Args:
-        comment_id: 评论ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        None
-    """
+    """点赞评论（登录用户）。"""
     service = CommentService(db)
     service.like_comment(comment_id, current_user)
     return None
@@ -125,15 +80,7 @@ def unlike_comment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """
-    取消点赞评论（登录用户）
-    Args:
-        comment_id: 评论ID
-        db: 数据库会话
-        current_user: 当前登录用户
-    Returns:
-        None
-    """
+    """取消点赞评论（登录用户）。"""
     service = CommentService(db)
     service.unlike_comment(comment_id, current_user)
     return None

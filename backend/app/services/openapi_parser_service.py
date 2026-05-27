@@ -1,8 +1,4 @@
-"""OpenAPI 文档解析服务。
-
-负责将 OpenAPI/Swagger 文档按 ``path + method`` 拆分为端点分片，
-递归展开 ``$ref`` 引用，生成适合 Embedding 的文本与 content_hash。
-"""
+"""OpenAPI 文档解析服务：拆分为端点分片并生成可嵌入文本。"""
 
 from __future__ import annotations
 
@@ -25,20 +21,7 @@ class OpenAPIParserService:
         filename: str,
         document_id: int,
     ) -> list[dict]:
-        """解析文档内容并生成端点分片列表。
-
-        Args:
-            content: 文档原始字节内容。
-            filename: 原始文件名（用于判断 JSON/YAML）。
-            document_id: 文档数据库 ID（用于生成 chunk_id）。
-
-        Returns:
-            端点分片字典列表，每条包含 chunk_id、path、method、summary、
-            description、tags、operation_id、content、content_hash。
-
-        Raises:
-            ValueError: 文件格式不支持或解析失败。
-        """
+        """解析文档内容并生成端点分片列表。"""
         spec = self._load_spec(content, filename)
         schemas = self._extract_schemas(spec)
         return self._build_chunks(spec, document_id, schemas)
@@ -49,7 +32,7 @@ class OpenAPIParserService:
 
     @staticmethod
     def _load_spec(content: bytes, filename: str) -> dict:
-        """根据文件扩展名加载 JSON 或 YAML。"""
+        """根据扩展名加载 JSON 或 YAML。"""
         text = content.decode("utf-8")
         lower_name = filename.lower()
 
@@ -70,7 +53,7 @@ class OpenAPIParserService:
 
     @staticmethod
     def _extract_schemas(spec: dict) -> dict:
-        """从 OpenAPI 3.x 或 Swagger 2.0 规范中提取全局 Schema 定义。"""
+        """提取全局 Schema 定义（支持 OpenAPI 3.x 和 Swagger 2.0）。"""
         # OpenAPI 3.x
         schemas = spec.get("components", {}).get("schemas", {})
         if schemas:
@@ -84,7 +67,7 @@ class OpenAPIParserService:
         document_id: int,
         schemas: dict,
     ) -> list[dict]:
-        """按 path + method 遍历并构建端点分片。"""
+        """按 path + method 构建端点分片。"""
         paths = spec.get("paths", {})
         if not paths:
             return []
@@ -133,7 +116,7 @@ class OpenAPIParserService:
         document_id: int,
         index: int,
     ) -> dict:
-        """为单个端点构建分片字典。"""
+        """构建单个端点分片字典。"""
         path_clean = (
             path.replace("/", "_")
             .replace("{", "")
@@ -167,7 +150,7 @@ class OpenAPIParserService:
         operation: dict,
         schemas: dict,
     ) -> str:
-        """为单个端点构建可读的文本描述。"""
+        """构建单个端点的可读文本描述。"""
         lines = [f"API Endpoint: {method.upper()} {path}"]
 
         if operation.get("summary"):
@@ -228,7 +211,7 @@ class OpenAPIParserService:
 
     @staticmethod
     def _extract_constraints(prop_schema: dict) -> str:
-        """提取并格式化 Schema 的约束信息（enum / default / format）。"""
+        """提取并格式化 Schema 约束（enum / default / format）。"""
         parts: list[str] = []
         if "enum" in prop_schema:
             parts.append(f"enum={prop_schema['enum']}")
@@ -247,7 +230,7 @@ class OpenAPIParserService:
         indent: int = 0,
         required_set: set[str] | None = None,
     ) -> list[str]:
-        """递归描述 Schema 结构（支持 ``$ref`` 展开、allOf / oneOf / anyOf）。"""
+        """递归描述 Schema 结构（支持 $ref、allOf、oneOf、anyOf）。"""
         lines: list[str] = []
         prefix = "  " * indent
         required_set = required_set or set()

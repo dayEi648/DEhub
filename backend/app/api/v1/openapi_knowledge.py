@@ -127,11 +127,7 @@ async def upload_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """上传 OpenAPI 文档并启动后台解析。
-
-    权限：管理员及以上。
-    重复文件（content_hash 相同）会覆盖旧文档。
-    """
+    """上传 OpenAPI 文档并启动后台解析（管理员及以上，重复文件会覆盖旧文档）。"""
     require_admin(current_user)
 
     if not file.filename:
@@ -206,10 +202,7 @@ async def list_documents(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """分页查看 OpenAPI 文档列表。
-
-    权限：管理员及以上。
-    """
+    """分页查看 OpenAPI 文档列表（管理员及以上）。"""
     require_admin(current_user)
 
     docs, total = crud.list_documents(db, skip=skip, limit=limit, status=status)
@@ -227,11 +220,7 @@ async def get_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """查看单个文档详情和解析状态。
-
-    权限：管理员及以上。
-    前端上传后可通过该接口轮询 status。
-    """
+    """查看单个文档详情和解析状态（管理员及以上）。"""
     require_admin(current_user)
 
     doc = crud.get_document_by_id(db, document_id)
@@ -252,10 +241,7 @@ async def delete_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """删除文档及其所有端点向量。
-
-    权限：管理员及以上。
-    """
+    """删除文档及其所有端点向量（管理员及以上）。"""
     require_admin(current_user)
 
     doc = crud.get_document_by_id(db, document_id)
@@ -279,10 +265,7 @@ async def list_endpoints(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """分页查看端点列表。
-
-    权限：管理员及以上。
-    """
+    """分页查看端点列表（管理员及以上）。"""
     require_admin(current_user)
 
     eps, total = crud.list_endpoints(
@@ -305,10 +288,7 @@ async def search_endpoints(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """手动检索 OpenAPI 知识库。
-
-    权限：管理员及以上。
-    """
+    """手动检索 OpenAPI 知识库（管理员及以上）。"""
     require_admin(current_user)
 
     service = OpenAPIEmbeddingService(db)
@@ -330,10 +310,7 @@ async def delete_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """删除单个端点向量。
-
-    权限：管理员及以上。
-    """
+    """删除单个端点向量（管理员及以上）。"""
     require_admin(current_user)
 
     deleted = crud.delete_endpoint_by_id(db, endpoint_id)

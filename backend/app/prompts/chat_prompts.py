@@ -88,21 +88,7 @@ def render_chat_system_prompt(
     current_goal: str | None = None,
     permission_level: int | None = None,
 ) -> str:
-    """渲染完整的单条 SystemMessage 内容。
-
-    固定部分与动态部分在代码结构中分离，但最终合并为一条字符串，
-    以兼容国内 OpenAI-compatible 接口对多个 system message 的不稳定支持。
-
-    Args:
-        current_time: 当前时间字符串（如 "2026-05-24 14:30"）
-        scene: 当前场景标记（如 "对话开始"、"持续对话"）
-        profile_text: 用户画像文本
-        current_goal: 当前目标描述（5~200 字）
-        permission_level: 用户权限等级（0=USER, 1=ADMIN, 2=SUPER_ADMIN）
-
-    Returns:
-        合并后的 system prompt 字符串
-    """
+    """渲染完整的 chat system prompt（固定部分 + 动态上下文拼接）。"""
     current_time_block = (
         _CURRENT_TIME_BLOCK_TEMPLATE.format(current_time=current_time)
         if current_time else ""
@@ -168,15 +154,7 @@ def render_current_goal_prompt(
     conversation: str,
     previous_goal: str | None = None,
 ) -> str:
-    """渲染生成 current_goal 的 small model prompt。
-
-    Args:
-        conversation: 供 small model 参考的对话内容（通常为最近若干轮用户消息）
-        previous_goal: 上一轮的 current_goal（如有）
-
-    Returns:
-        完整的 prompt 字符串
-    """
+    """渲染生成 current_goal 的 small model prompt。"""
     previous_goal_block = (
         _PREVIOUS_GOAL_BLOCK_TEMPLATE.format(previous_goal=previous_goal)
         if previous_goal else ""

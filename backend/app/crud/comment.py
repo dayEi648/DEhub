@@ -7,14 +7,6 @@ from app.schemas.comment import CommentCreate
 
 
 def get_comment_by_id(db: Session, comment_id: int) -> Comment | None:
-    """
-    根据评论ID获取评论
-    Args:
-        db: 数据库会话
-        comment_id: 评论ID
-    Returns:
-        Comment | None: 评论对象或None
-    """
     return (
         db.query(Comment)
         .options(joinedload(Comment.user))
@@ -34,21 +26,6 @@ def get_comments(
     skip: int = 0,
     limit: int = 20,
 ) -> tuple[list[Comment], int]:
-    """
-    分页查询评论列表（自动 join 用户信息）
-    Args:
-        db: 数据库会话
-        target_type: 目标类型
-        target_id: 目标ID
-        parent_id: 父级ID，None 表示不过滤
-        is_nested: 是否嵌套回复，None 表示不过滤
-        nested_parent_id: 嵌套父级ID，None 表示不过滤
-        sort_by: 排序方式，"time" 按时间倒序，"hot" 按热度（点赞数）倒序
-        skip: 跳过数量
-        limit: 限制数量
-    Returns:
-        tuple[list[Comment], int]: 评论列表与总条数
-    """
     query = db.query(Comment).filter(
         Comment.target_type == target_type,
         Comment.target_id == target_id,
@@ -86,27 +63,10 @@ def get_comments(
 def get_comments_by_parent_id(
     db: Session, parent_id: int
 ) -> list[Comment]:
-    """
-    查询某父级下的所有评论（用于级联删除）
-    Args:
-        db: 数据库会话
-        parent_id: 父级ID
-    Returns:
-        list[Comment]: 评论列表
-    """
     return db.query(Comment).filter(Comment.parent_id == parent_id).all()
 
 
 def create_comment(db: Session, comment_in: CommentCreate, user_id: int) -> Comment:
-    """
-    创建评论
-    Args:
-        db: 数据库会话
-        comment_in: 评论创建请求
-        user_id: 当前登录用户ID
-    Returns:
-        Comment: 评论对象
-    """
     db_comment = Comment(
         target_type=comment_in.target_type,
         target_id=comment_in.target_id,
@@ -123,14 +83,6 @@ def create_comment(db: Session, comment_in: CommentCreate, user_id: int) -> Comm
 
 
 def delete_comment(db: Session, comment_id: int) -> int:
-    """
-    物理删除评论
-    Args:
-        db: 数据库会话
-        comment_id: 评论ID
-    Returns:
-        int: 删除行数
-    """
     result = (
         db.query(Comment)
         .filter(Comment.id == comment_id)
@@ -143,14 +95,6 @@ def delete_comment(db: Session, comment_id: int) -> int:
 def delete_comments_by_ids(
     db: Session, comment_ids: list[int], auto_commit: bool = True
 ) -> int:
-    """
-    按评论 ID 列表批量删除评论
-    Args:
-        db: 数据库会话
-        comment_ids: 评论 ID 列表
-    Returns:
-        int: 删除行数
-    """
     if not comment_ids:
         return 0
     result = (
@@ -164,14 +108,6 @@ def delete_comments_by_ids(
 
 
 def get_comment_ids_by_user_id(db: Session, user_id: int) -> list[int]:
-    """
-    获取某用户发表的所有评论 ID
-    Args:
-        db: 数据库会话
-        user_id: 用户ID
-    Returns:
-        list[int]: 评论 ID 列表
-    """
     rows = db.query(Comment.id).filter(Comment.user_id == user_id).all()
     return [row[0] for row in rows]
 
@@ -181,15 +117,6 @@ def get_comment_ids_by_target_ids(
     target_type: str,
     target_ids: list[int],
 ) -> list[int]:
-    """
-    按目标类型和目标 ID 列表批量查询评论 ID
-    Args:
-        db: 数据库会话
-        target_type: 目标类型
-        target_ids: 目标 ID 列表
-    Returns:
-        list[int]: 评论 ID 列表
-    """
     if not target_ids:
         return []
     rows = (
@@ -206,14 +133,6 @@ def get_comment_ids_by_target_ids(
 def get_child_comment_ids_by_parent_ids(
     db: Session, parent_ids: list[int]
 ) -> list[int]:
-    """
-    获取 parent_id 在指定列表中的所有子评论 ID
-    Args:
-        db: 数据库会话
-        parent_ids: 父评论 ID 列表
-    Returns:
-        list[int]: 子评论 ID 列表
-    """
     if not parent_ids:
         return []
     rows = db.query(Comment.id).filter(Comment.parent_id.in_(parent_ids)).all()
@@ -226,15 +145,6 @@ def get_child_comment_ids_by_parent_ids(
 def get_user_comment_like(
     db: Session, comment_id: int, user_id: int
 ) -> UserCommentLike | None:
-    """
-    查询用户对某条评论的点赞记录
-    Args:
-        db: 数据库会话
-        comment_id: 评论ID
-        user_id: 用户ID
-    Returns:
-        UserCommentLike | None: 点赞记录或None
-    """
     return (
         db.query(UserCommentLike)
         .filter(
@@ -246,15 +156,6 @@ def get_user_comment_like(
 
 
 def create_user_comment_like(db: Session, comment_id: int, user_id: int) -> UserCommentLike:
-    """
-    创建点赞记录
-    Args:
-        db: 数据库会话
-        comment_id: 评论ID
-        user_id: 用户ID
-    Returns:
-        UserCommentLike: 点赞记录对象
-    """
     db_like = UserCommentLike(comment_id=comment_id, user_id=user_id)
     db.add(db_like)
     db.commit()
@@ -263,15 +164,6 @@ def create_user_comment_like(db: Session, comment_id: int, user_id: int) -> User
 
 
 def delete_user_comment_like(db: Session, comment_id: int, user_id: int) -> int:
-    """
-    删除点赞记录
-    Args:
-        db: 数据库会话
-        comment_id: 评论ID
-        user_id: 用户ID
-    Returns:
-        int: 删除行数
-    """
     result = (
         db.query(UserCommentLike)
         .filter(
@@ -287,14 +179,6 @@ def delete_user_comment_like(db: Session, comment_id: int, user_id: int) -> int:
 def delete_comment_likes_by_comment_ids(
     db: Session, comment_ids: list[int], auto_commit: bool = True
 ) -> int:
-    """
-    按评论 ID 列表批量删除点赞记录
-    Args:
-        db: 数据库会话
-        comment_ids: 评论 ID 列表
-    Returns:
-        int: 删除行数
-    """
     if not comment_ids:
         return 0
     result = (
@@ -312,15 +196,6 @@ def get_user_liked_comment_ids(
     user_id: int,
     comment_ids: list[int],
 ) -> set[int]:
-    """
-    批量查询用户已点赞的评论 ID。
-    Args:
-        db: 数据库会话
-        user_id: 用户ID
-        comment_ids: 评论 ID 列表
-    Returns:
-        set[int]: 已点赞评论 ID 集合
-    """
     if not comment_ids:
         return set()
     rows = (

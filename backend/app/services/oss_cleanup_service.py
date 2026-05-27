@@ -15,11 +15,7 @@ SessionFactory = Callable[[], Session]
 
 
 class OssCleanupService:
-    """
-    统一记录并执行 OSS 文件清理。
-
-    清理任务使用独立数据库会话提交，避免提交调用方业务事务中的未提交变更。
-    """
+    """统一记录并执行 OSS 文件清理。使用独立会话提交，避免影响调用方事务。"""
 
     _RETRY_DELAY_SECONDS = 300
 
@@ -27,10 +23,7 @@ class OssCleanupService:
         self,
         session_factory: SessionFactory = SessionLocal,
     ):
-        """
-        Args:
-            session_factory: 清理任务专用会话工厂。
-        """
+        """初始化服务，支持自定义会话工厂。"""
         self._session_factory = session_factory
 
     def _rollback_safely(self, db: Session) -> None:

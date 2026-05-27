@@ -14,12 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class BlogPostEmbeddingService:
-    """
-    博客文章向量嵌入服务。
-
-    负责将博客文章的标题、摘要、标签、正文拼接后向量化，
-    并通过 content_hash 去重，避免无变化的重复 embedding API 调用。
-    """
+    """博客文章向量嵌入服务：拼接文本后向量化，按 content_hash 去重。"""
 
     def __init__(self, db: Session):
         self.db = db
@@ -30,15 +25,7 @@ class BlogPostEmbeddingService:
 
     @staticmethod
     def _build_embedding_text(post) -> str:
-        """
-        将文章各字段拼接为待嵌入的单一文本。
-
-        策略：
-        - 有摘要时：标题 + 标签 + 摘要
-        - 无摘要时：标题 + 标签 + 正文
-
-        超长时截断到最近的句子边界，确保标题一定保留。
-        """
+        """拼接文章字段为待嵌入文本（超长时截断到最近句子边界）。"""
         parts = [f"标题：{post.title}"]
 
         if post.tags:
@@ -77,20 +64,7 @@ class BlogPostEmbeddingService:
     # ------------------------------------------------------------------
 
     def sync_post_embedding(self, post_id: int) -> None:
-        """
-        同步指定文章的向量嵌入。
-
-        流程：
-        1. 查询文章（仅处理 published 且未删除的）
-        2. 拼接文本并计算 content_hash
-        3. 与现有向量记录的 content_hash 比对
-        4. 若 hash 变化或不存在，调用 embedding API 并 upsert
-
-        所有异常均被捕获并记录日志，不会抛异常中断调用方。
-
-        Args:
-            post_id: 文章 ID
-        """
+        """同步指定文章的向量嵌入（仅处理 published 状态，异常不抛出）。"""
         try:
             post = post_crud.get_blog_post_by_id(self.db, post_id)
             if post is None:
@@ -144,17 +118,7 @@ class BlogPostEmbeddingService:
         top_k: int = 5,
         min_similarity: float | None = None,
     ) -> list[BlogPostSearchResult]:
-        """
-        根据用户查询语句，检索语义最相似的博客文章。
-
-        Args:
-            query: 用户查询文本
-            top_k: 返回结果数量上限
-            min_similarity: 最小相似度阈值，低于此值的结果会被过滤
-
-        Returns:
-            list[BlogPostSearchResult]: 按相似度降序排列的结果列表
-        """
+        """检索语义最相似的博客文章。"""
         if not query or not query.strip():
             return []
 
@@ -203,14 +167,7 @@ class BlogPostEmbeddingService:
         return results
 
     def delete_post_embedding(self, post_id: int) -> None:
-        """
-        删除指定文章的向量嵌入记录。
-
-        异常被捕获并记录日志，不会抛异常中断调用方。
-
-        Args:
-            post_id: 文章 ID
-        """
+        """删除指定文章的向量嵌入记录（异常不抛出）。"""
         try:
             deleted = embed_crud.delete_embedding_by_post_id(self.db, post_id)
             if deleted:

@@ -1,9 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import MarkdownContent from '../components/MarkdownContent'
 import {
-  User,
   Eye,
   MessageCircle,
   Clock,
@@ -15,8 +13,10 @@ import {
   ChevronUp,
   ChevronLeft,
   Edit3,
-  X,
 } from 'lucide-react'
+import BaseModal from '../components/BaseModal'
+import UserAvatar from '../components/UserAvatar'
+import ReplyEditor from '../components/ReplyEditor'
 import {
   getForumPostById,
   deleteForumPost,
@@ -30,47 +30,18 @@ import {
 } from '../api/forum'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
 import { favoriteForumPost, unfavoriteForumPost, getForumPostFavoriteStatus } from '../api/favorites'
-import { uploadImage } from '../api/upload'
 import { toast } from 'sonner'
+import { usePasteImageUpload } from '../hooks/usePasteImageUpload'
 import { getUser } from '../utils/auth'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate, formatDateTime } from '../utils/format'
-import { validateImageFile } from '../utils/upload'
 import type { ForumPost, ForumReply, ForumZone } from '../types/forum'
 import type { CommentResponse } from '../types/comments'
 
 const REPLY_PAGE_SIZE = 10
 const COMMENT_PAGE_SIZE = 5
-
-function ForumMarkdown({ content }: { content: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        p: ({ children }) => (
-          <p style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--color-body)', margin: '0 0 var(--spacing-sm)' }}>
-            {children}
-          </p>
-        ),
-        img: ({ src, alt }) => (
-          <img
-            src={src}
-            alt={alt}
-            style={{
-              maxWidth: '100%',
-              borderRadius: 'var(--rounded-md)',
-              margin: 'var(--spacing-sm) 0',
-            }}
-          />
-        ),
-      }}
-    >
-      {content}
-    </ReactMarkdown>
-  )
-}
 
 /* ─── Edit Post Modal ─── */
 function EditPostModal({
@@ -86,53 +57,7 @@ function EditPostModal({
   const [content, setContent] = useState(post.content)
   const [submitting, setSubmitting] = useState(false)
 
-  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData.items
-    let imageFile: File | null = null
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i]
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile()
-        if (file) {
-          imageFile = file
-          break
-        }
-      }
-    }
-    if (!imageFile) return
-
-    e.preventDefault()
-    const error = validateImageFile(imageFile)
-    if (error) {
-      toast.error(error)
-      return
-    }
-
-    const textarea = e.currentTarget
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-
-    toast.promise(
-      uploadImage(imageFile, 'forum_post').then((res) => {
-        const imageUrl = res.data.url
-        const alt = imageFile!.name.replace(/\.[^/.]+$/, '') || '图片'
-        const markdown = `![${alt}](${imageUrl})`
-        setContent((prev) => prev.slice(0, start) + markdown + prev.slice(end))
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + markdown.length
-          textarea.focus()
-        }, 0)
-      }),
-      {
-        loading: '正在上传图片...',
-        success: '图片上传成功',
-        error: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          return msg || '图片上传失败'
-        },
-      }
-    )
-  }
+  const { handlePaste } = usePasteImageUpload('forum_post')
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) return
@@ -152,55 +77,55 @@ function EditPostModal({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        backgroundColor: 'rgba(20,20,19,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--spacing-xl)',
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--color-canvas)',
-          borderRadius: 'var(--rounded-lg)',
-          padding: 'var(--spacing-xl)',
-          width: '100%',
-          maxWidth: 560,
-          maxHeight: '90vh',
-          overflow: 'auto',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-lg)' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 400, margin: 0, color: 'var(--color-ink)' }}>
-            编辑帖子
-          </h3>
+    <BaseModal
+      title={<h3 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 400, margin: 0 }}>编辑帖子</h3>}
+      onClose={onClose}
+      maxWidth={560}
+      hideHeaderDivider
+      hideFooterDivider
+      overflow="auto"
+      panelPadding
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-sm)' }}>
           <button
             onClick={onClose}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--rounded-full)',
+              padding: '10px 20px',
               backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               color: 'var(--color-muted)',
+              borderRadius: 'var(--rounded-md)',
+              fontSize: 14,
+              fontWeight: 500,
+              border: '1px solid var(--color-hairline)',
+              cursor: 'pointer',
             }}
           >
-            <X size={18} />
+            取消
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !title.trim() || !content.trim()}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: !title.trim() || !content.trim() ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              color: !title.trim() || !content.trim() ? 'var(--color-muted)' : 'var(--color-on-primary)',
+              borderRadius: 'var(--rounded-md)',
+              fontSize: 14,
+              fontWeight: 500,
+              border: 'none',
+              cursor: !title.trim() || !content.trim() ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Edit3 size={14} />
+            {submitting ? '保存中...' : '保存'}
           </button>
         </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
           <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--color-body-strong)', marginBottom: 'var(--spacing-xs)' }}>
               标题
@@ -230,7 +155,7 @@ function EditPostModal({
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              onPaste={handlePaste}
+              onPaste={(e) => handlePaste(e, (md, s, end) => setContent((prev) => prev.slice(0, s) + md + prev.slice(end)))}
               style={{
                 width: '100%',
                 minHeight: 160,
@@ -248,184 +173,8 @@ function EditPostModal({
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-sm)' }}>
-            <button
-              onClick={onClose}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: 'transparent',
-                color: 'var(--color-muted)',
-                borderRadius: 'var(--rounded-md)',
-                fontSize: 14,
-                fontWeight: 500,
-                border: '1px solid var(--color-hairline)',
-                cursor: 'pointer',
-              }}
-            >
-              取消
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !title.trim() || !content.trim()}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: !title.trim() || !content.trim() ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
-                color: !title.trim() || !content.trim() ? 'var(--color-muted)' : 'var(--color-on-primary)',
-                borderRadius: 'var(--rounded-md)',
-                fontSize: 14,
-                fontWeight: 500,
-                border: 'none',
-                cursor: !title.trim() || !content.trim() ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <Edit3 size={14} />
-              {submitting ? '保存中...' : '保存'}
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
-  )
-}
-
-/* ─── Text Input for Reply ─── */
-function TextInput({
-  placeholder,
-  onSubmit,
-  onCancel,
-  uploadScene = 'forum_reply',
-  submitText = '回复',
-}: {
-  placeholder: string
-  onSubmit: (content: string) => void
-  onCancel?: () => void
-  uploadScene?: 'forum_reply' | 'forum_post'
-  submitText?: string
-}) {
-  const [value, setValue] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-
-  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData.items
-    let imageFile: File | null = null
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i]
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile()
-        if (file) {
-          imageFile = file
-          break
-        }
-      }
-    }
-    if (!imageFile) return
-
-    e.preventDefault()
-    const error = validateImageFile(imageFile)
-    if (error) {
-      toast.error(error)
-      return
-    }
-
-    const textarea = e.currentTarget
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-
-    toast.promise(
-      uploadImage(imageFile, uploadScene).then((res) => {
-        const imageUrl = res.data.url
-        const alt = imageFile!.name.replace(/\.[^/.]+$/, '') || '图片'
-        const markdown = `![${alt}](${imageUrl})`
-        setValue((prev) => prev.slice(0, start) + markdown + prev.slice(end))
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + markdown.length
-          textarea.focus()
-        }, 0)
-      }),
-      {
-        loading: '正在上传图片...',
-        success: '图片上传成功',
-        error: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          return msg || '图片上传失败'
-        },
-      }
-    )
-  }
-
-  const handleSubmit = async () => {
-    if (!value.trim()) return
-    setSubmitting(true)
-    await onSubmit(value.trim())
-    setSubmitting(false)
-    setValue('')
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-sm)' }}>
-      <textarea
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onPaste={handlePaste}
-        style={{
-          width: '100%',
-          minHeight: 60,
-          padding: 'var(--spacing-sm)',
-          borderRadius: 'var(--rounded-md)',
-          border: '1px solid var(--color-hairline)',
-          backgroundColor: 'var(--color-canvas)',
-          fontSize: 14,
-          lineHeight: 1.6,
-          color: 'var(--color-ink)',
-          resize: 'vertical',
-          outline: 'none',
-          fontFamily: 'var(--font-body)',
-        }}
-      />
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)' }}>
-        {onCancel && (
-          <button
-            onClick={onCancel}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: 'transparent',
-              color: 'var(--color-muted)',
-              borderRadius: 'var(--rounded-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              border: '1px solid var(--color-hairline)',
-              cursor: 'pointer',
-            }}
-          >
-            取消
-          </button>
-        )}
-        <button
-          onClick={handleSubmit}
-          disabled={submitting || !value.trim()}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: !value.trim() ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
-            color: !value.trim() ? 'var(--color-muted)' : 'var(--color-on-primary)',
-            borderRadius: 'var(--rounded-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            border: 'none',
-            cursor: !value.trim() ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-          }}
-        >
-          <Send size={12} />
-          {submitting ? '发送中...' : submitText}
-        </button>
-      </div>
-    </div>
+    </BaseModal>
   )
 }
 
@@ -452,27 +201,7 @@ function CommentItem({
   return (
     <div style={{ padding: 'var(--spacing-sm) 0', borderBottom: '1px solid var(--color-hairline-soft)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--spacing-sm)' }}>
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 'var(--rounded-full)',
-            backgroundColor: 'var(--color-surface-card)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-primary)',
-            flexShrink: 0,
-            overflow: 'hidden',
-            fontSize: 12,
-          }}
-        >
-          {comment.user.avatar_url ? (
-            <img src={comment.user.avatar_url} alt={comment.user.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <User size={12} />
-          )}
-        </div>
+        <UserAvatar url={comment.user.avatar_url} name={comment.user.username} size={28} iconSize={12} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', marginBottom: 2, flexWrap: 'wrap' }}>
@@ -795,11 +524,12 @@ function ReplyCommentSection({
               />
               {replyingTo?.id === comment.id && (
                 <div style={{ paddingLeft: 'var(--spacing-xl)' }}>
-                  <TextInput
+                  <ReplyEditor
                     placeholder={`回复 @${replyingTo.username}：`}
                     onSubmit={handleNestedReply}
                     onCancel={() => setReplyingTo(null)}
                     submitText="回复"
+                    pasteScene="forum_reply"
                   />
                 </div>
               )}
@@ -908,26 +638,7 @@ function ForumReplyItem({
 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--spacing-md)' }}>
         {/* Avatar */}
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 'var(--rounded-full)',
-            backgroundColor: 'var(--color-surface-card)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-primary)',
-            flexShrink: 0,
-            overflow: 'hidden',
-          }}
-        >
-          {reply.user.avatar_url ? (
-            <img src={reply.user.avatar_url} alt={reply.user.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <User size={18} />
-          )}
-        </div>
+        <UserAvatar url={reply.user.avatar_url} name={reply.user.username} size={40} iconSize={18} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 4, flexWrap: 'wrap' }}>
@@ -940,7 +651,7 @@ function ForumReplyItem({
           </div>
 
           <div style={{ margin: '0 0 var(--spacing-sm)' }}>
-            <ForumMarkdown content={reply.content} />
+            <MarkdownContent content={reply.content} />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
@@ -1037,7 +748,7 @@ function ForumReplyItem({
 
           {showReplyInput && (
             <div style={{ marginTop: 'var(--spacing-sm)' }}>
-              <TextInput
+              <ReplyEditor
                 placeholder="写下你的回复..."
                 onSubmit={async (content) => {
                   try {
@@ -1050,6 +761,7 @@ function ForumReplyItem({
                 }}
                 onCancel={() => setShowReplyInput(false)}
                 submitText="发表回复"
+                pasteScene="forum_reply"
               />
             </div>
           )}
@@ -1315,25 +1027,7 @@ export default function ForumPostDetailPage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)', fontSize: 14, color: 'var(--color-muted-soft)', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 'var(--rounded-full)',
-                  backgroundColor: 'var(--color-surface-card)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--color-primary)',
-                  overflow: 'hidden',
-                }}
-              >
-                {post.user.avatar_url ? (
-                  <img src={post.user.avatar_url} alt={post.user.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <User size={12} />
-                )}
-              </div>
+              <UserAvatar url={post.user.avatar_url} name={post.user.username} size={24} iconSize={12} />
               <span style={{ fontWeight: 500, color: 'var(--color-body-strong)' }}>
                 {post.user.username}
               </span>
@@ -1436,7 +1130,7 @@ export default function ForumPostDetailPage() {
       <section style={{ padding: 'var(--spacing-xl) var(--spacing-xl)', flex: 1 }}>
         <div style={{ maxWidth: 800, margin: '0 auto' }}>
           <div style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--color-body)', wordBreak: 'break-word' }}>
-            <ForumMarkdown content={post.content} />
+            <MarkdownContent content={post.content} />
           </div>
 
           {/* Reply Section */}
@@ -1512,7 +1206,7 @@ export default function ForumPostDetailPage() {
                   marginBottom: 'var(--spacing-lg)',
                 }}
               >
-                <TextInput
+                <ReplyEditor
                   placeholder="发表你的回复..."
                   onSubmit={async (content) => {
                     try {
@@ -1525,6 +1219,7 @@ export default function ForumPostDetailPage() {
                   }}
                   onCancel={() => setShowMainReplyInput(false)}
                   submitText="发表回复"
+                  pasteScene="forum_reply"
                 />
               </div>
             )}

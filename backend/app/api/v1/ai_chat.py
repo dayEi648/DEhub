@@ -18,16 +18,7 @@ async def chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> ChatResponse:
-    """
-    AI 对话。
-    Args:
-        chat_in: ChatRequest
-        db: Session
-        current_user: User
-
-    Returns:
-        ChatResponse
-    """
+    """AI 对话。"""
     service = ChatService(db, permission_level=current_user.permission)
     return await service.chat(chat_in, current_user.id)
 
@@ -39,16 +30,7 @@ async def list_conversations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> ConversationListResponse:
-    """
-    获取当前用户的对话列表（按最近时间倒序）。
-    Args:
-        skip: 跳过数量
-        limit: 限制数量
-        db: Session
-        current_user: User
-    Returns:
-        ConversationListResponse
-    """
+    """获取当前用户的对话列表（按最近时间倒序）。"""
     service = ChatService(db, permission_level=current_user.permission)
     items, total = await service.list_conversations(
         user_id=current_user.id,

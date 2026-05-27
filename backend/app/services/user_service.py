@@ -1,5 +1,4 @@
 import logging
-import time
 
 from sqlalchemy.orm import Session
 from app.crud import user as user_crud
@@ -9,10 +8,13 @@ from app.crud import forum_reply as forum_reply_crud
 from app.crud import comment as comment_crud
 from app.crud import ai_conversation as ai_conversation_crud
 from app.crud import user_favorite as user_favorite_crud
-from app.schemas.user import UserCreate, UserUpdate, UserLogin, UserResponse, UserLogout, UserRegister, ChangePasswordRequest
+from app.schemas.user import UserCreate, UserUpdate, UserLogin, UserLogout, UserRegister, ChangePasswordRequest
 from app.models.user import User
 from fastapi import HTTPException, status, UploadFile
-from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, decode_token, is_token_blacklisted, blacklist_token
+from app.core.security import (
+    verify_password, get_password_hash, create_access_token, create_refresh_token,
+    decode_token, is_token_blacklisted, blacklist_token, revoke_user_tokens,
+)
 from app.core.config import settings
 from app.core.permissions import require_admin, require_owner_or_admin
 from app.core.permission_levels import PermissionLevel
@@ -29,24 +31,11 @@ class UserService:
     _CONVERSATION_BATCH_SIZE = 100
 
     def __init__(self, db: Session):
-        """
-        UserService 初始化
-        Args:
-            db: 数据库会话
-        """
         self.db = db
 
     # ---------- 共用校验方法 ----------
 
     def _ensure_username_unique(self, username: str, exclude_user_id: int | None = None) -> None:
-        """
-        校验用户名唯一性
-        Args:
-            username: 待校验用户名
-            exclude_user_id: 排除的用户ID（更新场景下排除自身）
-        Raises:
-            HTTPException: 用户名已存在
-        """
         existing = user_crud.get_user_by_username(self.db, username)
         if existing and (exclude_user_id is None or existing.id != exclude_user_id):
             raise HTTPException(
@@ -55,14 +44,6 @@ class UserService:
             )
 
     def _ensure_email_unique(self, email: str, exclude_user_id: int | None = None) -> None:
-        """
-        校验邮箱唯一性
-        Args:
-            email: 待校验邮箱
-            exclude_user_id: 排除的用户ID（更新场景下排除自身）
-        Raises:
-            HTTPException: 邮箱已存在
-        """
         existing = user_crud.get_user_by_email(self.db, email)
         if existing and (exclude_user_id is None or existing.id != exclude_user_id):
             raise HTTPException(
@@ -70,37 +51,12 @@ class UserService:
                 detail="邮箱已存在"
             )
 
-    def _require_admin(self, current_user: User) -> None:
-        """
-        要求当前用户为管理员及以上权限
-        """
-        require_admin(current_user)
-
-    def _require_owner_or_admin(self, current_user: User, target_user_id: int) -> None:
-        """
-        要求当前用户为目标用户本人，或管理员及以上权限
-        Args:
-            current_user: 当前登录用户
-            target_user_id: 目标用户ID
-        Raises:
-            HTTPException: 权限不足
-        """
-        require_owner_or_admin(current_user, target_user_id)
-
     # ---------- 业务方法 ----------
 
     def create_user(self, user_in: UserCreate, current_user: User) -> User:
-        """
-        创建用户（管理员专属）
-        Args:
-            user_in: 用户创建请求
-            current_user: 当前登录用户
-        Returns:
-            User: 用户对象
-        """
-        self._require_admin(current_user)
+        """创建用户（管理员专属）。管理员不能创建超级管理员。"""
+        require_admin(current_user)
 
-        # 管理员不能创建超级管理员
         if current_user.permission == PermissionLevel.ADMIN and user_in.permission == PermissionLevel.SUPER_ADMIN:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -112,10 +68,7 @@ class UserService:
         return user_crud.create_user(self.db, user_in)
 
     def get_user(self, user_id: int, current_user: User) -> User:
-        """
-        根据用户ID获取用户
-        若用户已注销，仅管理员及以上可查看
-        """
+        """根据用户ID获取用户。若用户已注销，仅管理员及以上可查看。"""
         user = user_crud.get_user_by_id(self.db, user_id)
         if not user:
             raise HTTPException(
@@ -139,22 +92,18 @@ class UserService:
         permission: int | None = None,
         current_user: User | None = None,
     ) -> tuple[list[User], int]:
-        """
-        获取用户列表（支持分页与筛选）
-        管理员及以上可查询用户列表
-        """
+        """获取用户列表（支持分页与筛选）。管理员及以上可查询。"""
         if current_user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="未认证",
             )
-        self._require_admin(current_user)
-        effective_include_deleted = include_deleted
+        require_admin(current_user)
         items, total = user_crud.get_users(
             self.db,
             skip=skip,
             limit=limit,
-            include_deleted=effective_include_deleted,
+            include_deleted=include_deleted,
             username=username,
             email=email,
             permission=permission,
@@ -162,17 +111,8 @@ class UserService:
         return items, total
 
     async def update_user(self, user_id: int, user_in: UserUpdate, current_user: User, file: UploadFile | None = None) -> User:
-        """
-        更新用户
-        Args:
-            user_id: 用户ID
-            user_in: 用户更新请求
-            current_user: 当前登录用户
-            file: 头像文件
-        Returns:
-            UserResponse: 用户响应
-        """
-        self._require_owner_or_admin(current_user, user_id)
+        """更新用户（本人或管理员）。"""
+        require_owner_or_admin(current_user, user_id)
         db_user = user_crud.get_user_by_id(self.db, user_id)
         if not db_user:
             raise HTTPException(
@@ -222,11 +162,8 @@ class UserService:
         return updated
 
     def soft_delete_user(self, user_id: int, current_user: User, access_token: str | None = None) -> None:
-        """
-        逻辑删除用户（注销，管理员或本人）
-        注销后会在 Redis 中标记该用户撤销时间，使其所有已签发 token 失效
-        """
-        self._require_owner_or_admin(current_user, user_id)
+        """逻辑删除用户（注销，管理员或本人）。注销后所有已签发 token 失效。"""
+        require_owner_or_admin(current_user, user_id)
         result = user_crud.soft_delete_user(self.db, user_id)
         if result == 0:
             raise HTTPException(
@@ -234,39 +171,18 @@ class UserService:
                 detail="用户不存在或已被注销"
             )
 
-        # 在 Redis 中记录注销时间戳，使该用户所有已有 token 失效
-        try:
-            from app.core.security import blacklist_token_sync
-            revoked_at = int(time.time())
-            redis = get_sync_redis_client()
-            ttl = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
-            redis.setex(f"user_revoked:{user_id}", ttl, revoked_at)
-
-            # 用户自己注销自己时，顺手拉黑当前 token（管理员注销他人不拉黑管理员 token）
-            if access_token and current_user.id == user_id:
-                blacklist_token_sync(access_token)
-        except Exception:
-            logger.exception("注销后 Token 失效标记失败: user=%s", user_id)
+        # 用户自己注销自己时，顺手拉黑当前 token（管理员注销他人不拉黑管理员 token）
+        if access_token and current_user.id == user_id:
+            revoke_user_tokens(user_id, access_token)
+        else:
+            revoke_user_tokens(user_id)
 
     def hard_delete_user(self, user_id: int, current_user: User) -> None:
-        """
-        硬删除用户（从数据库彻底移除，管理员专属）。
-
-        级联清理顺序：
-        1. 删除用户头像（OSS）
-        2. 将用户管理的分区区主转移给当前操作管理员
-        3. 删除 AI 对话（ORM 级联删除 messages）
-        4. 删除评论及子评论（含点赞记录）
-        5. 删除论坛帖子和回复
-        6. 删除收藏/点赞/关注记录
-        7. 清理 Redis 撤销标记
-        8. 最后删除用户
-        """
-        self._require_admin(current_user)
+        """硬删除用户（管理员专属）。级联清理头像、分区、对话、评论、帖子、收藏等。"""
+        require_admin(current_user)
         avatar_url_for_cleanup: str | None = None
         checkpoint_conversation_ids: list[int] = []
 
-        # 2~6 + 8 关键数据库清理步骤：统一事务提交，任一失败均回滚并中止硬删除
         try:
             with self.db.begin():
                 db_user = user_crud.get_user_by_id(self.db, user_id)
@@ -277,12 +193,12 @@ class UserService:
                     )
                 avatar_url_for_cleanup = db_user.avatar_url
 
-                # 2. 转移区主身份：将该用户管理的分区转给当前操作管理员
+                # 转移区主身份
                 forum_zone_crud.update_zones_manager_by_old_manager(
                     self.db, user_id, current_user.id, auto_commit=False
                 )
 
-                # 3. 删除 AI 对话（ORM 级联自动删除 messages，分批处理避免一次性拉取大量数据）
+                # 删除 AI 对话（分批处理避免一次性拉取大量数据）
                 while True:
                     convs, _total = ai_conversation_crud.list_ai_conversations_by_user(
                         self.db, user_id, skip=0, limit=self._CONVERSATION_BATCH_SIZE
@@ -296,7 +212,7 @@ class UserService:
                             self.db, conv.id, auto_commit=False
                         )
 
-                # 4. 删除评论及子评论（先删点赞，再删评论）
+                # 删除评论及子评论
                 user_comment_ids = comment_crud.get_comment_ids_by_user_id(
                     self.db, user_id
                 )
@@ -312,36 +228,31 @@ class UserService:
                         self.db, all_comment_ids, auto_commit=False
                     )
 
-                # 5. 删除论坛帖子和回复
+                # 删除论坛帖子和回复
                 user_post_ids = forum_post_crud.get_post_ids_by_user_id(
                     self.db, user_id
                 )
                 if user_post_ids:
-                    # 先删除帖子下的所有回复（含其他用户的）
                     forum_reply_crud.delete_replies_by_post_ids(
                         self.db, user_post_ids, auto_commit=False
                     )
-                    # 删除帖子
                     for post_id in user_post_ids:
                         forum_post_crud.delete_post(
                             self.db, post_id, auto_commit=False
                         )
-                # 删除该用户回复他人帖子的回复
                 forum_reply_crud.delete_replies_by_user_id(
                     self.db, user_id, auto_commit=False
                 )
-
-                # 删除该用户的回复点赞记录
                 forum_reply_crud.delete_forum_reply_likes_by_user_id(
                     self.db, user_id, auto_commit=False
                 )
 
-                # 6. 删除收藏/点赞/关注记录
+                # 删除收藏/点赞/关注记录
                 user_favorite_crud.delete_all_favorites_by_user_id(
                     self.db, user_id, auto_commit=False
                 )
 
-                # 8. 最后删除用户
+                # 最后删除用户
                 deleted = user_crud.hard_delete_user(
                     self.db, user_id, auto_commit=False
                 )
@@ -364,21 +275,21 @@ class UserService:
         ForumCacheInvalidator.invalidate_forum_posts()
         ForumCacheInvalidator.invalidate_forum_zones()
 
-        # 1. 删除用户头像（事务提交成功后执行，失败不影响删除结果）
+        # 删除用户头像
         if avatar_url_for_cleanup:
             OssCleanupService().delete_file_after_commit_sync(
                 convert_oss_url_to_file_path(avatar_url_for_cleanup),
                 source="user.avatar.hard_delete",
             )
 
-        # 数据库事务成功后，再做外部副作用清理
+        # 清理 Redis checkpoint
         for conv_id in checkpoint_conversation_ids:
             try:
                 delete_checkpoint_sync(str(conv_id))
             except Exception:
                 logger.exception("清理 AI 对话 checkpoint 失败: conv=%s", conv_id)
 
-        # 7. 清理 Redis 撤销标记
+        # 清理 Redis 撤销标记
         try:
             redis = get_sync_redis_client()
             redis.delete(f"user_revoked:{user_id}")
@@ -389,13 +300,7 @@ class UserService:
     _DUMMY_HASH = "$2b$12$4LPTZltcFxdjkL4ONdOM0OQnYxLfYQvH3h1xWJQu7e1KqCb0XvC7e"
 
     def authenticate_user(self, user_login: UserLogin) -> User | None:
-        """
-        验证用户
-        Args:
-            user_login: 用户登录请求
-        Returns:
-            User | None: 用户对象或None
-        """
+        """验证用户密码。"""
         account = user_login.account
         user = user_crud.get_user_by_username(self.db, account)
         if user is None:
@@ -408,13 +313,7 @@ class UserService:
         return user
 
     def login_user(self, user_login: UserLogin) -> tuple[User, str, str | None]:
-        """
-        登录
-        Args:
-            user_login: 用户登录请求
-        Returns:
-            tuple[User, str, str | None]: (用户对象, access_token, refresh_token)
-        """
+        """登录。返回 (用户, access_token, refresh_token)。"""
         user = self.authenticate_user(user_login)
         if not user:
             raise HTTPException(
@@ -431,14 +330,7 @@ class UserService:
         return user, access_token, refresh_token
 
     async def refresh_access_token(self, refresh_token: str) -> tuple[User, str, str]:
-        """
-        刷新令牌
-        刷新后将旧 refresh token 加入黑名单（Token Rotation）
-        Args:
-            refresh_token: 刷新令牌
-        Returns:
-            tuple[User, str, str]: (用户对象, access_token, refresh_token)
-        """
+        """刷新令牌（Token Rotation：旧 refresh token 加入黑名单）。"""
         payload = decode_token(refresh_token)
         if not payload:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌校验失败")
@@ -476,41 +368,24 @@ class UserService:
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
-        # Token Rotation：将旧 refresh token 加入黑名单，再签发新令牌
+        # Token Rotation
         await blacklist_token(refresh_token)
         access_token = create_access_token(user.id)
         new_refresh_token = create_refresh_token(user.id)
         return user, access_token, new_refresh_token
 
     async def logout_user(self, access_token: str, user_logout: UserLogout) -> None:
-        """
-        登出
-        1. 将 access_token 加入黑名单。
-        2. 如果 Body 里带了 refresh_token（记住登录场景），也加入黑名单。
-        Args:
-            access_token: 访问令牌（来自 Header）
-            user_logout: 用户登出请求（可选 refresh_token）
-        Returns:
-            None
-        """
+        """登出：将 access_token（及可选 refresh_token）加入黑名单。"""
         await blacklist_token(access_token, user_logout.refresh_token if user_logout.refresh_token else None)
 
     def register_user(self, user_register: UserRegister) -> User:
-        """
-        注册用户
-        Args:
-            user_register: 用户注册请求
-        Returns:
-            UserResponse: 用户响应
-        """
+        """注册用户（强制 permission 为 0）。"""
         self._ensure_username_unique(user_register.username)
         self._ensure_email_unique(user_register.email)
-        # 强制注册用户的 permission 为 0
         user_data = UserCreate.model_validate(
             user_register.model_copy(update={"permission": PermissionLevel.USER}).model_dump()
         )
-        user = user_crud.create_user(self.db, user_data)
-        return user
+        return user_crud.create_user(self.db, user_data)
 
     def change_password(
         self,
@@ -518,15 +393,7 @@ class UserService:
         password_data: ChangePasswordRequest,
         access_token: str | None = None,
     ) -> None:
-        """
-        修改当前用户密码
-        Args:
-            current_user: 当前登录用户
-            password_data: 密码修改请求（旧密码 + 新密码）
-            access_token: 当前访问令牌（如有则顺手拉黑）
-        Raises:
-            HTTPException: 旧密码错误 或 新密码与旧密码相同
-        """
+        """修改当前用户密码。成功后使该用户所有已有 token 失效。"""
         if not verify_password(password_data.old_password, current_user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -542,16 +409,5 @@ class UserService:
         current_user.hashed_password = get_password_hash(password_data.new_password)
         self.db.commit()
 
-        # 在 Redis 中记录撤销时间戳，使该用户所有已有 token 失效
-        try:
-            from app.core.security import blacklist_token_sync
-            revoked_at = int(time.time())
-            redis = get_sync_redis_client()
-            ttl = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
-            redis.setex(f"user_revoked:{current_user.id}", ttl, revoked_at)
-
-            # 顺手拉黑当前 token
-            if access_token:
-                blacklist_token_sync(access_token)
-        except Exception:
-            logger.exception("修改密码后 Token 失效标记失败: user=%s", current_user.id)
+        # 使该用户所有已有 token 失效
+        revoke_user_tokens(current_user.id, access_token)

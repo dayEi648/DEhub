@@ -1,21 +1,19 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Navigate, Outlet } from 'react-router-dom'
 import { getUser, isLoggedIn } from '../utils/auth'
 
 interface AuthGuardProps {
-  children: ReactNode
   requireAdmin?: boolean
 }
 
-export default function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
-  const navigate = useNavigate()
+export default function AuthGuard({ requireAdmin = false }: AuthGuardProps) {
   const [unauthorized, setUnauthorized] = useState(false)
 
   useEffect(() => {
     const handler = () => setUnauthorized(true)
     window.addEventListener('unauthorized', handler)
     return () => window.removeEventListener('unauthorized', handler)
-  }, [navigate])
+  }, [])
 
   if (unauthorized) {
     return <Navigate to="/login" replace />
@@ -30,5 +28,5 @@ export default function AuthGuard({ children, requireAdmin = false }: AuthGuardP
       return <Navigate to="/" replace />
     }
   }
-  return <>{children}</>
+  return <Outlet />
 }

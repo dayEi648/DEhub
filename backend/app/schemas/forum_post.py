@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.user import UserBriefInfo
@@ -19,9 +18,9 @@ class ForumPostCreate(ForumPostBase):
 
 class ForumPostUpdate(BaseModel):
     """更新论坛帖子请求：全可选"""
-    title: Optional[str] = Field(default=None, min_length=1, max_length=128)
-    content: Optional[str] = Field(default=None, min_length=1)
-    zone_id: Optional[int] = Field(default=None, ge=1)
+    title: str | None = Field(default=None, min_length=1, max_length=128)
+    content: str | None = Field(default=None, min_length=1)
+    zone_id: int | None = Field(default=None, ge=1)
 
 
 class ForumPostResponse(ForumPostBase):

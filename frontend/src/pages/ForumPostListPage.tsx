@@ -11,18 +11,17 @@ import {
   CalendarClock,
   Plus,
   Send,
-  X,
 } from 'lucide-react'
+import BaseModal from '../components/BaseModal'
 import { toast } from 'sonner'
 import { getForumPostList, getForumZoneBySlug, createForumPost } from '../api/forum'
 import { followZone, unfollowZone, getFollowedZones } from '../api/favorites'
-import { uploadImage } from '../api/upload'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import Pagination from '../components/Pagination'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate } from '../utils/format'
-import { validateImageFile } from '../utils/upload'
+import { usePasteImageUpload } from '../hooks/usePasteImageUpload'
 import type { ForumPostListItem, ForumZone } from '../types/forum'
 
 const PAGE_SIZE = 15
@@ -41,53 +40,7 @@ function CreatePostModal({
   const [content, setContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData.items
-    let imageFile: File | null = null
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i]
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile()
-        if (file) {
-          imageFile = file
-          break
-        }
-      }
-    }
-    if (!imageFile) return
-
-    e.preventDefault()
-    const error = validateImageFile(imageFile)
-    if (error) {
-      toast.error(error)
-      return
-    }
-
-    const textarea = e.currentTarget
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-
-    toast.promise(
-      uploadImage(imageFile, 'forum_post').then((res) => {
-        const imageUrl = res.data.url
-        const alt = imageFile!.name.replace(/\.[^/.]+$/, '') || '图片'
-        const markdown = `![${alt}](${imageUrl})`
-        setContent((prev) => prev.slice(0, start) + markdown + prev.slice(end))
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + markdown.length
-          textarea.focus()
-        }, 0)
-      }),
-      {
-        loading: '正在上传图片...',
-        success: '图片上传成功',
-        error: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          return msg || '图片上传失败'
-        },
-      }
-    )
-  }
+  const { handlePaste } = usePasteImageUpload('forum_post')
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) return
@@ -108,55 +61,55 @@ function CreatePostModal({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        backgroundColor: 'rgba(20,20,19,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--spacing-xl)',
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--color-canvas)',
-          borderRadius: 'var(--rounded-lg)',
-          padding: 'var(--spacing-xl)',
-          width: '100%',
-          maxWidth: 560,
-          maxHeight: '90vh',
-          overflow: 'auto',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-lg)' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 400, margin: 0, color: 'var(--color-ink)' }}>
-            发表新帖
-          </h3>
+    <BaseModal
+      title={<h3 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 400, margin: 0 }}>发表新帖</h3>}
+      onClose={onClose}
+      maxWidth={560}
+      hideHeaderDivider
+      hideFooterDivider
+      overflow="auto"
+      panelPadding
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-sm)' }}>
           <button
             onClick={onClose}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--rounded-full)',
+              padding: '10px 20px',
               backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               color: 'var(--color-muted)',
+              borderRadius: 'var(--rounded-md)',
+              fontSize: 14,
+              fontWeight: 500,
+              border: '1px solid var(--color-hairline)',
+              cursor: 'pointer',
             }}
           >
-            <X size={18} />
+            取消
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !title.trim() || !content.trim()}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: !title.trim() || !content.trim() ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              color: !title.trim() || !content.trim() ? 'var(--color-muted)' : 'var(--color-on-primary)',
+              borderRadius: 'var(--rounded-md)',
+              fontSize: 14,
+              fontWeight: 500,
+              border: 'none',
+              cursor: !title.trim() || !content.trim() ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Send size={14} />
+            {submitting ? '发表中...' : '发表'}
           </button>
         </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
           <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--color-body-strong)', marginBottom: 'var(--spacing-xs)' }}>
               标题
@@ -188,7 +141,7 @@ function CreatePostModal({
               placeholder="请输入帖子内容..."
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              onPaste={handlePaste}
+              onPaste={(e) => handlePaste(e, (md, s, end) => setContent((prev) => prev.slice(0, s) + md + prev.slice(end)))}
               style={{
                 width: '100%',
                 minHeight: 160,
@@ -206,46 +159,8 @@ function CreatePostModal({
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-sm)' }}>
-            <button
-              onClick={onClose}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: 'transparent',
-                color: 'var(--color-muted)',
-                borderRadius: 'var(--rounded-md)',
-                fontSize: 14,
-                fontWeight: 500,
-                border: '1px solid var(--color-hairline)',
-                cursor: 'pointer',
-              }}
-            >
-              取消
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !title.trim() || !content.trim()}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: !title.trim() || !content.trim() ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
-                color: !title.trim() || !content.trim() ? 'var(--color-muted)' : 'var(--color-on-primary)',
-                borderRadius: 'var(--rounded-md)',
-                fontSize: 14,
-                fontWeight: 500,
-                border: 'none',
-                cursor: !title.trim() || !content.trim() ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <Send size={14} />
-              {submitting ? '发表中...' : '发表'}
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </BaseModal>
   )
 }
 

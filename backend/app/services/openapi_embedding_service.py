@@ -15,11 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAPIEmbeddingService:
-    """OpenAPI 端点向量服务。
-
-    负责将解析后的端点文本批量向量化入库，并提供语义检索能力。
-    支持 content_hash 去重，避免无变化的重复 embedding API 调用。
-    """
+    """将端点文本批量向量化入库，并提供语义检索。"""
 
     def __init__(self, db: Session):
         self.db = db
@@ -29,20 +25,7 @@ class OpenAPIEmbeddingService:
     # ------------------------------------------------------------------
 
     def sync_document_embeddings(self, document_id: int, chunks: list[dict]) -> int:
-        """将解析后的端点分片批量向量化并入库。
-
-        流程：
-        1. 按 content_hash 去重，跳过已存在的端点
-        2. 批量调用 embedding API
-        3. 写入 pgvector
-
-        Args:
-            document_id: 文档 ID
-            chunks: 解析后的端点分片列表
-
-        Returns:
-            实际入库的端点数量
-        """
+        """批量向量化端点分片并入库（按 content_hash 去重）。"""
         if not chunks:
             return 0
 
@@ -147,18 +130,7 @@ class OpenAPIEmbeddingService:
         method: str | None = None,
         document_id: int | None = None,
     ) -> list[dict]:
-        """基于自然语言查询检索语义最相似的 OpenAPI 端点。
-
-        Args:
-            query: 用户查询文本
-            top_k: 返回结果数量上限
-            min_similarity: 最小相似度阈值，低于此值的结果会被过滤
-            method: 可选 HTTP 方法过滤
-            document_id: 可选文档 ID 过滤
-
-        Returns:
-            按相似度降序排列的结果列表，每条包含端点字段和 similarity_score
-        """
+        """基于自然语言查询检索语义最相似的 OpenAPI 端点。"""
         if not query or not query.strip():
             return []
 

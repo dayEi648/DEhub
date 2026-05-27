@@ -62,3 +62,19 @@ export interface BlogPostDetailResponse extends BlogPostListItem {
   prev_post: BlogPostListItem | null
   next_post: BlogPostListItem | null
 }
+
+export interface BlogPostCreateData {
+  title: string
+  slug?: string
+  content_md: string
+  category_id: number
+  tags?: string[]
+}
+
+export interface BlogPostUpdateData {
+  title?: string
+  slug?: string
+  content_md?: string
+  category_id?: number
+  tags?: string[]
+}
