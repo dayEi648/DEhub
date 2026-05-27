@@ -14,9 +14,15 @@ from app.services.openapi_embedding_service import OpenAPIEmbeddingService
 
 logger = logging.getLogger(__name__)
 
+_MAX_CONTENT_CHARS_PER_RESULT = 2000
+
 
 @tool
-def search_openapi_docs(query: str) -> str:
+def search_openapi_docs(
+    query: str,
+    method: str | None = None,
+    document_id: int | None = None,
+) -> str:
     """
     检索已上传的 OpenAPI 文档知识库，回答接口相关问题。
 
@@ -37,6 +43,8 @@ def search_openapi_docs(query: str) -> str:
 
     Args:
         query: 用户的搜索关键词或问题描述，如"用户登录接口"
+        method: 可选，按 HTTP 方法过滤，如 "GET" / "POST"
+        document_id: 可选，按文档 ID 过滤，限定检索范围
     Returns:
         str: 格式化后的相关 API 端点信息，包含路径、方法、摘要、参数、响应。
     """
@@ -48,8 +56,10 @@ def search_openapi_docs(query: str) -> str:
         service = OpenAPIEmbeddingService(db)
         results = service.search(
             query.strip(),
-            top_k=5,
+            top_k=settings.RAG_OPENAPI_SEARCH_TOP_K,
             min_similarity=settings.RAG_MIN_SIMILARITY,
+            method=method,
+            document_id=document_id,
         )
 
         if not results:
@@ -69,9 +79,11 @@ def search_openapi_docs(query: str) -> str:
             if result.get("tags"):
                 lines.append(f"标签：{', '.join(result['tags'])}")
             lines.append(f"相似度：{result['similarity_score']:.4f}")
-            # content 包含完整的端点文本，只展示前几行避免过长
-            content_preview = "\n".join(result["content"].split("\n")[:8])
-            lines.append(f"详情：\n{content_preview}")
+            # 按长度预算裁剪 content，避免过长导致上下文溢出
+            content = result.get("content", "")
+            if len(content) > _MAX_CONTENT_CHARS_PER_RESULT:
+                content = content[:_MAX_CONTENT_CHARS_PER_RESULT] + "\n...（已截断）"
+            lines.append(f"详情：\n{content}")
             parts.append("\n".join(lines))
 
         return "\n\n".join(parts)

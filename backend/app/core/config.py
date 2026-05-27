@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # RAG 博客检索参数
     RAG_BLOG_TOP_K: int = Field(default=3)
 
+    # RAG OpenAPI 工具参数
+    RAG_OPENAPI_SEARCH_TOP_K: int = Field(default=5)
+    RAG_OPENAPI_CODEGEN_TOP_K: int = Field(default=3)
+
     # 联网搜索参数
     IQS_NUM_RESULTS: int = Field(default=10)
 
@@ -107,6 +111,20 @@ class Settings(BaseSettings):
 
     # RAG 向量检索相似度阈值（低于此值的结果不会注入 AI 上下文）
     RAG_MIN_SIMILARITY: float = Field(default=0.6)
+
+    # ---------- AI 对话配置 ----------
+    AI_CHAT_CONTEXT_WINDOW_TOKENS: int = Field(default=1_000_000)
+    AI_CHAT_COMPACT_THRESHOLD_RATIO: float = Field(default=0.85)
+    AI_CHAT_COMPACT_SUMMARY_MAX_CHARS: int = Field(default=5000)
+    AI_CHAT_COMPACT_LOCK_TTL_SECONDS: int = Field(default=300)
+    AI_CHAT_TITLE_REGENERATE_THRESHOLD_SECONDS: int = Field(default=300)
+    AI_CHAT_TITLE_MAX_LENGTH: int = Field(default=20)
+    AI_CHAT_PROFILE_UPDATE_INTERVAL: int = Field(default=3)
+    AI_CHAT_GOAL_TRANSCRIPT_LINES_LIMIT: int = Field(default=12)
+    AI_CHAT_GOAL_GENERATION_CHAR_THRESHOLD: int = Field(default=200)
+
+    # OpenAPI 文档上传限制（字节）
+    OPENAPI_UPLOAD_MAX_SIZE: int = Field(default=10 * 1024 * 1024)
 
     # ---------- 博客文章配置 ----------
     # 生成摘要的正文字数阈值（去除 Markdown 标记后的有效字符数）

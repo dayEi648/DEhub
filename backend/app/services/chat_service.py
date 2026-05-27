@@ -18,6 +18,7 @@ from app.infrastructure.checkpoint_client import delete_checkpoint
 from app.infrastructure.background_tasks import background_task_manager
 from app.infrastructure.llm_client import get_llm_client, get_llm_small_client
 from app.models.ai_conversation import AIConversation
+from app.models.conversation_message import ConversationMessage
 from app.prompts.chat_prompts import (
     CONVERSATION_TITLE_PROMPT,
     render_context_compact_prompt,
@@ -25,6 +26,7 @@ from app.prompts.chat_prompts import (
     render_current_goal_prompt,
 )
 from app.redis_client import get_sync_redis_client
+from app.core.config import settings
 from app.schemas.chat import ChatRequest, ChatResponse, MessageResponse
 from app.services.user_profile_service import UserProfileService
 
@@ -46,23 +48,17 @@ class ChatService:
     负责对话消息持久化、LangGraph 工作流编排、标题生成和用户画像更新触发。
     """
 
-    # 标题重生成阈值（秒）：距上次消息超过此时长则重新生成标题
-    _TITLE_REGENERATE_THRESHOLD_SECONDS = 300
-
-    # 生成标题的最大长度（字符）
-    _TITLE_MAX_LENGTH = 20
-
-    # 用户画像更新触发间隔：每 N 条用户消息触发一次判断
-    _PROFILE_UPDATE_INTERVAL = 3
-
-    # 主模型上下文窗口与 compact 阈值。deepseek-v4-pro[1m] 固定按 1M 上下文计算。
-    _MAIN_CONTEXT_WINDOW_TOKENS = 1_000_000
-    _COMPACT_THRESHOLD_RATIO = 0.85
-    _COMPACT_SUMMARY_MAX_CHARS = 5000
+    # 从配置读取阈值，统一环境可调性
+    _TITLE_REGENERATE_THRESHOLD_SECONDS = settings.AI_CHAT_TITLE_REGENERATE_THRESHOLD_SECONDS
+    _TITLE_MAX_LENGTH = settings.AI_CHAT_TITLE_MAX_LENGTH
+    _PROFILE_UPDATE_INTERVAL = settings.AI_CHAT_PROFILE_UPDATE_INTERVAL
+    _MAIN_CONTEXT_WINDOW_TOKENS = settings.AI_CHAT_CONTEXT_WINDOW_TOKENS
+    _COMPACT_THRESHOLD_RATIO = settings.AI_CHAT_COMPACT_THRESHOLD_RATIO
+    _COMPACT_SUMMARY_MAX_CHARS = settings.AI_CHAT_COMPACT_SUMMARY_MAX_CHARS
     _COMPACT_PLACEHOLDER = "已自动压缩上下文"
-    _COMPACT_LOCK_TTL_SECONDS = 300
-    _GOAL_TRANSCRIPT_LINES_LIMIT = 12
-    _GOAL_GENERATION_CHAR_THRESHOLD = 200
+    _COMPACT_LOCK_TTL_SECONDS = settings.AI_CHAT_COMPACT_LOCK_TTL_SECONDS
+    _GOAL_TRANSCRIPT_LINES_LIMIT = settings.AI_CHAT_GOAL_TRANSCRIPT_LINES_LIMIT
+    _GOAL_GENERATION_CHAR_THRESHOLD = settings.AI_CHAT_GOAL_GENERATION_CHAR_THRESHOLD
 
     @staticmethod
     def _extract_ai_content(msg: AIMessage) -> str:
@@ -142,9 +138,9 @@ class ChatService:
         return f"dehub:ai_chat:lock:{conversation_id}"
 
     @classmethod
-    async def _acquire_conversation_lock(cls, conversation_id: int) -> str | None:
-        """获取对话级锁；Redis 不可用时降级继续执行。"""
-        def _acquire() -> str | None:
+    async def _acquire_conversation_lock(cls, conversation_id: int) -> str:
+        """获取对话级锁；Redis 不可用时返回 503，不再降级无锁执行。"""
+        def _acquire() -> str:
             redis = get_sync_redis_client()
             token = secrets.token_urlsafe(12)
             acquired = redis.set(
@@ -158,8 +154,11 @@ class ChatService:
         try:
             token = await asyncio.to_thread(_acquire)
         except Exception:
-            logger.warning("获取 AI 对话锁失败，降级为无锁执行: conv=%s", conversation_id, exc_info=True)
-            return None
+            logger.exception("获取 AI 对话锁失败: conv=%s", conversation_id)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="对话锁服务暂不可用，请稍后再试",
+            ) from None
 
         if token == "":
             raise HTTPException(
@@ -278,6 +277,29 @@ class ChatService:
                     )
                 )
         return messages
+
+    @staticmethod
+    def _snapshot_checkpoint_state(state) -> dict:
+        """复制 Graph 调用前的 checkpoint 关键状态，供失败回滚使用。"""
+        values = getattr(state, "values", None) or {}
+        snapshot = {"messages": list(values.get("messages") or [])}
+        for key in ("profile_text", "current_goal"):
+            if values.get(key) is not None:
+                snapshot[key] = values.get(key)
+        return snapshot
+
+    async def _rollback_checkpoint_state(self, config: dict, snapshot: dict) -> None:
+        """将 checkpoint 恢复到 Graph 调用前，避免失败轮次污染上下文。"""
+        payload = {
+            "messages": [
+                RemoveMessage(id=REMOVE_ALL_MESSAGES),
+                *snapshot.get("messages", []),
+            ]
+        }
+        for key in ("profile_text", "current_goal"):
+            if key in snapshot:
+                payload[key] = snapshot[key]
+        await self.graph.aupdate_state(config, payload)
 
     @classmethod
     def _build_checkpoint_history_from_db(cls, db_messages: list) -> list:
@@ -483,7 +505,8 @@ class ChatService:
             ChatResponse: 对话结果
         """
         # 无 conversation_id 时自动创建新对话
-        if chat_in.conversation_id is None:
+        created_new_conversation = chat_in.conversation_id is None
+        if created_new_conversation:
             conv = await asyncio.to_thread(
                 conv_crud.create_ai_conversation,
                 self.db,
@@ -500,7 +523,22 @@ class ChatService:
             conversation_id = chat_in.conversation_id
 
         config = {"configurable": {"thread_id": conversation_id}}
-        lock_token = await self._acquire_conversation_lock(conversation_id)
+        try:
+            lock_token = await self._acquire_conversation_lock(conversation_id)
+        except Exception:
+            if created_new_conversation:
+                try:
+                    await asyncio.to_thread(
+                        conv_crud.delete_ai_conversation,
+                        self.db,
+                        conversation_id,
+                    )
+                except Exception:
+                    logger.exception(
+                        "新对话获取锁失败后清理空对话失败: conv=%s",
+                        conversation_id,
+                    )
+            raise
 
         try:
             # 获取调用前的 checkpoint 状态
@@ -578,9 +616,10 @@ class ChatService:
 
             # 确定当前场景
             prompt_scene = "对话开始" if chat_in.conversation_id is None else "持续对话"
+            checkpoint_snapshot = self._snapshot_checkpoint_state(state_before)
 
-            # 持久化用户消息
-            await asyncio.to_thread(
+            # 持久化用户消息（Graph 异常时将回滚，避免孤立 user 消息）
+            user_msg = await asyncio.to_thread(
                 msg_crud.create_conversation_message,
                 self.db,
                 conversation_id,
@@ -610,7 +649,22 @@ class ChatService:
                     config=config,
                 )
             except Exception:
-                logger.exception("Graph 调用失败，保留用户消息")
+                logger.exception("Graph 调用失败，回滚本轮用户消息: msg_id=%s", user_msg.id)
+                try:
+                    await asyncio.to_thread(
+                        msg_crud.delete_conversation_message,
+                        self.db,
+                        user_msg.id,
+                    )
+                except Exception:
+                    logger.exception("回滚用户消息失败: msg_id=%s", user_msg.id)
+                try:
+                    await self._rollback_checkpoint_state(config, checkpoint_snapshot)
+                except Exception:
+                    logger.exception(
+                        "Graph 失败后回滚 checkpoint 失败: conv=%s",
+                        conversation_id,
+                    )
                 raise
 
             # 遍历本轮严格新增的消息，分类持久化
@@ -780,9 +834,9 @@ class ChatService:
         conversation_id: int,
         summary: str,
         retained_messages: list,
-    ) -> None:
+    ) -> ConversationMessage:
         """将真实 compact summary 入库，但默认通过 API 脱敏展示。"""
-        await asyncio.to_thread(
+        return await asyncio.to_thread(
             msg_crud.create_conversation_message,
             self.db,
             conversation_id,
@@ -843,15 +897,34 @@ class ChatService:
                 )
                 return False
 
-            await self._persist_compact_summary(
+            compact_msg = await self._persist_compact_summary(
                 conversation_id, summary, retained_messages
             )
-            await self._apply_compact_summary(
-                config=config,
-                summary=summary,
-                retained_messages=retained_messages,
-                current_goal=current_goal,
-            )
+            try:
+                await self._apply_compact_summary(
+                    config=config,
+                    summary=summary,
+                    retained_messages=retained_messages,
+                    current_goal=current_goal,
+                )
+            except Exception:
+                # checkpoint 更新失败时回滚 DB 写入，避免两条历史线分叉
+                logger.exception(
+                    "checkpoint 更新失败，回滚 compact 消息: conv=%s", conversation_id
+                )
+                try:
+                    await asyncio.to_thread(
+                        msg_crud.delete_conversation_message,
+                        self.db,
+                        compact_msg.id,
+                    )
+                except Exception:
+                    logger.exception(
+                        "回滚 compact 消息失败: conv=%s, msg_id=%s",
+                        conversation_id,
+                        compact_msg.id,
+                    )
+                return False
         except Exception:
             logger.exception("compact 执行失败，保留原 checkpoint: conv=%s", conversation_id)
             return False
@@ -1046,16 +1119,31 @@ class ChatService:
             self.get_conversation_if_owned, conversation_id, user_id
         )
 
-        messages = await asyncio.to_thread(
-            msg_crud.list_conversation_messages,
-            self.db,
-            conversation_id,
-            skip,
-            limit,
-        )
+        # include_hidden 权限校验下沉到 Service 层
+        if include_hidden and self.permission_level < 1:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权查看隐藏消息",
+            )
 
-        if not include_hidden:
-            messages = [m for m in messages if self._is_visible_message(m)]
+        if include_hidden:
+            # 管理员排查模式：返回完整消息流，按原始消息分页
+            messages = await asyncio.to_thread(
+                msg_crud.list_conversation_messages,
+                self.db,
+                conversation_id,
+                skip,
+                limit,
+            )
+        else:
+            # 默认模式：先过滤可见消息，再分页，避免 hidden 消息占用分页配额
+            messages = await asyncio.to_thread(
+                msg_crud.list_visible_conversation_messages,
+                self.db,
+                conversation_id,
+                skip,
+                limit,
+            )
 
         return [
             self._to_message_response(m, include_hidden=include_hidden)

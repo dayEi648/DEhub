@@ -14,9 +14,15 @@ from app.services.openapi_embedding_service import OpenAPIEmbeddingService
 
 logger = logging.getLogger(__name__)
 
+_MAX_CONTENT_CHARS_PER_RESULT = 2000
+
 
 @tool
-def generate_openapi_call_example(query: str) -> str:
+def generate_openapi_call_example(
+    query: str,
+    method: str | None = None,
+    document_id: int | None = None,
+) -> str:
     """
     基于已上传的 OpenAPI 文档知识库，生成接口调用示例代码。
 
@@ -38,6 +44,8 @@ def generate_openapi_call_example(query: str) -> str:
 
     Args:
         query: 用户的搜索关键词或接口描述，如"用户登录接口调用示例"
+        method: 可选，按 HTTP 方法过滤
+        document_id: 可选，按文档 ID 过滤
     Returns:
         str: 格式化后的接口调用示例，包含端点信息和建议的代码结构。
     """
@@ -49,8 +57,10 @@ def generate_openapi_call_example(query: str) -> str:
         service = OpenAPIEmbeddingService(db)
         results = service.search(
             query.strip(),
-            top_k=3,
+            top_k=settings.RAG_OPENAPI_CODEGEN_TOP_K,
             min_similarity=settings.RAG_MIN_SIMILARITY,
+            method=method,
+            document_id=document_id,
         )
 
         if not results:
@@ -61,7 +71,7 @@ def generate_openapi_call_example(query: str) -> str:
             method = result["method"]
             path = result["path"]
             summary = result.get("summary", "")
-            content = result["content"]
+            content = result.get("content", "")
 
             lines = [
                 f"【接口】{method} {path}",
@@ -69,13 +79,30 @@ def generate_openapi_call_example(query: str) -> str:
             if summary:
                 lines.append(f"摘要：{summary}")
 
-            # 提取 content 中的参数和请求体信息
+            # 提取 content 中的参数和请求体信息（结构化展示）
             lines.append("\n调用结构参考：")
             lines.append(f"{method} {path}")
-            # 展示 content 的关键行
+            # 展示 content 的关键行（请求体和响应体），并按长度预算真实截断
+            truncated = False
             for line in content.split("\n"):
-                if any(k in line for k in ("Summary:", "Description:", "Request Body", "Response", "- ")):
+                if any(
+                    k in line
+                    for k in (
+                        "Summary:",
+                        "Description:",
+                        "Request Body",
+                        "Response",
+                        "- ",
+                    )
+                ):
+                    projected_len = sum(len(item) + 1 for item in lines) + len(line)
+                    if projected_len > _MAX_CONTENT_CHARS_PER_RESULT:
+                        truncated = True
+                        break
                     lines.append(line)
+
+            if truncated:
+                lines.append("...（内容已截断）")
 
             lines.append(f"\n相似度：{result['similarity_score']:.4f}")
             parts.append("\n".join(lines))

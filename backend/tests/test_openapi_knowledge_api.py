@@ -211,6 +211,11 @@ class TestListDocuments:
         assert data["total"] == 1
         assert data["items"][0]["status"] == "pending"
 
+    def test_list_documents_invalid_status_returns_422(self, auth_client: TestClient):
+        """非法状态值应返回 422。"""
+        resp = auth_client.get("/api/v1/openapi_knowledge/documents?status=abc")
+        assert resp.status_code == 422
+
 
 class TestDeleteDocument:
     """测试 DELETE /documents/{document_id}。"""

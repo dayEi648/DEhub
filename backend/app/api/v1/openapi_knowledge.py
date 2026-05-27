@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.config import settings
 from app.core.permissions import require_admin
 from app.core.security import get_current_user
 from app.crud import openapi_knowledge as crud
@@ -86,6 +87,35 @@ async def _process_openapi_document(document_id: int, content: bytes, filename: 
             )
 
 
+def recover_pending_documents() -> None:
+    """启动时扫描 pending/processing 文档，标记为 failed（服务重启导致中断）。
+
+    因当前模型未持久化原始文件内容，重启后无法自动恢复解析流程，
+    故将挂起文档明确标记失败，避免状态无限挂起。
+    """
+    from app.db.session import SessionLocal
+
+    with SessionLocal() as db:
+        pending_docs, _ = crud.list_documents(
+            db, skip=0, limit=1000, status="pending"
+        )
+        processing_docs, _ = crud.list_documents(
+            db, skip=0, limit=1000, status="processing"
+        )
+        for doc in pending_docs + processing_docs:
+            crud.update_document_status(
+                db,
+                doc.id,
+                "failed",
+                error_message="服务重启导致解析任务中断，请重新上传",
+            )
+            logger.warning(
+                "OpenAPI 文档状态已修正为失败: doc_id=%s, old_status=%s",
+                doc.id,
+                doc.status,
+            )
+
+
 # ------------------------------------------------------------------
 # REST 接口
 # ------------------------------------------------------------------
@@ -117,8 +147,8 @@ async def upload_document(
             detail="空文件",
         )
 
-    # 10MB 限制
-    if len(content) > 10 * 1024 * 1024:
+    # 文件大小限制
+    if len(content) > settings.OPENAPI_UPLOAD_MAX_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="文件超过大小限制（10MB）",
@@ -168,7 +198,11 @@ async def upload_document(
 async def list_documents(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
-    status: str | None = Query(default=None),
+    status: str | None = Query(
+        default=None,
+        pattern=r"^(pending|processing|completed|failed)$",
+        description="状态过滤：pending / processing / completed / failed",
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

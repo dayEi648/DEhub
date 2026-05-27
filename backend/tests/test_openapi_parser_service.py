@@ -166,7 +166,7 @@ paths:
         }
         chunks = service.parse(json.dumps(spec).encode(), "api.json", document_id=81)
         assert len(chunks) == 1
-        assert "id (path, string): 用户ID" in chunks[0]["content"]
+        assert "id [必填] (path, string): 用户ID" in chunks[0]["content"]
 
     def test_parse_swagger2_body_parameter_should_be_rendered(self, service):
         """Swagger 2.0 的 in=body 参数应被展开进请求体描述。"""
@@ -250,6 +250,48 @@ paths:
         assert "name (string): 用户名" in content
         assert "age (integer): 年龄" in content
 
+    def test_parse_ref_request_body_keeps_component_required_fields(self, service):
+        """requestBody 直接 $ref 到组件 schema 时，应保留组件内 required 标记。"""
+        import json
+
+        spec = {
+            "openapi": "3.0.0",
+            "paths": {
+                "/users": {
+                    "post": {
+                        "summary": "创建用户",
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/UserCreate"}
+                                }
+                            }
+                        },
+                        "responses": {"201": {"description": "创建成功"}},
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "UserCreate": {
+                        "type": "object",
+                        "required": ["username", "password"],
+                        "properties": {
+                            "username": {"type": "string", "description": "用户名"},
+                            "password": {"type": "string", "description": "密码"},
+                            "nickname": {"type": "string", "description": "昵称"},
+                        },
+                    }
+                }
+            },
+        }
+        chunks = service.parse(json.dumps(spec).encode(), "api.json", document_id=16)
+        content = chunks[0]["content"]
+
+        assert "username [必填] (string): 用户名" in content
+        assert "password [必填] (string): 密码" in content
+        assert "nickname (string): 昵称" in content
+
     def test_parse_ref_array_expansion(self, service):
         """基础 $ref array 应能展开。"""
         import json
@@ -317,6 +359,62 @@ paths:
         chunks = service.parse(json.dumps(spec).encode(), "api.json", document_id=11)
         content = chunks[0]["content"]
         assert "Unknown" in content
+
+    def test_parse_success_and_error_responses_together(self, service):
+        """存在成功响应时，也应保留常见错误响应，供 RAG 回答异常语义。"""
+        import json
+
+        spec = {
+            "openapi": "3.0.0",
+            "paths": {
+                "/login": {
+                    "post": {
+                        "summary": "用户登录",
+                        "responses": {
+                            "200": {
+                                "description": "登录成功",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "type": "object",
+                                            "properties": {
+                                                "access_token": {
+                                                    "type": "string",
+                                                    "description": "访问令牌",
+                                                }
+                                            },
+                                        }
+                                    }
+                                },
+                            },
+                            "400": {
+                                "description": "请求参数错误",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "type": "object",
+                                            "properties": {
+                                                "message": {
+                                                    "type": "string",
+                                                    "description": "错误信息",
+                                                }
+                                            },
+                                        }
+                                    }
+                                },
+                            },
+                        },
+                    }
+                }
+            },
+        }
+        chunks = service.parse(json.dumps(spec).encode(), "api.json", document_id=17)
+        content = chunks[0]["content"]
+
+        assert "Response 200: 登录成功" in content
+        assert "access_token (string): 访问令牌" in content
+        assert "Response 400: 请求参数错误" in content
+        assert "message (string): 错误信息" in content
 
     # ------------------------------------------------------------------
     # content_hash 生成

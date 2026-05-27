@@ -23,6 +23,14 @@ class TestChatServiceChat:
             self.service = ChatService(self.mock_db)
             self.service.graph = MagicMock()
             self.service.graph.aget_state = AsyncMock(return_value=None)
+        # 单元测试中避免真实 Redis 依赖
+        self._lock_patch = patch.object(
+            ChatService, "_acquire_conversation_lock", new=AsyncMock(return_value="mock_token")
+        )
+        self._lock_patch.start()
+
+    def teardown_method(self):
+        self._lock_patch.stop()
 
     @patch("app.services.chat_service.conv_crud.create_ai_conversation")
     @patch("app.services.chat_service.msg_crud.create_conversation_message")
@@ -172,6 +180,99 @@ class TestChatServiceChat:
 
         assert exc_info.value.status_code == 404
 
+    @patch("app.services.chat_service.conv_crud.delete_ai_conversation")
+    @patch("app.services.chat_service.conv_crud.create_ai_conversation")
+    async def test_new_conversation_lock_failure_cleans_up_empty_conversation(
+        self, mock_create_conv, mock_delete_conv
+    ):
+        """新对话获取锁失败时应删除刚创建的空对话，避免孤儿会话。"""
+        mock_conv = MagicMock()
+        mock_conv.id = 42
+        mock_create_conv.return_value = mock_conv
+
+        lock_error = HTTPException(status_code=503, detail="对话锁服务暂不可用")
+        with patch.object(
+            ChatService,
+            "_acquire_conversation_lock",
+            new=AsyncMock(side_effect=lock_error),
+        ):
+            chat_in = ChatRequest(user_input="Hello", conversation_id=None)
+            with pytest.raises(HTTPException) as exc_info:
+                await self.service.chat(chat_in, user_id=1)
+
+        assert exc_info.value.status_code == 503
+        mock_delete_conv.assert_called_once_with(self.mock_db, 42)
+
+    @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
+    @patch("app.services.chat_service.msg_crud.create_conversation_message")
+    @patch("app.services.chat_service.msg_crud.delete_conversation_message")
+    async def test_chat_rolls_back_user_message_on_graph_failure(
+        self, mock_delete_msg, mock_create_msg, mock_get_conv
+    ):
+        """Graph 调用失败时应删除已写入的 user 消息，避免孤立轮次。"""
+        mock_conv = MagicMock()
+        mock_conv.user_id = 1
+        mock_get_conv.return_value = mock_conv
+
+        mock_user_msg = MagicMock()
+        mock_user_msg.id = 99
+        mock_create_msg.return_value = mock_user_msg
+
+        self.service.graph.aget_state = AsyncMock(
+            return_value=MagicMock(values={"messages": []})
+        )
+        self.service.graph.ainvoke = AsyncMock(side_effect=Exception("graph error"))
+
+        chat_in = ChatRequest(user_input="Hello", conversation_id=1)
+        with pytest.raises(Exception, match="graph error"):
+            await self.service.chat(chat_in, user_id=1)
+
+        # 确认写入了 user 消息
+        mock_create_msg.assert_called_once()
+        # 确认 Graph 失败后回滚删除了该消息
+        mock_delete_msg.assert_called_once_with(self.mock_db, 99)
+
+    @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
+    @patch("app.services.chat_service.msg_crud.create_conversation_message")
+    @patch("app.services.chat_service.msg_crud.delete_conversation_message")
+    async def test_chat_rolls_back_checkpoint_on_graph_failure(
+        self, mock_delete_msg, mock_create_msg, mock_get_conv
+    ):
+        """Graph 失败时应把 checkpoint 恢复到调用前状态，避免失败输入进入后续上下文。"""
+        mock_conv = MagicMock()
+        mock_conv.user_id = 1
+        mock_get_conv.return_value = mock_conv
+
+        mock_user_msg = MagicMock()
+        mock_user_msg.id = 99
+        mock_create_msg.return_value = mock_user_msg
+
+        previous_messages = [
+            HumanMessage(content="旧问题"),
+            AIMessage(content="旧回答"),
+        ]
+        self.service.graph.aget_state = AsyncMock(
+            return_value=MagicMock(
+                values={
+                    "messages": previous_messages,
+                    "profile_text": "已有画像",
+                    "current_goal": "已有目标",
+                }
+            )
+        )
+        self.service.graph.aupdate_state = AsyncMock()
+        self.service.graph.ainvoke = AsyncMock(side_effect=Exception("graph error"))
+
+        chat_in = ChatRequest(user_input="失败输入", conversation_id=1)
+        with pytest.raises(Exception, match="graph error"):
+            await self.service.chat(chat_in, user_id=1)
+
+        mock_delete_msg.assert_called_once_with(self.mock_db, 99)
+        self.service.graph.aupdate_state.assert_awaited()
+        rollback_payload = self.service.graph.aupdate_state.await_args.args[1]
+        assert rollback_payload["messages"][0].id == REMOVE_ALL_MESSAGES
+        assert rollback_payload["messages"][1:] == previous_messages
+
 
 class TestGetMessages:
     """测试 get_messages 过滤逻辑。"""
@@ -198,23 +299,15 @@ class TestGetMessages:
         return msg
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
-    @patch("app.services.chat_service.msg_crud.list_conversation_messages")
+    @patch("app.services.chat_service.msg_crud.list_visible_conversation_messages")
     async def test_filters_hidden_by_default(self, mock_list, mock_get_conv):
-        """默认应过滤掉工具结果、系统消息和空内容工具决策消息。"""
+        """默认应调用 list_visible_conversation_messages 过滤掉隐藏消息。"""
         mock_conv = MagicMock()
         mock_conv.user_id = 1
         mock_get_conv.return_value = mock_conv
 
         visible_msg = self._message(1, "assistant", "最终回复")
-        hidden_ai = self._message(
-            2,
-            "assistant",
-            "",
-            {"display": False, "tool_calls": [{"name": "search_blog"}]},
-        )
-        tool_msg = self._message(3, "tool", "工具结果", {"display": False})
-        system_msg = self._message(4, "system", "系统提示")
-        mock_list.return_value = [visible_msg, hidden_ai, tool_msg, system_msg]
+        mock_list.return_value = [visible_msg]
 
         result = await self.service.get_messages(1, 1)
         assert len(result) == 1
@@ -222,41 +315,33 @@ class TestGetMessages:
         assert result[0].content == "最终回复"
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
-    @patch("app.services.chat_service.msg_crud.list_conversation_messages")
-    async def test_hides_tool_call_assistant_content_by_default(
-        self, mock_list, mock_get_conv
-    ):
-        """带 tool_calls 的 assistant 消息默认应对普通用户隐藏。"""
+    @patch("app.services.chat_service.msg_crud.list_visible_conversation_messages")
+    async def test_uses_visible_query_for_pagination(self, mock_list, mock_get_conv):
+        """默认分页应基于可见消息而非原始消息，避免 hidden 消息挤占配额。"""
         mock_conv = MagicMock()
         mock_conv.user_id = 1
         mock_get_conv.return_value = mock_conv
 
-        pre_tool_reply = self._message(
-            1,
-            "assistant",
-            "好的，我帮你联网搜索一下。",
-            {
-                "display": False,
-                "tool_calls": [{"id": "call_1", "name": "web_search"}],
-            },
-        )
-        tool_msg = self._message(2, "tool", "工具结果", {"display": False})
-        final_reply = self._message(3, "assistant", "根据联网搜索结果，我整理如下。")
-        mock_list.return_value = [pre_tool_reply, tool_msg, final_reply]
+        # 模拟可见消息列表已过滤
+        visible_msgs = [self._message(i, "assistant", f"回复{i}") for i in range(1, 4)]
+        mock_list.return_value = visible_msgs
 
-        result = await self.service.get_messages(1, 1)
+        result = await self.service.get_messages(1, 1, skip=0, limit=3)
 
-        assert [msg.content for msg in result] == [
-            "根据联网搜索结果，我整理如下。",
-        ]
+        # 确认调用的是可见消息查询，参数透传
+        mock_list.assert_called_once_with(self.mock_db, 1, 0, 3)
+        assert len(result) == 3
 
     @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
     @patch("app.services.chat_service.msg_crud.list_conversation_messages")
     async def test_includes_hidden_when_flag_set(self, mock_list, mock_get_conv):
-        """include_hidden=True 时应返回完整消息列表。"""
+        """include_hidden=True 时应调用 list_conversation_messages 返回完整消息列表。"""
         mock_conv = MagicMock()
         mock_conv.user_id = 1
         mock_get_conv.return_value = mock_conv
+
+        # 设置管理员权限，允许查看 hidden 消息
+        self.service.permission_level = 1
 
         visible_msg = self._message(1, "assistant", "最终回复")
         hidden_msg = self._message(
@@ -270,6 +355,19 @@ class TestGetMessages:
         result = await self.service.get_messages(1, 1, include_hidden=True)
         assert len(result) == 2
         assert result[1].meta == {"display": False, "tool_call_id": "call_1"}
+
+    @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
+    async def test_include_hidden_rejects_non_admin(self, mock_get_conv):
+        """非管理员设置 include_hidden=True 时应返回 403。"""
+        mock_conv = MagicMock()
+        mock_conv.user_id = 1
+        mock_get_conv.return_value = mock_conv
+
+        # permission_level=0 是普通用户
+        self.service.permission_level = 0
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service.get_messages(1, 1, include_hidden=True)
+        assert exc_info.value.status_code == 403
 
 
 class TestGetConversationIfOwned:
@@ -420,6 +518,17 @@ class TestChatCompact:
         assert exc_info.value.status_code == 409
 
     @pytest.mark.asyncio
+    @patch("app.services.chat_service.get_sync_redis_client")
+    async def test_conversation_lock_returns_503_when_redis_fails(self, mock_get_redis):
+        """Redis 异常时不应降级无锁，应返回 503。"""
+        mock_get_redis.side_effect = Exception("redis connection error")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await self.service._acquire_conversation_lock(1)
+
+        assert exc_info.value.status_code == 503
+
+    @pytest.mark.asyncio
     @patch("app.services.chat_service.get_llm_small_client")
     async def test_generate_compact_summary_retries_empty_response(self, mock_get_client):
         """small model 返回空摘要时应重试一次。"""
@@ -492,6 +601,37 @@ class TestChatCompact:
         assert mock_client.ainvoke.await_count == 2
         self.service._persist_compact_summary.assert_not_called()
         self.service._apply_compact_summary.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("app.services.chat_service.msg_crud.delete_conversation_message")
+    async def test_maybe_compact_rolls_back_db_when_checkpoint_fails(self, mock_delete):
+        """checkpoint 更新失败时应回滚已写入的 compact 消息，避免 DB/checkpoint 分叉。"""
+        self.service._should_compact = AsyncMock(return_value=True)
+        self.service._generate_compact_summary = AsyncMock(return_value="摘要")
+
+        mock_compact_msg = MagicMock()
+        mock_compact_msg.id = 77
+        self.service._persist_compact_summary = AsyncMock(return_value=mock_compact_msg)
+        self.service._apply_compact_summary = AsyncMock(
+            side_effect=Exception("checkpoint update error")
+        )
+
+        result = await self.service._maybe_compact_after_response(
+            config={"configurable": {"thread_id": 1}},
+            conversation_id=1,
+            result={"messages": [
+                HumanMessage(content="旧问题"),
+                AIMessage(content="旧回答"),
+                HumanMessage(content="最新问题"),
+                AIMessage(content="最新回答"),
+            ]},
+            current_goal="当前目标",
+        )
+
+        assert result is False
+        # 确认尝试回滚 compact 消息
+        mock_delete.assert_called_once()
+        assert mock_delete.call_args.args[1] == 77
 
 
 class TestGenerateCurrentGoal:
@@ -592,6 +732,13 @@ class TestChatDynamicFields:
             mock_get_graph.return_value = MagicMock()
             self.service = ChatService(self.mock_db)
             self.service.graph = MagicMock()
+        self._lock_patch = patch.object(
+            ChatService, "_acquire_conversation_lock", new=AsyncMock(return_value="mock_token")
+        )
+        self._lock_patch.start()
+
+    def teardown_method(self):
+        self._lock_patch.stop()
 
     @patch("app.services.chat_service.conv_crud.create_ai_conversation")
     @patch("app.services.chat_service.msg_crud.create_conversation_message")

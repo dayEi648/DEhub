@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, ai_chat as chat, user_favorites, uploads, system_logs, openapi_knowledge
+from app.api.v1.openapi_knowledge import recover_pending_documents
 from app.core.exceptions import (
     http_exception_handler,
     validation_exception_handler,
@@ -42,6 +43,8 @@ async def lifespan(app: FastAPI):
     await init_llm_small_client()
     await init_embedding_client()
     await init_checkpoint_client()
+    # 恢复因重启中断的 OpenAPI 解析任务
+    recover_pending_documents()
     yield
     # 关闭时
     await background_task_manager.shutdown(timeout=10)

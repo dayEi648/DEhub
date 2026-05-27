@@ -175,51 +175,82 @@ class OpenAPIParserService:
         if operation.get("description"):
             lines.append(f"Description: {operation['description']}")
 
+        # 参数提取（含 required / enum / default 约束）
         for param in operation.get("parameters", []):
             if isinstance(param, dict):
                 if param.get("in") == "body" and isinstance(param.get("schema"), dict):
                     lines.append("Request Body (application/json):")
+                    req_required = set(param["schema"].get("required", []))
                     lines.extend(
-                        self._describe_schema(param["schema"], schemas, indent=2)
+                        self._describe_schema(
+                            param["schema"], schemas, indent=2, required_set=req_required
+                        )
                     )
                     continue
                 param_schema = param.get("schema", {})
                 param_type = param_schema.get("type", "unknown")
+                constraints = self._extract_constraints(param_schema)
+                req_mark = " [必填]" if param.get("required") else ""
                 lines.append(
-                    f"  - {param.get('name', '')} ({param.get('in', '')}, "
-                    f"{param_type}): {param.get('description', '')}"
+                    f"  - {param.get('name', '')}{req_mark} ({param.get('in', '')}, "
+                    f"{param_type}): {param.get('description', '')}{constraints}"
                 )
 
         request_body = operation.get("requestBody", {})
         if request_body:
             for media_type, media_obj in request_body.get("content", {}).items():
                 lines.append(f"Request Body ({media_type}):")
+                req_schema = media_obj.get("schema", {})
+                req_required = set(req_schema.get("required", []))
                 lines.extend(
-                    self._describe_schema(media_obj.get("schema", {}), schemas, indent=2)
+                    self._describe_schema(
+                        req_schema, schemas, indent=2, required_set=req_required
+                    )
                 )
 
-        for status in ["200", "201"]:
+        # 响应提取：优先 200/201，再提取常见错误响应
+        resp_statuses = ["200", "201", "400", "401", "403", "404", "500"]
+        for status in resp_statuses:
             if status in operation.get("responses", {}):
                 resp = operation["responses"][status]
                 lines.append(f"Response {status}: {resp.get('description', '')}")
                 for media_type, media_obj in resp.get("content", {}).items():
                     lines.append(f"  Response Body ({media_type}):")
+                    resp_schema = media_obj.get("schema", {})
+                    resp_required = set(resp_schema.get("required", []))
                     lines.extend(
-                        self._describe_schema(media_obj.get("schema", {}), schemas, indent=4)
+                        self._describe_schema(
+                            resp_schema, schemas, indent=4, required_set=resp_required
+                        )
                     )
-                break
 
         return "\n".join(lines)
+
+    @staticmethod
+    def _extract_constraints(prop_schema: dict) -> str:
+        """提取并格式化 Schema 的约束信息（enum / default / format）。"""
+        parts: list[str] = []
+        if "enum" in prop_schema:
+            parts.append(f"enum={prop_schema['enum']}")
+        if "default" in prop_schema:
+            parts.append(f"default={prop_schema['default']}")
+        if "format" in prop_schema:
+            parts.append(f"format={prop_schema['format']}")
+        if parts:
+            return f" [{', '.join(parts)}]"
+        return ""
 
     def _describe_schema(
         self,
         schema: dict,
         schemas: dict,
         indent: int = 0,
+        required_set: set[str] | None = None,
     ) -> list[str]:
-        """递归描述 Schema 结构（支持 ``$ref`` 展开）。"""
+        """递归描述 Schema 结构（支持 ``$ref`` 展开、allOf / oneOf / anyOf）。"""
         lines: list[str] = []
         prefix = "  " * indent
+        required_set = required_set or set()
 
         if not isinstance(schema, dict):
             return lines
@@ -228,10 +259,33 @@ class OpenAPIParserService:
         if ref and isinstance(ref, str):
             ref_name = ref.split("/")[-1]
             if ref_name in schemas:
-                lines.extend(self._describe_schema(schemas[ref_name], schemas, indent))
+                ref_schema = schemas[ref_name]
+                ref_required = set(ref_schema.get("required", []))
+                lines.extend(
+                    self._describe_schema(
+                        ref_schema,
+                        schemas,
+                        indent,
+                        required_set=required_set | ref_required,
+                    )
+                )
             else:
                 lines.append(f"{prefix}Reference: {ref_name}")
             return lines
+
+        # 处理组合 schema
+        for combo_key in ("allOf", "oneOf", "anyOf"):
+            if combo_key in schema:
+                lines.append(f"{prefix}{combo_key}:")
+                for idx, sub_schema in enumerate(schema[combo_key]):
+                    if isinstance(sub_schema, dict):
+                        lines.append(f"{prefix}  [{idx}]:")
+                        lines.extend(
+                            self._describe_schema(
+                                sub_schema, schemas, indent + 2, required_set=required_set
+                            )
+                        )
+                return lines
 
         schema_type = schema.get("type", "object")
         if schema_type == "object":
@@ -239,17 +293,31 @@ class OpenAPIParserService:
                 if not isinstance(prop_schema, dict):
                     continue
                 prop_type = prop_schema.get("type", "unknown")
+                req_mark = " [必填]" if prop_name in required_set else ""
+                constraints = self._extract_constraints(prop_schema)
                 lines.append(
-                    f"{prefix}- {prop_name} ({prop_type}): "
-                    f"{prop_schema.get('description', '')}"
+                    f"{prefix}- {prop_name}{req_mark} ({prop_type}): "
+                    f"{prop_schema.get('description', '')}{constraints}"
                 )
-                if prop_type == "object" or "$ref" in prop_schema:
-                    lines.extend(self._describe_schema(prop_schema, schemas, indent + 2))
+                if prop_type == "object" or "$ref" in prop_schema or "allOf" in prop_schema:
+                    sub_required = set(prop_schema.get("required", []))
+                    lines.extend(
+                        self._describe_schema(
+                            prop_schema, schemas, indent + 2, required_set=sub_required
+                        )
+                    )
         elif schema_type == "array":
             lines.append(f"{prefix}Array items:")
-            lines.extend(self._describe_schema(schema.get("items", {}), schemas, indent + 2))
+            item_schema = schema.get("items", {})
+            item_required = set(item_schema.get("required", []))
+            lines.extend(
+                self._describe_schema(
+                    item_schema, schemas, indent + 2, required_set=item_required
+                )
+            )
         else:
-            lines.append(f"{prefix}Type: {schema_type}")
+            constraints = self._extract_constraints(schema)
+            lines.append(f"{prefix}Type: {schema_type}{constraints}")
 
         return lines
 

@@ -136,3 +136,38 @@ class TestGenerateOpenapiCallExample:
         """空查询应返回提示。"""
         result = generate_openapi_call_example.invoke({"query": ""})
         assert "未提供有效的搜索关键词" in result
+
+    @patch("app.graphs.nodes.toolnodes.openapi_codegen._MAX_CONTENT_CHARS_PER_RESULT", 180)
+    @patch("app.graphs.nodes.toolnodes.openapi_codegen.OpenAPIEmbeddingService")
+    @patch("app.graphs.nodes.toolnodes.openapi_codegen.SessionLocal")
+    def test_long_result_is_actually_truncated(
+        self, mock_session_local, mock_service_cls
+    ):
+        """超长调用结构应真实截断，而不是仅追加提示后继续返回全部内容。"""
+        long_lines = "\n".join(
+            f"  - field_{i} (string): {'x' * 30}" for i in range(20)
+        )
+        mock_service = MagicMock()
+        mock_service.search.return_value = [
+            {
+                "method": "POST",
+                "path": "/long",
+                "summary": "超长接口",
+                "content": (
+                    "POST /long\n"
+                    "Summary: 超长接口\n"
+                    "Request Body (application/json):\n"
+                    f"{long_lines}\n"
+                    "Response 200: OK"
+                ),
+                "similarity_score": 0.91,
+            }
+        ]
+        mock_service_cls.return_value = mock_service
+        mock_db = MagicMock()
+        mock_session_local.return_value.__enter__.return_value = mock_db
+
+        result = generate_openapi_call_example.invoke({"query": "超长接口示例"})
+
+        assert "内容已截断" in result
+        assert "field_19" not in result
