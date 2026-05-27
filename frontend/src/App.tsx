@@ -11,6 +11,7 @@ import ForumZoneListPage from './pages/ForumZoneListPage'
 import ForumPostListPage from './pages/ForumPostListPage'
 import ForumPostDetailPage from './pages/ForumPostDetailPage'
 import AIChatPage from './pages/AIChatPage'
+import PortfolioPage from './pages/PortfolioPage'
 import AdminDashboard from './pages/admin/AdminDashboard'
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
         <Route path="/forums/z/:slug" element={<ForumPostListPage />} />
         <Route path="/forums/p/:postId" element={<ForumPostDetailPage />} />
         <Route path="/ai-chat" element={<AIChatPage />} />
+        <Route path="/portfolio" element={<PortfolioPage />} />
       </Route>
       <Route element={<AuthGuard requireAdmin />}>
         <Route element={<AdminLayout />}>

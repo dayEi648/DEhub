@@ -151,6 +151,7 @@ activemq-data/
 
 # Environments
 .env
+.env.deploy
 .envrc
 .venv
 env/
@@ -233,6 +234,42 @@ workflow.md
 
 png/
 Fonts/
+
+# Node.js / 前端构建产物
+node_modules/
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+
+# 数据库备份与部署包
+*.sql
+*.tar.gz
+
+# 测试产物
+test-results/
+test-screenshots/
+
+# 向量库数据与报告
+chroma_db/
+reports/
+
+# 本地环境变量文件（保留 .env.example）
+.env.local
+.env.*.local
+frontend/.env.production
+frontend/.env.local
+
+# 部署配置与个人服务器信息（保留 Dockerfile 作为示例）
+docker-compose.yml
+deploy/start.sh
+deploy/migrate.sh
+deploy/MIGRATE.md
+DEPLOY.md
+deploy/nginx/nginx.conf
 
 
 

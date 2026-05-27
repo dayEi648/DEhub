@@ -71,19 +71,7 @@ function CreatePostModal({
       panelPadding
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-sm)' }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: 'transparent',
-              color: 'var(--color-muted)',
-              borderRadius: 'var(--rounded-md)',
-              fontSize: 14,
-              fontWeight: 500,
-              border: '1px solid var(--color-hairline)',
-              cursor: 'pointer',
-            }}
-          >
+          <button onClick={onClose} className="btn-ghost">
             取消
           </button>
           <button
@@ -119,17 +107,7 @@ function CreatePostModal({
               placeholder="请输入帖子标题..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              style={{
-                width: '100%',
-                height: 44,
-                padding: '0 var(--spacing-md)',
-                borderRadius: 'var(--rounded-md)',
-                border: '1px solid var(--color-hairline)',
-                backgroundColor: 'var(--color-surface-soft)',
-                fontSize: 15,
-                color: 'var(--color-ink)',
-                outline: 'none',
-              }}
+              className="input-primary"
             />
           </div>
 

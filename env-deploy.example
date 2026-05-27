@@ -1,0 +1,73 @@
+# ============================================================
+# DEhub + 智能深度研究助手 —— 生产环境变量模板
+#
+# 使用方式：
+#   1. 复制本文件为 .env.deploy：cp env-deploy.example .env.deploy
+#   2. 填写所有敏感配置项
+#   3. 确保 .env.deploy 已加入 .gitignore，切勿提交到版本控制
+# ============================================================
+
+# --------------------------------------------------------------
+# 共享基础设施
+# --------------------------------------------------------------
+
+# PostgreSQL 密码（博客站数据库）
+POSTGRES_PASSWORD=your_strong_password_here
+
+# --------------------------------------------------------------
+# 博客站（DEhub）
+# --------------------------------------------------------------
+
+# JWT 密钥（请生成一个随机长字符串）
+DEHUB_SECRET_KEY=change_me_to_a_random_32_char_string
+
+# 主 LLM API（用于 AI 对话、博客摘要等）
+LLM_MAIN_API_KEY=sk-xxx
+LLM_MAIN_BASE_URL=https://api.deepseek.com
+LLM_MAIN_MODEL=deepseek-chat
+
+# 小模型 API（用于轻量级任务）
+LLM_SMALL_API_KEY=sk-xxx
+LLM_SMALL_BASE_URL=https://api.deepseek.com
+LLM_SMALL_MODEL=deepseek-chat
+
+# Embedding 向量模型（阿里云百炼）
+EMBEDDING_API_KEY=sk-xxx
+
+# 联网搜索（阿里云 IQS）
+IQS_API_KEY=xxx
+
+# 阿里云 OSS（图片上传等）
+OSS_ACCESS_KEY_ID=your-access-key-id
+OSS_ACCESS_KEY_SECRET=your-access-key-secret
+OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+OSS_BUCKET_NAME=your-bucket-name
+OSS_DOMAIN=https://your-bucket-name.oss-cn-hangzhou.aliyuncs.com
+
+# --------------------------------------------------------------
+# 智能深度研究助手（DeepSearch）
+# --------------------------------------------------------------
+
+# LLM API Key（至少填一个）
+DEEPSEEK_API_KEY=sk-xxx
+# OPENAI_API_KEY=sk-xxx
+# ZHIPU_API_KEY=xxx
+
+# 阿里云百炼（Embedding 向量模型）
+DASHSCOPE_API_KEY=sk-xxx
+
+# 阿里云 IQS Search
+IQSSEARCH_API_KEY=xxx
+
+# 并发限流
+MAX_CONCURRENT_RESEARCH=5
+
+# 节点超时（秒）
+AGENT_NODE_TIMEOUT=60
+
+# 阿里云 OSS（报告存储）
+# OSS_BUCKET_NAME=your-bucket-name
+# OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+# OSS_ACCESS_KEY_ID=your-access-key-id
+# OSS_ACCESS_KEY_SECRET=your-access-key-secret
+# OSS_REPORT_PREFIX=reports

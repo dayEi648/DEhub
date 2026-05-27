@@ -71,18 +71,11 @@ function PostNavigation({
             backgroundColor: 'var(--color-surface-card)',
             borderRadius: 'var(--rounded-lg)',
             border: 'none',
-            cursor: 'pointer',
-            transition: 'all 150ms ease',
             display: 'flex',
             flexDirection: 'column',
             gap: 'var(--spacing-xs)',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-surface-cream-strong)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-surface-card)'
-          }}
+          className="card-hover"
         >
           <span
             style={{
@@ -124,19 +117,12 @@ function PostNavigation({
             backgroundColor: 'var(--color-surface-card)',
             borderRadius: 'var(--rounded-lg)',
             border: 'none',
-            cursor: 'pointer',
-            transition: 'all 150ms ease',
             display: 'flex',
             flexDirection: 'column',
             gap: 'var(--spacing-xs)',
             alignItems: 'flex-end',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-surface-cream-strong)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-surface-card)'
-          }}
+          className="card-hover"
         >
           <span
             style={{
