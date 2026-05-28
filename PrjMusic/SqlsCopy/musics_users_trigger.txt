@@ -1,0 +1,46 @@
+-- 同步作者song_ids与歌曲id的关系
+CREATE OR REPLACE FUNCTION sync_author_songs()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- 处理 INSERT：为新作者添加 song_id
+    IF TG_OP = 'INSERT' THEN
+        UPDATE users 
+        SET song_ids = array_append(COALESCE(song_ids, ARRAY[]::INTEGER[]), NEW.id)
+        WHERE id = ANY(NEW.author_ids)
+          AND NOT (NEW.id = ANY(COALESCE(song_ids, ARRAY[]::INTEGER[])));
+        RETURN NEW;
+    
+    -- 处理 UPDATE：处理作者变更
+    ELSIF TG_OP = 'UPDATE' THEN
+        -- 1. 从旧作者中移除这首歌（如果旧作者不在新作者列表中）
+        UPDATE users 
+        SET song_ids = array_remove(song_ids, OLD.id)
+        WHERE id = ANY(OLD.author_ids)
+          AND NOT (id = ANY(NEW.author_ids));
+        
+        -- 2. 为新作者添加这首歌（如果新作者不在旧作者列表中）
+        UPDATE users 
+        SET song_ids = array_append(COALESCE(song_ids, ARRAY[]::INTEGER[]), NEW.id)
+        WHERE id = ANY(NEW.author_ids)
+          AND NOT (id = ANY(OLD.author_ids))
+          AND NOT (NEW.id = ANY(COALESCE(song_ids, ARRAY[]::INTEGER[])));
+        
+        RETURN NEW;
+    
+    -- 处理 DELETE：从所有旧作者中移除这首歌
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE users 
+        SET song_ids = array_remove(song_ids, OLD.id)
+        WHERE id = ANY(OLD.author_ids);
+        RETURN OLD;
+    END IF;
+    
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 创建触发器
+CREATE TRIGGER trg_sync_author_songs
+    AFTER INSERT OR UPDATE OR DELETE ON musics
+    FOR EACH ROW
+    EXECUTE FUNCTION sync_author_songs();

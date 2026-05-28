@@ -1,0 +1,12 @@
+-- ========== AI 个性推荐记录表 ==========
+CREATE TABLE ai_recommend_logs (
+    id SERIAL PRIMARY KEY,
+    session_id UUID NOT NULL,
+    user_id INTEGER NOT NULL,
+    recommend_type VARCHAR(16) NOT NULL CHECK (recommend_type IN ('emotion', 'interest', 'profile')),
+    target_tags TEXT[] NOT NULL,           -- AI 分析出的情绪/兴趣标签
+    music_ids INTEGER[] NOT NULL,          -- 本次推荐的音乐 ID 列表
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_ai_recommend_logs_session ON ai_recommend_logs(session_id);
+CREATE INDEX idx_ai_recommend_logs_user ON ai_recommend_logs(user_id, create_time DESC);

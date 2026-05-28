@@ -1,0 +1,200 @@
+/* Shared auth page visuals — matches App.vue dark / purple / pink theme */
+
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 45%, #1e1b2e 100%);
+  background-size: 200% 200%;
+  animation: authGradientShift 18s ease infinite;
+}
+
+@keyframes authGradientShift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.auth-shell__glow {
+  position: absolute;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(107, 70, 193, 0.35) 0%, transparent 70%);
+  top: -120px;
+  right: -80px;
+  pointer-events: none;
+  animation: authFloat 12s ease-in-out infinite;
+}
+
+.auth-shell__glow--2 {
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.25) 0%, transparent 70%);
+  bottom: -100px;
+  left: -60px;
+  top: auto;
+  right: auto;
+  animation-delay: -6s;
+}
+
+@keyframes authFloat {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate(-12px, 8px) scale(1.05);
+    opacity: 1;
+  }
+}
+
+/* Decorative “sound wave” bars */
+.auth-waves {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 48px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.auth-waves span {
+  display: block;
+  width: 5px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #8b5cf6 0%, #ec4899 100%);
+  animation: authWave 1.2s ease-in-out infinite;
+}
+
+.auth-waves span:nth-child(1) {
+  height: 18px;
+  animation-delay: 0s;
+}
+.auth-waves span:nth-child(2) {
+  height: 32px;
+  animation-delay: 0.1s;
+}
+.auth-waves span:nth-child(3) {
+  height: 44px;
+  animation-delay: 0.2s;
+}
+.auth-waves span:nth-child(4) {
+  height: 26px;
+  animation-delay: 0.3s;
+}
+.auth-waves span:nth-child(5) {
+  height: 40px;
+  animation-delay: 0.4s;
+}
+
+@keyframes authWave {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  padding: 36px 32px 28px;
+  border-radius: 20px;
+  background: rgba(26, 31, 46, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(107, 70, 193, 0.15) inset;
+  backdrop-filter: blur(14px);
+  animation: authCardIn 0.65s ease-out both;
+}
+
+@keyframes authCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-brand {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.auth-brand__title {
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: linear-gradient(135deg, #c4b5fd 0%, #f472b6 50%, #e879f9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin-bottom: 8px;
+}
+
+.auth-brand__sub {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+}
+
+.auth-brand__en {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.auth-footer {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.auth-footer a {
+  color: #c4b5fd;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.auth-footer a:hover {
+  color: #ec4899;
+}
+
+/* 注册成功后「完善资料」弹窗遮罩：与 .auth-shell 同源渐变，避免全局 .el-overlay 纯黑 */
+.el-overlay.auth-profile-mask {
+  background: linear-gradient(
+    135deg,
+    rgba(15, 20, 25, 0.88) 0%,
+    rgba(26, 31, 46, 0.88) 45%,
+    rgba(30, 27, 46, 0.88) 100%
+  );
+  backdrop-filter: blur(10px);
+}

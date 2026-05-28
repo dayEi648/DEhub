@@ -1,0 +1,97 @@
+/* 用户管理特有样式 */
+
+.user-avatar {
+  border: 2px solid rgba(107, 70, 193, 0.5);
+}
+
+.user-avatar-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(107, 70, 193, 0.5);
+  display: block;
+  margin: 0 auto;
+}
+
+.edit-avatar-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(107, 70, 193, 0.5);
+  flex-shrink: 0;
+}
+
+.avatar-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.avatar-hint {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.avatar-edit .el-avatar {
+  border: 2px solid rgba(107, 70, 193, 0.5);
+  flex-shrink: 0;
+}
+
+.detail-body p {
+  margin: 6px 0;
+}
+
+.highlight-level {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.avatar-desc-area {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.detail-avatar {
+  border: 2px solid rgba(107, 70, 193, 0.5);
+  flex-shrink: 0;
+}
+
+.detail-avatar-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(107, 70, 193, 0.5);
+  flex-shrink: 0;
+}
+
+.detail-desc {
+  flex: 1;
+}
+
+.desc-text {
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+
+/* 已注销用户行高亮 */
+:deep(.deleted-row) {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+  box-shadow: inset 3px 0 0 0 #ef4444;
+}
+
+:deep(.deleted-row td) {
+  color: #fca5a5 !important;
+}

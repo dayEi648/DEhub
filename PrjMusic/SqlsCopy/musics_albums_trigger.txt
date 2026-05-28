@@ -1,0 +1,44 @@
+-- 同步歌曲id与专辑song_ids的关系
+  CREATE OR REPLACE FUNCTION sync_album_songs()
+  RETURNS TRIGGER AS $$
+  BEGIN
+      IF TG_OP = 'INSERT' THEN
+          IF NEW.album_id IS NOT NULL THEN
+              UPDATE albums
+              SET song_ids = array_append(COALESCE(song_ids, ARRAY[]::INTEGER[]), NEW.id)
+              WHERE id = NEW.album_id
+                AND NOT (NEW.id = ANY(COALESCE(song_ids, ARRAY[]::INTEGER[])));
+          END IF;
+          RETURN NEW;
+      ELSIF TG_OP = 'UPDATE' THEN
+          IF OLD.album_id IS DISTINCT FROM NEW.album_id THEN
+              IF OLD.album_id IS NOT NULL THEN
+                  UPDATE albums
+                  SET song_ids = array_remove(song_ids, OLD.id)
+                  WHERE id = OLD.album_id;
+              END IF;
+              IF NEW.album_id IS NOT NULL THEN
+                  UPDATE albums
+                  SET song_ids = array_append(COALESCE(song_ids, ARRAY[]::INTEGER[]), NEW.id)
+                  WHERE id = NEW.album_id
+                    AND NOT (NEW.id = ANY(COALESCE(song_ids, ARRAY[]::INTEGER[])));
+              END IF;
+          END IF;
+          RETURN NEW;
+      ELSIF TG_OP = 'DELETE' THEN
+          IF OLD.album_id IS NOT NULL THEN
+              UPDATE albums
+              SET song_ids = array_remove(song_ids, OLD.id)
+              WHERE id = OLD.album_id;
+          END IF;
+          RETURN OLD;
+      END IF;
+      RETURN NULL;
+  END;
+  $$ LANGUAGE plpgsql;
+
+  -- 绑定触发器
+  CREATE TRIGGER trg_sync_album_songs
+      AFTER INSERT OR UPDATE OR DELETE ON musics
+      FOR EACH ROW
+      EXECUTE FUNCTION sync_album_songs();

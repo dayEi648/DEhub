@@ -1,0 +1,48 @@
+-- 通知表（@我的 + 点赞/收藏/系统通知）
+CREATE TABLE notifications (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+
+-- mention(@我的)/like(点赞)/collect(收藏)/follow(关注)/system/reply(回复)/comment(评论)
+    type VARCHAR(32) NOT NULL, 
+    sender_id INT,
+    source_type VARCHAR(32), -- comment/playlist/blog/space/song/album
+    source_id BIGINT,
+    source_parent_id BIGINT,
+    title VARCHAR(200),
+    content TEXT,
+    extra JSONB DEFAULT '{}',
+
+    is_read BOOLEAN DEFAULT FALSE,
+    read_time TIMESTAMP,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN DEFAULT FALSE
+);
+
+-- ========== 索引 ==========
+-- 1. 查"我的通知"按时间倒序（最常用的）
+CREATE INDEX idx_notifications_user_time 
+ON notifications(user_id, create_time DESC) 
+WHERE deleted = FALSE;
+
+-- 2. 查未读通知数（右上角小红点）
+CREATE INDEX idx_notifications_unread 
+ON notifications(user_id, is_read, create_time DESC) 
+WHERE is_read = FALSE AND deleted = FALSE;
+
+-- 3. 单独查"@我的"一页
+CREATE INDEX idx_notifications_mention 
+ON notifications(user_id, type, create_time DESC) 
+WHERE type = 'mention' AND deleted = FALSE;
+
+-- 4. 覆盖所有 type 筛选 + 时间排序
+CREATE INDEX idx_notifications_user_type_time 
+ON notifications(user_id, type, create_time DESC) 
+WHERE deleted = FALSE;
+
+-- 自动更新 update_time
+CREATE TRIGGER update_notifications_modtime
+    BEFORE UPDATE ON notifications
+    FOR EACH ROW
+    EXECUTE FUNCTION update_modified_column();

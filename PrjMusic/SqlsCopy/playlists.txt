@@ -1,0 +1,57 @@
+-- playlists 歌单表
+CREATE TABLE playlists (
+    id SERIAL PRIMARY KEY,
+    playlist_name VARCHAR(255) NOT NULL,		-- 歌单名
+    user_id INTEGER NOT NULL,			-- 所属用户id
+    user_name VARCHAR(32),		-- 用户的昵称
+    private BOOLEAN DEFAULT FALSE,		-- 是否公开
+    list_description TEXT,		--歌单简介
+    song_ids INTEGER[] NOT NULL DEFAULT '{}',		-- 包含歌曲id
+    emo_tags TEXT[] NOT NULL DEFAULT '{}',		-- 情绪标签
+    interest_tags TEXT[] NOT NULL DEFAULT '{}',		-- 兴趣标签
+    collect_count INTEGER DEFAULT 0,		-- 被收藏次数
+    play_count INTEGER DEFAULT 0,		-- 播放次数
+    is_like BOOLEAN DEFAULT FALSE,		-- 是否为唯一歌单'喜欢'
+    hot INTEGER DEFAULT 0 CHECK (hot >= 0 AND hot <= 1000),		-- 歌单热度
+    comment_count INTEGER DEFAULT 0,		-- 歌单评论数
+    is_recommended BOOLEAN DEFAULT FALSE,		-- 是否推送
+    image_url TEXT,		-- 封面url
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,		-- 最后更新时间
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP		-- 创建时间
+);
+
+-- 自动更新update_time
+CREATE TRIGGER trigger_update_playlists_time
+    BEFORE UPDATE ON playlists
+    FOR EACH ROW
+    EXECUTE FUNCTION update_modified_column();
+
+-- 可优化性能的索引：
+
+-- 1. 用户ID查询
+CREATE INDEX idx_playlists_user_id ON playlists(user_id);
+
+-- 2. emo/interest标签 GIN 索引（支持数组包含查询）
+CREATE INDEX idx_playlists_emo_tags ON playlists USING gin(emo_tags);
+CREATE INDEX idx_playlists_interest_tags ON playlists USING gin(interest_tags);
+CREATE INDEX idx_playlists_song_ids ON playlists USING gin(song_ids);
+
+-- 3. 部分索引：优化公开+推荐+非喜欢歌单的过滤条件
+-- 这个索引会复用
+CREATE INDEX idx_playlists_public_recommended_notlike ON playlists(private, is_recommended, is_like, id) 
+WHERE private = FALSE AND is_recommended = TRUE AND is_like = FALSE;
+
+-- 4. 排序索引（热度/收藏数/播放次数）
+CREATE INDEX idx_playlists_hot_sort ON playlists(hot DESC, id) 
+WHERE private = FALSE AND is_recommended = TRUE AND is_like = FALSE;
+
+CREATE INDEX idx_playlists_collect_sort ON playlists(collect_count DESC, id) 
+WHERE private = FALSE AND is_recommended = TRUE AND is_like = FALSE;
+
+CREATE INDEX idx_playlists_play_sort ON playlists(play_count DESC, id) 
+WHERE private = FALSE AND is_recommended = TRUE AND is_like = FALSE;
+
+-- 每个用户只有一个"喜欢"歌单
+CREATE UNIQUE INDEX idx_unique_user_like_playlist 
+ON playlists (user_id) 
+WHERE is_like = TRUE;

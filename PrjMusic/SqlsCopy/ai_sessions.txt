@@ -1,0 +1,19 @@
+-- ========== AI 会话表 ==========
+CREATE TABLE ai_sessions (
+    id SERIAL PRIMARY KEY,
+    session_id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,  -- 软删除保留历史，物理删除级联清理
+    title VARCHAR(100),                    -- 会话标题（首条消息 AI 自动生成摘要）
+    context_summary TEXT,                  -- 长期记忆摘要（跨对话记忆）
+    is_pinned BOOLEAN DEFAULT FALSE,       -- 是否置顶
+    is_deleted BOOLEAN DEFAULT FALSE,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_ai_sessions_user_id ON ai_sessions(user_id, is_deleted, update_time DESC);
+CREATE INDEX idx_ai_sessions_session_id ON ai_sessions(session_id);
+
+-- 自动更新 update_time
+CREATE TRIGGER update_ai_sessions_modtime
+    BEFORE UPDATE ON ai_sessions
+    FOR EACH ROW EXECUTE FUNCTION update_modified_column();

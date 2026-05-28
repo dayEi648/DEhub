@@ -60,13 +60,10 @@ DASHSCOPE_API_KEY=sk-xxx
 IQSSEARCH_API_KEY=xxx
 
 # ECS 公网 IP（用于前端构建时注入）
-ECS_IP=47.121.201.103
+ECS_IP=YOUR_ECS_IP
 
-# 镜像仓库前缀（用于 docker-compose.yml 的 image 字段）
-# 若使用阿里云 ACR，格式为：registry.cn-<地域>.aliyuncs.com/<命名空间>
-# 示例：DOCKER_IMAGE_PREFIX=registry.cn-hangzhou.aliyuncs.com/dehub
-# 留空或注释则使用本地镜像名（dehub/backend:latest）
-# DOCKER_IMAGE_PREFIX=registry.cn-hangzhou.aliyuncs.com/dehub
+# 镜像仓库前缀（留空则使用本地镜像名）
+# DOCKER_IMAGE_PREFIX=
 
 # 并发限流
 MAX_CONCURRENT_RESEARCH=5
@@ -80,3 +77,18 @@ AGENT_NODE_TIMEOUT=60
 # DS_OSS_ACCESS_KEY_ID=your-access-key-id
 # DS_OSS_ACCESS_KEY_SECRET=your-access-key-secret
 # DS_OSS_REPORT_PREFIX=reports
+
+# --------------------------------------------------------------
+# EchoMemory / PrjMusic
+# --------------------------------------------------------------
+
+# JWT 密钥（与 Spring Boot 保持一致）
+ECHOMUSIC_JWT_SECRET=change-me-to-a-random-string
+
+# 阿里云 OSS（EchoMemory 图片/缩略图存储）
+ECHOMUSIC_OSS_ACCESS_KEY_ID=your-access-key-id
+ECHOMUSIC_OSS_ACCESS_KEY_SECRET=your-access-key-secret
+
+# EchoAI LLM / 搜索（阿里云百炼）
+ECHOMUSIC_AI_API_KEY=sk-xxx
+ECHOMUSIC_IQS_API_KEY=xxx

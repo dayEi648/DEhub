@@ -1,0 +1,48 @@
+-- 专辑表
+CREATE TABLE albums (
+    id SERIAL PRIMARY KEY,
+    album_name VARCHAR(32) NOT NULL,
+    author_ids INT[] NOT NULL DEFAULT '{}',
+    author_names TEXT[] NOT NULL DEFAULT '{}',
+    album_description TEXT,
+    source VARCHAR(32),
+    emo_tags TEXT[] NOT NULL DEFAULT '{}',
+    interest_tags TEXT[] NOT NULL DEFAULT '{}',
+    collect_count INT DEFAULT 0,
+    play_count INT DEFAULT 0,
+    hot INT DEFAULT 0 CHECK (hot >= 0 AND hot <= 1000),
+    image1_url TEXT,
+    image2_url TEXT,
+    song_ids INT[] NOT NULL DEFAULT '{}',
+    is_recommended BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 索引（提升查询性能）
+-- 1. 根据作者ID查询专辑
+CREATE INDEX idx_album_author_ids ON albums USING GIN(author_ids);
+-- 2. 根据专辑名模糊查询
+CREATE INDEX idx_album_name_trgm ON albums USING GIN(album_name gin_trgm_ops);
+-- 4. 根据情绪/兴趣标签查询
+CREATE INDEX idx_album_emo_tags ON albums USING GIN(emo_tags);
+CREATE INDEX idx_album_interest_tags ON albums USING GIN(interest_tags);
+-- 5. 根据收藏数/热度排序（倒序索引）
+CREATE INDEX idx_album_hot_desc ON albums(hot DESC);
+CREATE INDEX idx_album_collect_desc ON albums(collect_count DESC);
+-- 6. 根据歌曲ID查询专辑
+CREATE INDEX idx_album_song_ids ON albums USING GIN(song_ids);
+-- 7. 根据是否推送查询（部分索引）
+CREATE INDEX idx_album_recommended ON albums(is_recommended) WHERE is_recommended = TRUE;
+-- 7. 逻辑删除查询（部分索引，通常只查未删除的）
+CREATE INDEX idx_album_active ON albums(is_deleted) WHERE is_deleted = FALSE;
+-- 组合索引：查询推荐且未删除的专辑（常用业务场景）
+CREATE INDEX idx_album_rec_active ON albums(is_recommended, is_deleted) 
+WHERE is_recommended = TRUE AND is_deleted = FALSE;
+
+-- 自动更新时间
+CREATE TRIGGER update_album_modtime
+    BEFORE UPDATE ON albums
+    FOR EACH ROW
+    EXECUTE FUNCTION update_modified_column();

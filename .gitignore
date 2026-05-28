@@ -263,6 +263,14 @@ reports/
 frontend/.env.production
 frontend/.env.local
 
+# Java 环境配置文件（dev/prod 常含硬编码密钥，统一忽略；只保留 application.yaml 作为模板）
+**/application-dev.yaml
+**/application-prod.yaml
+
+# 部署环境变量模板（若含真实 ECS IP、JWT 密钥等，请勿提交）
+# 注：*.example 通常可提交，但如果包含真实值建议加入忽略
+env-deploy.example
+
 # 部署配置与个人服务器信息（含公网IP、路径等敏感信息，不进入版本库；通过 tar 包单独传输）
 docker-compose.yml
 deploy/MIGRATE.md

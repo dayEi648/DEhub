@@ -1,0 +1,97 @@
+/* 音乐管理特有样式 */
+
+/* 关联面板 */
+.relation-panel {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+
+.panel-title {
+  color: #e2e8f0;
+  font-weight: 600;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+/* 关联表单 - 4列网格 */
+.relation-form {
+  display: flex;
+  flex-direction: row; 
+  gap: 10px;
+  margin-bottom: 12px;
+  align-items: end;
+}
+
+.highlight-hot {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.url-value {
+  word-break: break-all;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 作者标签样式 */
+.author-tag {
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+
+.music-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.file-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.file-pick-row--stack {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.file-pick-name {
+  font-size: 12px;
+  color: #94a3b8;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-hint {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+/* 专辑选择 */
+.album-selected {
+  margin-top: 8px;
+}

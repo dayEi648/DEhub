@@ -1,0 +1,67 @@
+CREATE TABLE comments (
+    id SERIAL PRIMARY KEY,
+
+    -- 判断评论场景
+    in_music BOOLEAN NOT NULL,		-- 音乐评论
+    in_playlist BOOLEAN NOT NULL,		-- 歌单评论
+    in_space BOOLEAN NOT NULL,		-- 个人空间评论
+    -- 对应的id
+    music_id INT,
+    playlist_id INT,
+    space_id INT,
+
+    user_id INT NOT NULL,		-- 用户id
+    user_name VARCHAR(32),		-- 用户昵称
+    content TEXT NOT NULL,		-- 评论内容
+    answer_count SMALLINT DEFAULT 0,		-- 回复数
+
+    is_reply BOOLEAN NOT NULL DEFAULT false,		-- 是否是回复评论
+    reply_user_id INT,			-- 回复的用户id
+    reply_comment_id INT,		-- 回复的评论id
+    is_nested_reply BOOLEAN NOT NULL DEFAULT false,		-- 是否是嵌套回复
+    nested_reply_user_id INT,		-- 嵌套回复的用户id
+    nested_reply_comment_id INT,		-- 嵌套回复的回复id
+    -- (举例: 在某音乐下，有用户a发表了评论X，这是普通评论'is_reply=false/is_nested_reply=false'; 此时有用户b对评论X进行回复Y，这叫做回复评论'is_reply=true/is_nested_reply=false'; 然后若有用户c对回复Y进行了回复Z，这叫做嵌套回复'is_reply=true/is_nested_reply=true')
+
+    safety SMALLINT DEFAULT 10,		-- 安全指数 
+    is_recommended BOOLEAN NOT NULL DEFAULT false,		-- 精选评论
+    is_deleted BOOLEAN NOT NULL DEFAULT false,		-- 逻辑删除
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,		-- 更新时间
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,		-- 评论时间
+
+    like_ids INTEGER[] NOT NULL DEFAULT '{}',           -- 点赞的用户id
+    dislike_ids INTEGER[] NOT NULL DEFAULT '{}',        -- 点踩的用户id
+    like_count int4 GENERATED ALWAYS AS (COALESCE(array_length(like_ids, 1), 0)) STORED,      -- 点赞总数
+    dislike_count int4 GENERATED ALWAYS AS (COALESCE(array_length(dislike_ids, 1), 0)) STORED, -- 点踩总数
+
+
+    CONSTRAINT chk_safety_range CHECK (safety >= 0 AND safety <= 10),
+    CONSTRAINT chk_scene_unique CHECK (
+        (in_music::int) + (in_playlist::int) + (in_space::int) = 1
+    )
+);
+
+-- 索引优化
+-- 1. 通过用户id查询该用户发表的所有评论
+CREATE INDEX idx_comments_user_id ON comments(user_id);
+-- 2. 三种不同场景下根据场景id查询评论
+CREATE INDEX idx_comments_music_id ON comments(music_id) WHERE in_music = true;
+CREATE INDEX idx_comments_playlist_id ON comments(playlist_id) WHERE in_playlist = true;
+CREATE INDEX idx_comments_space_id ON comments(space_id) WHERE in_space = true;
+-- 3. 根据回复的评论id查询回复
+CREATE INDEX idx_comments_reply_comment_id ON comments(reply_comment_id) WHERE is_reply = true;
+-- 4. 根据嵌套回复的回复id查询嵌套回复
+CREATE INDEX idx_comments_nested_reply_comment_id ON comments(nested_reply_comment_id) WHERE is_nested_reply = true;
+-- 5. 根据点赞数/点踩数/安全指数/创建时间进行排序
+CREATE INDEX idx_comments_like_count ON comments(like_count DESC);
+CREATE INDEX idx_comments_dislike_count ON comments(dislike_count DESC);
+CREATE INDEX idx_comments_safety_ASC ON comments(safety ASC);
+CREATE INDEX idx_comments_create_time_DESC ON comments(create_time DESC);
+CREATE INDEX idx_comments_create_time_ASC ON comments(create_time ASC);
+
+
+-- 自动更新修改时间
+CREATE TRIGGER update_comment_modtime
+    BEFORE UPDATE ON comments
+    FOR EACH ROW
+    EXECUTE FUNCTION update_modified_column();

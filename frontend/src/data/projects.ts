@@ -31,6 +31,16 @@ export const projects: Project[] = [
     link: `http://${ECS_IP}:8080`,
     tags: ['AI', 'LangGraph', 'FastAPI', 'Vue', 'RAG'],
   },
+  {
+    id: 'echomusic',
+    name: 'EchoMemory 音乐社区',
+    coverGradient: 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',
+    coverIcon: 'Music',
+    summary:
+      '基于 Spring Boot + Vue 3 的音乐社区平台，支持专辑管理、歌单分享、AI 智能推荐与私聊互动。',
+    link: `http://${ECS_IP}:8081`,
+    tags: ['Java', 'Spring Boot', 'Vue 3', 'PostgreSQL', 'Redis'],
+  },
 ]
 
 /**

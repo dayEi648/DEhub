@@ -1,0 +1,26 @@
+# ========== 核心框架 ==========
+fastapi>=0.110.0
+uvicorn>=0.29.0
+
+# ========== 数据库与缓存 ==========
+asyncpg>=0.29.0
+redis>=5.0.0
+
+# ========== AI 框架 ==========
+langchain>=0.1.0
+langgraph>=0.0.0
+langchain-openai>=0.1.0
+
+# ========== 配置 ==========
+pydantic-settings>=2.0.0
+
+# ========== 认证与上传 ==========
+pyjwt>=2.8.0
+python-multipart>=0.0.9
+
+# ========== RAG 向量知识库 ==========
+pypdf>=4.0.0                  # PDF 解析
+openpyxl>=3.1.0               # Excel 解析
+
+# ========== 工具系统 ==========
+httpx>=0.27.0                 # HTTP 异步客户端（Spring API + IQS）

@@ -1,0 +1,288 @@
+/* ============================================
+   后台管理页面公共样式
+   ============================================ */
+
+/* 页面容器 */
+.manage-page {
+  padding-bottom: 20px;
+}
+
+/* 搜索区域 - 玻璃态效果 */
+.search-section {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+/* 表格区域 - 紫色渐变背景 */
+.table-section {
+  background: linear-gradient(135deg, #1a1f2e 0%, #2d1b4e 50%, #3d1b4e 100%);
+  border: 1px solid rgba(107, 70, 193, 0.2);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(107, 70, 193, 0.15);
+}
+
+/* 搜索表单 - 自适应网格布局 */
+.search-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 160px));
+  gap: 12px;
+  align-items: end;
+}
+
+.search-form :deep(.el-input),
+.search-form :deep(.el-select) {
+  width: 160px;
+}
+
+/* 表单项 */
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-item.actions {
+  flex-direction: row;
+}
+
+/* 标签和统计文字颜色 */
+.form-item label,
+.sort-label,
+.right-info {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* 排序区域 */
+.sort-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.sort-section :deep(.el-select) {
+  width: 120px;
+}
+
+/* 工具栏 */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.left-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* 高亮数字 */
+.highlight {
+  color: #ec4899;
+  font-weight: 700;
+}
+
+/* 分页 */
+.pagination-wrapper {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ============================================
+   弹窗样式
+   ============================================ */
+
+.dialog :deep(.el-dialog) {
+  background: linear-gradient(135deg, #1a1f2e 0%, #2d1b4e 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+.dialog :deep(.el-dialog__title) {
+  color: #e2e8f0;
+}
+
+.dialog :deep(.el-dialog__header) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+
+.dialog :deep(.el-dialog__footer) {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 16px;
+}
+
+/* 表单标签颜色 */
+.form :deep(.el-form-item__label) {
+  color: #94a3b8;
+}
+
+/* ============================================
+   表格样式（通用，适用于所有管理页面）
+   ============================================ */
+
+/* 表格容器背景透明 */
+.table-section :deep(.el-table) {
+  background: transparent;
+}
+
+/* 表头样式 */
+.table-section :deep(.el-table__header) {
+  background: transparent;
+}
+
+.table-section :deep(.el-table__header th.el-table__cell) {
+  background-color: rgba(30, 41, 59, 0.8) !important;
+  color: #f1f5f9 !important;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 表格行样式 - 深色背景 */
+.table-section :deep(.el-table__row) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.table-section :deep(.el-table__row:hover > td) {
+  background: rgba(107, 70, 193, 0.1) !important;
+}
+
+/* 表格单元格样式 */
+.table-section :deep(.el-table__row td) {
+  color: #cbd5e1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* 斑马纹样式 */
+.table-section :deep(.el-table--striped .el-table__body tr.el-table__row--striped td) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.table-section :deep(.el-table--striped .el-table__body tr.el-table__row--striped:hover td) {
+  background: rgba(107, 70, 193, 0.1) !important;
+}
+
+/* 空状态样式 */
+.table-section :deep(.el-table__empty-block) {
+  background: transparent;
+}
+
+.table-section :deep(.el-table__empty-text) {
+  color: #94a3b8;
+}
+
+/* 表格固定列阴影 */
+.table-section :deep(.el-table__fixed-right::before) {
+  background: transparent;
+}
+
+/* ============================================
+   标签编辑样式
+   ============================================ */
+
+.tags-edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.edit-tag {
+  background: linear-gradient(135deg, rgba(107, 70, 193, 0.5) 0%, rgba(236, 72, 153, 0.3) 100%);
+  border: 1px solid rgba(107, 70, 193, 0.4);
+  color: #e2e8f0;
+}
+
+.tag-input {
+  width: 100px;
+}
+
+.tag-add-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  color: #94a3b8;
+}
+
+.tag-add-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #e2e8f0;
+}
+
+/* ============================================
+   详情弹窗样式
+   ============================================ */
+
+.detail-dialog :deep(.el-dialog__body) {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 0 20px 20px;
+}
+
+.detail-body {
+  color: #e2e8f0;
+}
+
+.detail-section {
+  margin-bottom: 24px;
+}
+
+.detail-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ec4899;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(236, 72, 153, 0.3);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.time-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.detail-value {
+  font-size: 14px;
+  color: #e2e8f0;
+}
+
+.tags-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-tag {
+  background: linear-gradient(135deg, rgba(107, 70, 193, 0.5) 0%, rgba(236, 72, 153, 0.3) 100%);
+  border: 1px solid rgba(107, 70, 193, 0.4);
+  color: #e2e8f0;
+}

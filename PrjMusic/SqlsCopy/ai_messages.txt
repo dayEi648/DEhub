@@ -1,0 +1,13 @@
+-- ========== AI 消息表 ==========
+CREATE TABLE ai_messages (
+    id SERIAL PRIMARY KEY,
+    session_id UUID NOT NULL REFERENCES ai_sessions(session_id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    role VARCHAR(16) NOT NULL CHECK (role IN ('user', 'assistant', 'tool', 'system')),
+    content TEXT NOT NULL,
+    tool_calls JSONB,                      -- LangGraph tool_calls 结构
+    tool_call_id VARCHAR(64),              -- 对应 tool 响应
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_ai_messages_session_time ON ai_messages(session_id, create_time);
+CREATE INDEX idx_ai_messages_user_id ON ai_messages(user_id);
