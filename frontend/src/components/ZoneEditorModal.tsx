@@ -80,6 +80,13 @@ export default function ZoneEditorModal({ zone, onClose, onSubmit, submitting = 
     }
   }, [managerQuery])
 
+  const isDirty = !isEdit
+    ? true
+    : zoneName.trim() !== (zone?.zone_name || '') ||
+      slug.trim() !== (zone?.slug || '') ||
+      description.trim() !== (zone?.description || '') ||
+      managerId !== zone?.manager_id
+
   const handleSubmit = () => {
     if (!zoneName.trim()) return
     if (managerQuery.trim() && managerId === undefined) {
@@ -131,17 +138,17 @@ export default function ZoneEditorModal({ zone, onClose, onSubmit, submitting = 
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !zoneName.trim()}
+            disabled={submitting || !isDirty || !zoneName.trim()}
             style={{
               height: 40,
               padding: '0 20px',
               borderRadius: 'var(--rounded-md)',
-              backgroundColor: submitting ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              backgroundColor: submitting || !isDirty ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
               color: 'var(--color-on-primary)',
               fontSize: 14,
               fontWeight: 500,
               border: 'none',
-              cursor: submitting || !zoneName.trim() ? 'not-allowed' : 'pointer',
+              cursor: submitting || !isDirty || !zoneName.trim() ? 'not-allowed' : 'pointer',
             }}
           >
             {submitting ? '保存中…' : '保存'}

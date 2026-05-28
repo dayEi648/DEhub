@@ -96,6 +96,15 @@ export default function BlogEditorModal({
 
   const { handlePaste } = usePasteImageUpload('generic')
 
+  const isDirty = isEdit
+    ? title.trim() !== (post?.title || '') ||
+      slug.trim() !== (post?.slug || '') ||
+      contentMd.trim() !== (post?.content_md || '') ||
+      categoryId !== (post?.category_id ?? 0) ||
+      JSON.stringify([...tags].sort()) !== JSON.stringify([...(post?.tags || [])].sort()) ||
+      coverFile !== null
+    : true
+
   const handleSubmit = () => {
     if (!title.trim() || !contentMd.trim() || !categoryId) return
     onSubmit({
@@ -145,17 +154,17 @@ export default function BlogEditorModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !title.trim() || !contentMd.trim() || !categoryId || (!isEdit && !coverFile)}
+            disabled={submitting || !isDirty || !title.trim() || !contentMd.trim() || !categoryId || (!isEdit && !coverFile)}
             style={{
               height: 40,
               padding: '0 20px',
               borderRadius: 'var(--rounded-md)',
-              backgroundColor: submitting ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              backgroundColor: submitting || !isDirty ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
               color: 'var(--color-on-primary)',
               fontSize: 14,
               fontWeight: 500,
               border: 'none',
-              cursor: submitting || !title.trim() || !contentMd.trim() || !categoryId ? 'not-allowed' : 'pointer',
+              cursor: submitting || !isDirty || !title.trim() || !contentMd.trim() || !categoryId ? 'not-allowed' : 'pointer',
             }}
           >
             {submitting ? '保存中…' : '保存'}

@@ -57,6 +57,8 @@ function EditPostModal({
   const [content, setContent] = useState(post.content)
   const [submitting, setSubmitting] = useState(false)
 
+  const isDirty = title.trim() !== post.title.trim() || content.trim() !== post.content.trim()
+
   const { handlePaste } = usePasteImageUpload('forum_post')
 
   const handleSubmit = async () => {
@@ -92,16 +94,16 @@ function EditPostModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !title.trim() || !content.trim()}
+            disabled={submitting || !isDirty || !title.trim() || !content.trim()}
             style={{
               padding: '10px 20px',
-              backgroundColor: !title.trim() || !content.trim() ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
-              color: !title.trim() || !content.trim() ? 'var(--color-muted)' : 'var(--color-on-primary)',
+              backgroundColor: !isDirty || !title.trim() || !content.trim() ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              color: !isDirty || !title.trim() || !content.trim() ? 'var(--color-muted)' : 'var(--color-on-primary)',
               borderRadius: 'var(--rounded-md)',
               fontSize: 14,
               fontWeight: 500,
               border: 'none',
-              cursor: !title.trim() || !content.trim() ? 'not-allowed' : 'pointer',
+              cursor: !isDirty || !title.trim() || !content.trim() ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,

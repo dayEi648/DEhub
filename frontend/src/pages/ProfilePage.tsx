@@ -326,6 +326,12 @@ export default function ProfilePage() {
     setAvatarPreview(null)
   }
 
+  const isProfileDirty =
+    editUsername.trim() !== (user?.username || '') ||
+    editEmail.trim() !== (user?.email || '') ||
+    editProfile.trim() !== (user?.personal_profile || '') ||
+    avatarFile !== null
+
   const handleAvatarClick = () => {
     if (!isEditing) return
     fileInputRef.current?.click()
@@ -781,17 +787,17 @@ export default function ProfilePage() {
                 <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-sm)' }}>
                   <button
                     onClick={saveProfile}
-                    disabled={savingProfile}
+                    disabled={savingProfile || !isProfileDirty}
                     style={{
                       height: 40,
                       padding: '0 20px',
                       borderRadius: 'var(--rounded-md)',
-                      backgroundColor: savingProfile ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+                      backgroundColor: savingProfile || !isProfileDirty ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
                       color: 'var(--color-on-primary)',
                       fontSize: 14,
                       fontWeight: 500,
                       border: 'none',
-                      cursor: savingProfile ? 'not-allowed' : 'pointer',
+                      cursor: savingProfile || !isProfileDirty ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 6,

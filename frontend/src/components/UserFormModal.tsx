@@ -34,6 +34,14 @@ export default function UserFormModal({ user, onClose, onSubmit }: UserFormModal
     }
   }, [user])
 
+  const isDirty = !isEdit
+    ? true
+    : username.trim() !== (user?.username || '') ||
+      email.trim() !== (user?.email || '') ||
+      permission !== (user?.permission ?? 0) ||
+      personalProfile.trim() !== (user?.personal_profile || '') ||
+      password.trim().length > 0
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!username.trim() || !email.trim()) {
@@ -111,17 +119,17 @@ export default function UserFormModal({ user, onClose, onSubmit }: UserFormModal
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || !isDirty}
             style={{
               height: 40,
               padding: '0 20px',
               borderRadius: 'var(--rounded-md)',
-              backgroundColor: loading ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              backgroundColor: loading || !isDirty ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
               color: 'var(--color-on-primary)',
               fontSize: 14,
               fontWeight: 500,
               border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
+              cursor: loading || !isDirty ? 'not-allowed' : 'pointer',
             }}
           >
             {loading ? '保存中…' : '保存'}
