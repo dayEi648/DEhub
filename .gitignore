@@ -265,8 +265,6 @@ frontend/.env.local
 
 # 部署配置与个人服务器信息（保留 Dockerfile 作为示例）
 docker-compose.yml
-deploy/start.sh
-deploy/migrate.sh
 deploy/MIGRATE.md
 DEPLOY.md
 deploy/nginx/nginx.conf

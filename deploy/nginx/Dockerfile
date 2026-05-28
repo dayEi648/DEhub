@@ -6,7 +6,7 @@ FROM node:22-slim AS dehub-frontend-builder
 ARG VITE_ECS_IP
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm config set registry https://registry.npmmirror.com && npm install
 COPY frontend/ ./
 RUN echo "VITE_ECS_IP=${VITE_ECS_IP}" > .env.production
 RUN npm run build
@@ -15,7 +15,7 @@ RUN npm run build
 FROM node:22-slim AS deepsearch-frontend-builder
 WORKDIR /app/deepsearch-frontend
 COPY DeepSearch/frontend/DeepResearchAgent/package*.json ./
-RUN npm install
+RUN npm config set registry https://registry.npmmirror.com && npm install
 COPY DeepSearch/frontend/DeepResearchAgent/ ./
 RUN npm run build
 
