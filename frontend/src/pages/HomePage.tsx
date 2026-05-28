@@ -550,7 +550,7 @@ function ForumSection({ posts, zones }: { posts: ForumPostListItem[]; zones: For
                     {zone.zone_name}
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--color-muted-soft)' }}>
-                    {zone.view_count} 浏览
+                    {' '}
                   </span>
                 </div>
               ))}

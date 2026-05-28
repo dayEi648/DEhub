@@ -112,21 +112,34 @@ class UserService:
 
     async def update_user(self, user_id: int, user_in: UserUpdate, current_user: User, file: UploadFile | None = None) -> User:
         """更新用户（本人或管理员）。"""
-        require_owner_or_admin(current_user, user_id)
         db_user = user_crud.get_user_by_id(self.db, user_id)
         if not db_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="用户不存在"
             )
+        require_owner_or_admin(current_user, user_id)
+        if db_user.is_deleted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="用户已注销，无法修改资料"
+            )
 
-        # 普通用户禁止修改 permission 字段
-        if current_user.permission == PermissionLevel.USER:
-            update_data = user_in.model_dump(exclude_unset=True)
-            if "permission" in update_data:
+        # 普通用户禁止修改 permission 字段；管理员禁止将用户提升为超级管理员
+        update_data = user_in.model_dump(exclude_unset=True)
+        if "permission" in update_data:
+            if current_user.permission == PermissionLevel.USER:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="无权修改权限字段"
+                )
+            if (
+                current_user.permission == PermissionLevel.ADMIN
+                and update_data["permission"] == PermissionLevel.SUPER_ADMIN
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="权限不足，管理员无法将用户提升为超级管理员"
                 )
 
         if user_in.username and user_in.username != db_user.username:

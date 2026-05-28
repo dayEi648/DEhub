@@ -108,16 +108,19 @@ def get_user_forum_reply_like(
 
 
 def create_user_forum_reply_like(
-    db: Session, reply_id: int, user_id: int
+    db: Session, reply_id: int, user_id: int, auto_commit: bool = True
 ) -> UserForumReplyLike:
     db_like = UserForumReplyLike(reply_id=reply_id, user_id=user_id)
     db.add(db_like)
-    db.commit()
+    if auto_commit:
+        db.commit()
     db.refresh(db_like)
     return db_like
 
 
-def delete_user_forum_reply_like(db: Session, reply_id: int, user_id: int) -> int:
+def delete_user_forum_reply_like(
+    db: Session, reply_id: int, user_id: int, auto_commit: bool = True
+) -> int:
     result = (
         db.query(UserForumReplyLike)
         .filter(
@@ -126,7 +129,8 @@ def delete_user_forum_reply_like(db: Session, reply_id: int, user_id: int) -> in
         )
         .delete(synchronize_session=False)
     )
-    db.commit()
+    if auto_commit:
+        db.commit()
     return result
 
 

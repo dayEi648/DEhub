@@ -216,10 +216,6 @@ function ZoneCard({
         }}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Eye size={12} />
-          {zone.view_count} 浏览
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <User size={12} />
           {zone.manager.username}
         </span>

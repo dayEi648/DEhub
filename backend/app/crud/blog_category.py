@@ -46,12 +46,12 @@ def delete_category(db: Session, category_id: int) -> int:
     return result
 
 
-def count_posts_in_category(db: Session, category_id: int) -> int:
-    return (
-        db.query(func.count(BlogPost.id))
-        .filter(
-            BlogPost.category_id == category_id,
-        )
-        .scalar()
-        or 0
+def count_posts_in_category(
+    db: Session, category_id: int, status: str | None = None
+) -> int:
+    query = db.query(func.count(BlogPost.id)).filter(
+        BlogPost.category_id == category_id,
     )
+    if status:
+        query = query.filter(BlogPost.status == status)
+    return query.scalar() or 0

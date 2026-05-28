@@ -105,3 +105,6 @@ def increment_view_count(db: Session, post_id: int) -> int:
     )
     db.commit()
     return result
+
+
+

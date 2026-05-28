@@ -64,5 +64,5 @@ def list_ai_conversations_by_user(
         AIConversation.user_id == user_id,
     )
     total = query.count()
-    items = query.order_by(AIConversation.created_at.desc()).offset(skip).limit(limit).all()
+    items = query.order_by(AIConversation.updated_at.desc()).offset(skip).limit(limit).all()
     return items, total

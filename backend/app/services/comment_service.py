@@ -1,5 +1,4 @@
 from fastapi import HTTPException, status
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import re
 
@@ -238,35 +237,42 @@ class CommentService:
             response.is_liked = response.id in liked_ids
         return responses, total
 
-    def like_comment(self, comment_id: int, current_user: User) -> None:
-        db_comment = comment_crud.get_comment_by_id(self.db, comment_id)
-        if db_comment is None:
+    def like_comment(self, comment_id: int, current_user: User) -> dict:
+        comment = comment_crud.get_comment_by_id(self.db, comment_id)
+        if comment is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="评论不存在",
             )
-        try:
-            comment_crud.create_user_comment_like(self.db, comment_id, current_user.id)
-        except IntegrityError:
-            self.db.rollback()
+        db_like = comment_crud.get_user_comment_like(
+            self.db, current_user.id, comment_id
+        )
+        if db_like is not None:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="已点赞该评论",
+                status_code=status.HTTP_409_CONFLICT,
+                detail="已点赞此评论",
             )
 
-    def unlike_comment(self, comment_id: int, current_user: User) -> None:
-        db_comment = comment_crud.get_comment_by_id(self.db, comment_id)
-        if db_comment is None:
+        comment_crud.create_user_comment_like(self.db, current_user.id, comment_id)
+
+        return {"message": "点赞成功"}
+
+    def unlike_comment(self, comment_id: int, current_user: User) -> dict:
+        comment = comment_crud.get_comment_by_id(self.db, comment_id)
+        if comment is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="评论不存在",
             )
-        existing = comment_crud.get_user_comment_like(
-            self.db, comment_id, current_user.id
+        db_like = comment_crud.get_user_comment_like(
+            self.db, current_user.id, comment_id
         )
-        if existing is None:
+        if db_like is None:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="未点赞该评论",
+                status_code=status.HTTP_409_CONFLICT,
+                detail="未点赞此评论",
             )
-        comment_crud.delete_user_comment_like(self.db, comment_id, current_user.id)
+
+        comment_crud.delete_user_comment_like(self.db, current_user.id, comment_id)
+
+        return {"message": "取消点赞成功"}

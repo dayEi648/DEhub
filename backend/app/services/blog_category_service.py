@@ -60,7 +60,7 @@ class BlogCategoryService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="分类不存在"
             )
         post_count = blog_category_crud.count_posts_in_category(
-            self.db, category_id
+            self.db, category_id, status="published"
         )
         response_data = BlogCategoryWithPostCount.model_validate(
             db_category
@@ -84,6 +84,7 @@ class BlogCategoryService:
                 BlogPost.category_id,
                 func.count(BlogPost.id).label("count"),
             )
+            .filter(BlogPost.status == "published")
             .group_by(BlogPost.category_id)
             .all()
         }
@@ -136,7 +137,7 @@ class BlogCategoryService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="分类不存在"
             )
         post_count = blog_category_crud.count_posts_in_category(
-            self.db, db_category.id
+            self.db, db_category.id, status="published"
         )
         response_data = BlogCategoryWithPostCount.model_validate(
             db_category

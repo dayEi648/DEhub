@@ -408,10 +408,6 @@ export default function ForumPostListPage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)', marginTop: 'var(--spacing-md)', fontSize: 14, color: 'var(--color-muted-soft)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Eye size={14} />
-              {zone?.view_count ?? 0} 浏览
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <User size={14} />
               区主：{zone?.manager.username || '-'}
             </span>

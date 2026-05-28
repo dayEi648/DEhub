@@ -113,7 +113,6 @@ CREATE TABLE forum_zones (
     zone_name   VARCHAR(64) NOT NULL,
     description TEXT,
     manager_id  INT NOT NULL,
-    view_count  BIGINT NOT NULL DEFAULT 0,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT uk_zones_slug UNIQUE (slug),

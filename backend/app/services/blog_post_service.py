@@ -3,6 +3,7 @@ import logging
 import re
 
 from fastapi import HTTPException, status, UploadFile
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.permission_levels import PermissionLevel
@@ -18,6 +19,7 @@ from app.schemas.blog_post import (
     BlogPostListResponse,
 )
 from app.crud import blog_post as blog_post_crud
+from app.crud import blog_category as blog_category_crud
 from app.utils.slug import generate_unique_slug
 from app.storage.oss import upload_image, ImageUploadScene, convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
 from app.services.oss_cleanup_service import OssCleanupService
@@ -106,6 +108,10 @@ class BlogPostService:
 
         post_in = post_in.model_copy(update={"status": "draft", "summary": None})
 
+        category = blog_category_crud.get_category_by_id(self.db, post_in.category_id)
+        if not category:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分类不存在")
+
         if not post_in.slug:
             slug = generate_unique_slug(
                 self.db, post_in.title, exists_checker=blog_post_crud.get_blog_post_by_slug
@@ -191,6 +197,11 @@ class BlogPostService:
         update_data.pop("summary", None)
         update_data.pop("status", None)
 
+        if "category_id" in update_data and update_data["category_id"] != db_post.category_id:
+            category = blog_category_crud.get_category_by_id(self.db, update_data["category_id"])
+            if not category:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分类不存在")
+
         new_content = update_data.get("content_md")
         if new_content is not None and new_content != db_post.content_md:
             content_chars = self._count_content_chars(new_content)
@@ -257,6 +268,20 @@ class BlogPostService:
         embed_service = BlogPostEmbeddingService(self.db)
         await asyncio.to_thread(embed_service.delete_post_embedding, post_id)
 
+        # 清理关联评论及评论点赞（与文章删除在同一事务中）
+        from app.crud import comment as comment_crud
+
+        comment_ids = comment_crud.get_comment_ids_by_target_ids(
+            self.db, target_type="blog_post", target_ids=[post_id]
+        )
+        if comment_ids:
+            comment_crud.delete_comment_likes_by_comment_ids(
+                self.db, comment_ids, auto_commit=False
+            )
+            comment_crud.delete_comments_by_ids(
+                self.db, comment_ids, auto_commit=False
+            )
+
         result = blog_post_crud.hard_delete_blog_post(self.db, post_id)
         if result == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
@@ -281,14 +306,30 @@ class BlogPostService:
     def _build_detail_response(self, db_post: BlogPost, current_user: User) -> BlogPostDetailResponse:
         prev_post = (
             self._build_visible_query(current_user)
-            .filter(BlogPost.created_at < db_post.created_at)
-            .order_by(BlogPost.created_at.desc())
+            .filter(
+                or_(
+                    BlogPost.created_at < db_post.created_at,
+                    and_(
+                        BlogPost.created_at == db_post.created_at,
+                        BlogPost.id < db_post.id,
+                    ),
+                )
+            )
+            .order_by(BlogPost.created_at.desc(), BlogPost.id.desc())
             .first()
         )
         next_post = (
             self._build_visible_query(current_user)
-            .filter(BlogPost.created_at > db_post.created_at)
-            .order_by(BlogPost.created_at.asc())
+            .filter(
+                or_(
+                    BlogPost.created_at > db_post.created_at,
+                    and_(
+                        BlogPost.created_at == db_post.created_at,
+                        BlogPost.id > db_post.id,
+                    ),
+                )
+            )
+            .order_by(BlogPost.created_at.asc(), BlogPost.id.asc())
             .first()
         )
         response_data = BlogPostResponse.model_validate(db_post).model_dump()

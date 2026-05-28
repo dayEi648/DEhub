@@ -8,7 +8,6 @@ export interface ForumZone {
   description: string | null
   manager_id: number
   manager: UserBriefInfo
-  view_count: number
   created_at: string
 }
 

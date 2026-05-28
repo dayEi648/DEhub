@@ -69,6 +69,15 @@ class ForumPostService:
             )
 
         self._can_modify_post(db_post, current_user, allow_manager=False)
+
+        update_data = post_in.model_dump(exclude_unset=True)
+        if "zone_id" in update_data and update_data["zone_id"] != db_post.zone_id:
+            zone = forum_zone_crud.get_zone_by_id(self.db, update_data["zone_id"])
+            if not zone:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="分区不存在"
+                )
+
         old_zone_id = db_post.zone_id
         updated = forum_post_crud.update_post(self.db, db_post, post_in)
 
