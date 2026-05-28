@@ -33,9 +33,7 @@ export function updateUser(userId: number, data: UpdateUserData, file?: File) {
   if (file) {
     formData.append('file', file)
   }
-  return request.put<User>(`/users/${userId}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  return request.put<User>(`/users/${userId}`, formData)
 }
 
 export function deleteUser(userId: number) {
