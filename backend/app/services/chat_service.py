@@ -779,6 +779,13 @@ class ChatService:
                 get_llm_client().get_num_tokens_from_messages,
                 token_messages,
             )
+        except NotImplementedError:
+            logger.warning(
+                "模型 %s 不支持 token 统计，使用字符数估算作为 compact 依据",
+                getattr(get_llm_client(), "model_name", "unknown"),
+            )
+            char_count = sum(len(m.content or "") for m in token_messages)
+            token_count = char_count // 2
         except Exception:
             logger.exception("统计上下文 token 失败，跳过 compact")
             return False

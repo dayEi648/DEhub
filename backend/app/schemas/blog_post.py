@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.blog_category import BlogCategoryBrief
 from app.schemas.user import UserBriefInfo
@@ -18,9 +18,17 @@ class BlogPostBase(BaseModel):
 
 class BlogPostCreate(BlogPostBase):
     """创建博客文章请求"""
-    slug: str | None = Field(default=None, min_length=1, max_length=255)
+    slug: str | None = Field(default=None, max_length=255)
     # summary 继承自 BlogPostBase (str | None)，服务层会强制设为 None
     status: str = Field(default="draft", pattern=r"^(draft)$")  # 强制草稿
+
+    @field_validator("slug", mode="before")
+    @classmethod
+    def _empty_str_to_none(cls, v):
+        """空字符串在语义上等价于未提供 slug，交由服务层自动生成"""
+        if v == "":
+            return None
+        return v
 
 
 class BlogPostUpdate(BaseModel):

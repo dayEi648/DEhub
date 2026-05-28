@@ -21,6 +21,7 @@ from app.schemas.blog_post import (
 from app.crud import blog_post as blog_post_crud
 from app.crud import blog_category as blog_category_crud
 from app.utils.slug import generate_unique_slug
+from app.utils.text import extract_plain_text_summary
 from app.storage.oss import upload_image, ImageUploadScene, convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
 from app.services.oss_cleanup_service import OssCleanupService
 from app.infrastructure.llm_client import create_llm_small_client
@@ -303,6 +304,15 @@ class BlogPostService:
             query = query.filter(BlogPost.status == "published")
         return query
 
+    def _build_list_item(self, post: BlogPost) -> BlogPostListItem:
+        """构建列表项，若 summary 为空则自动从正文截取纯文本摘要。"""
+        item = BlogPostListItem.model_validate(post)
+        if not item.summary and post.content_md:
+            return item.model_construct(
+                **{**item.model_dump(), "summary": extract_plain_text_summary(post.content_md)}
+            )
+        return item
+
     def _build_detail_response(self, db_post: BlogPost, current_user: User) -> BlogPostDetailResponse:
         prev_post = (
             self._build_visible_query(current_user)
@@ -334,10 +344,10 @@ class BlogPostService:
         )
         response_data = BlogPostResponse.model_validate(db_post).model_dump()
         response_data["prev_post"] = (
-            BlogPostListItem.model_validate(prev_post) if prev_post else None
+            self._build_list_item(prev_post) if prev_post else None
         )
         response_data["next_post"] = (
-            BlogPostListItem.model_validate(next_post) if next_post else None
+            self._build_list_item(next_post) if next_post else None
         )
         return BlogPostDetailResponse.model_validate(response_data)
 
@@ -429,7 +439,7 @@ class BlogPostService:
             q=q,
         )
         result = BlogPostListResponse(
-            items=[BlogPostListItem.model_validate(post) for post in posts],
+            items=[self._build_list_item(post) for post in posts],
             total=total,
         )
 

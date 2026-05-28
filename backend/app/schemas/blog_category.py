@@ -10,7 +10,7 @@ class BlogCategoryBase(BaseModel):
 
 class BlogCategoryCreate(BlogCategoryBase):
     """创建分类请求"""
-    slug: str | None = Field(default=None, min_length=1, max_length=255)
+    slug: str | None = Field(default=None, max_length=255)
 
 
 class BlogCategoryUpdate(BaseModel):

@@ -320,6 +320,23 @@ function BlogCard({ blog }: { blog: BlogPostListItem }) {
             <BookOpen size={12} />
             {blog.category.name}
           </span>
+          {blog.status === 'draft' && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 12px',
+                borderRadius: 'var(--rounded-pill)',
+                backgroundColor: 'var(--color-warning)',
+                fontSize: 12,
+                fontWeight: 500,
+                color: '#fff',
+              }}
+            >
+              草稿
+            </span>
+          )}
           {blog.tags.slice(0, 2).map((tag) => (
             <span
               key={tag}
@@ -536,6 +553,7 @@ export default function BlogListPage() {
         limit: PAGE_SIZE,
         q: activeSearch || undefined,
         category_id: activeCategory ?? undefined,
+        include_unpublished: isSuperAdmin ? true : undefined,
       })
       setBlogs(res.data.items)
       setTotal(res.data.total)
@@ -544,7 +562,7 @@ export default function BlogListPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, activeSearch, activeCategory])
+  }, [page, activeSearch, activeCategory, isSuperAdmin])
 
   const fetchCategories = useCallback(async () => {
     try {

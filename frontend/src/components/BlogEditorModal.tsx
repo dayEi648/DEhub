@@ -106,7 +106,22 @@ export default function BlogEditorModal({
     : true
 
   const handleSubmit = () => {
-    if (!title.trim() || !contentMd.trim() || !categoryId) return
+    if (!title.trim()) {
+      toast.error('请输入标题')
+      return
+    }
+    if (!contentMd.trim()) {
+      toast.error('请输入正文')
+      return
+    }
+    if (!categoryId) {
+      toast.error('请选择分类')
+      return
+    }
+    if (!isEdit && !coverFile) {
+      toast.error('请上传封面图片')
+      return
+    }
     onSubmit({
       title: title.trim(),
       slug: slug.trim(),
