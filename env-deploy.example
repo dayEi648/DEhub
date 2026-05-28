@@ -38,11 +38,11 @@ EMBEDDING_API_KEY=sk-xxx
 IQS_API_KEY=xxx
 
 # 阿里云 OSS（图片上传等）
-OSS_ACCESS_KEY_ID=your-access-key-id
-OSS_ACCESS_KEY_SECRET=your-access-key-secret
-OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
-OSS_BUCKET_NAME=your-bucket-name
-OSS_DOMAIN=https://your-bucket-name.oss-cn-hangzhou.aliyuncs.com
+DEHUB_OSS_ACCESS_KEY_ID=your-access-key-id
+DEHUB_OSS_ACCESS_KEY_SECRET=your-access-key-secret
+DEHUB_OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+DEHUB_OSS_BUCKET_NAME=your-bucket-name
+DEHUB_OSS_DOMAIN=https://your-bucket-name.oss-cn-hangzhou.aliyuncs.com
 
 # --------------------------------------------------------------
 # 智能深度研究助手（DeepSearch）
@@ -59,6 +59,9 @@ DASHSCOPE_API_KEY=sk-xxx
 # 阿里云 IQS Search
 IQSSEARCH_API_KEY=xxx
 
+# ECS 公网 IP（用于前端构建时注入）
+ECS_IP=47.121.201.103
+
 # 并发限流
 MAX_CONCURRENT_RESEARCH=5
 
@@ -66,8 +69,8 @@ MAX_CONCURRENT_RESEARCH=5
 AGENT_NODE_TIMEOUT=60
 
 # 阿里云 OSS（报告存储）
-# OSS_BUCKET_NAME=your-bucket-name
-# OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
-# OSS_ACCESS_KEY_ID=your-access-key-id
-# OSS_ACCESS_KEY_SECRET=your-access-key-secret
-# OSS_REPORT_PREFIX=reports
+# DS_OSS_BUCKET_NAME=your-bucket-name
+# DS_OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+# DS_OSS_ACCESS_KEY_ID=your-access-key-id
+# DS_OSS_ACCESS_KEY_SECRET=your-access-key-secret
+# DS_OSS_REPORT_PREFIX=reports

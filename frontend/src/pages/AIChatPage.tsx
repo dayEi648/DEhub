@@ -142,10 +142,6 @@ export default function AIChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messages, sending])
 
-  const activeConversation = useMemo(
-    () => conversations.find((item) => item.id === activeConversationId) || null,
-    [conversations, activeConversationId],
-  )
   const displayMessages = useMemo(() => {
     if (canViewHiddenMessages && includeHidden) {
       return messages.filter(hasDisplayableContent)

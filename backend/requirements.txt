@@ -15,11 +15,11 @@ pytest
 pytest-asyncio
 langchain
 langgraph
-psycopg
 langchain-openai
 pgvector
 langchain-community
 mcp
+psycopg
 pypdf
 beautifulsoup4
 lxml

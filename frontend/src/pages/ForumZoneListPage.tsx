@@ -4,7 +4,6 @@ import {
   LayoutGrid,
   Sparkles,
   User,
-  Eye,
   MessageSquare,
   Plus,
   Edit3,

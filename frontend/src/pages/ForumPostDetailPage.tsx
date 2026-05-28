@@ -571,23 +571,19 @@ function ReplyCommentSection({
 function ForumReplyItem({
   reply,
   index,
-  postId,
   currentUserId,
   isAdmin,
   isZoneManager,
   onDelete,
-  onRefreshReplies,
   onLike,
   onUnlike,
 }: {
   reply: ForumReply
   index: number
-  postId: number
   currentUserId: number | null
   isAdmin: boolean
   isZoneManager: boolean
   onDelete: (id: number) => void
-  onRefreshReplies?: () => void
   onLike: (id: number) => void
   onUnlike: (id: number) => void
 }) {
@@ -1238,12 +1234,10 @@ export default function ForumPostDetailPage() {
                     key={reply.id}
                     reply={reply}
                     index={(replyPage - 1) * REPLY_PAGE_SIZE + idx + 1}
-                    postId={post.id}
                     currentUserId={currentUser?.id ?? null}
                     isAdmin={isAdmin}
                     isZoneManager={isZoneManager}
                     onDelete={handleDeleteReply}
-                    onRefreshReplies={fetchReplies}
                     onLike={handleLikeReply}
                     onUnlike={handleUnlikeReply}
                   />

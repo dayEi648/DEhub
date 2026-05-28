@@ -263,11 +263,9 @@ reports/
 frontend/.env.production
 frontend/.env.local
 
-# 部署配置与个人服务器信息（保留 Dockerfile 作为示例）
+# 部署配置与个人服务器信息（含公网IP、路径等敏感信息，不进入版本库；通过 tar 包单独传输）
 docker-compose.yml
 deploy/MIGRATE.md
 DEPLOY.md
 deploy/nginx/nginx.conf
-
-
 

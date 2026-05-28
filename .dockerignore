@@ -1,0 +1,47 @@
+# 根目录 .dockerignore —— 主要用于优化 nginx 构建上下文（build context: .）
+# 同时惠及所有以项目根为 context 的构建
+
+# Git
+.git
+.gitignore
+
+# Python 虚拟环境与缓存
+backend/.venv
+backend/__pycache__
+backend/.pytest_cache
+backend/tests
+backend/.env
+backend/*.pyc
+
+DeepSearch/.venv
+DeepSearch/__pycache__
+DeepSearch/.pytest_cache
+DeepSearch/.env
+DeepSearch/*.pyc
+
+# DeepSearch 数据与报告（使用 Docker 命名卷或运行时生成）
+DeepSearch/reports
+DeepSearch/chroma_db
+
+# 前端构建产物与依赖
+frontend/node_modules
+frontend/dist
+frontend/test-results
+frontend/test-screenshots
+frontend/.env
+
+DeepSearch/frontend/DeepResearchAgent/node_modules
+DeepSearch/frontend/DeepResearchAgent/dist
+
+# 项目文档与规划（不需要进入镜像）
+planning
+AGENTS.md
+DEPLOY.md
+MIGRATE.md
+
+# 其他
+planning/png
+Fonts
+.pytest_cache
+.env.deploy
+env-deploy.example
