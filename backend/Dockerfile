@@ -17,9 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 先复制依赖文件并安装（利用 Docker 缓存层，使用国内 PyPI 镜像）
+# 先复制依赖文件并安装（利用 Docker 缓存层 + BuildKit 挂载缓存，使用国内 PyPI 镜像）
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
 
 # 复制应用代码
 COPY app/ ./app/
