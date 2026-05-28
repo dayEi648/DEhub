@@ -266,8 +266,10 @@ function CommentItem({
 /* ─── Comment Section for a Forum Reply ─── */
 function ReplyCommentSection({
   replyId,
+  refreshTrigger,
 }: {
   replyId: number
+  refreshTrigger?: number
 }) {
   const currentUser = getUser()
   const [comments, setComments] = useState<CommentResponse[]>([])
@@ -303,6 +305,12 @@ function ReplyCommentSection({
   useEffect(() => {
     fetchComments()
   }, [fetchComments])
+
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      fetchComments()
+    }
+  }, [refreshTrigger, fetchComments])
 
   const handleSubmit = async () => {
     if (!newComment.trim()) return
@@ -586,6 +594,7 @@ function ForumReplyItem({
   const canDelete = currentUserId === reply.user_id || isAdmin || isZoneManager
   const [showComments, setShowComments] = useState(false)
   const [showReplyInput, setShowReplyInput] = useState(false)
+  const [commentRefreshTrigger, setCommentRefreshTrigger] = useState(0)
 
   return (
     <div
@@ -659,7 +668,10 @@ function ForumReplyItem({
             </button>
 
             <button
-              onClick={() => setShowReplyInput((s) => !s)}
+              onClick={() => {
+                setShowReplyInput((s) => !s)
+                if (!showReplyInput) setShowComments(true)
+              }}
               style={{
                 fontSize: 13,
                 fontWeight: 500,
@@ -730,22 +742,27 @@ function ForumReplyItem({
                 placeholder="写下你的回复..."
                 onSubmit={async (content) => {
                   try {
-                    await createForumReply(postId, { content })
+                    await createComment({
+                      target_type: 'forum_reply',
+                      target_id: reply.id,
+                      content,
+                    })
                     setShowReplyInput(false)
-                    onRefreshReplies?.()
+                    setShowComments(true)
+                    setCommentRefreshTrigger((n) => n + 1)
                   } catch {
-                    toast.error('回复发表失败')
+                    toast.error('评论发表失败')
                   }
                 }}
                 onCancel={() => setShowReplyInput(false)}
-                submitText="发表回复"
+                submitText="发表评论"
                 pasteScene="forum_reply"
               />
             </div>
           )}
 
           {showComments && (
-            <ReplyCommentSection replyId={reply.id} />
+            <ReplyCommentSection replyId={reply.id} refreshTrigger={commentRefreshTrigger} />
           )}
         </div>
       </div>
