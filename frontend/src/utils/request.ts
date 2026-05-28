@@ -1,6 +1,8 @@
 import axios from 'axios'
+import { toast } from 'sonner'
 import { clearAuth, getRefreshToken, setToken, setRefreshToken, setUser } from './auth'
 import { refreshToken } from '../api/users'
+import { parseErrorMessage } from './error'
 
 const request = axios.create({
   baseURL: '/api/v1',
@@ -75,7 +77,11 @@ request.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 非 401 错误，静默处理（不再 alert 阻塞用户）
+    // 非 401 错误，显示后端返回的详细错误信息
+    const msg = parseErrorMessage(error, '请求失败，请稍后重试')
+    if (msg) {
+      toast.error(msg)
+    }
     return Promise.reject(error)
   },
 )
