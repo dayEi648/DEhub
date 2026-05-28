@@ -103,7 +103,7 @@ export default function BaseModal({
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: overflow === 'auto' ? 'auto' : undefined }}>
+        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           {children}
         </div>
 
