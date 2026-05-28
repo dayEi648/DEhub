@@ -238,7 +238,7 @@ export default function AIChatPage() {
           <div className="ai-chat-sidebar__top">
             <div className="ai-chat-sidebar__title">
               <Bot size={17} />
-              <span>AI 对话</span>
+              <span>AI 助手</span>
             </div>
             <button
               type="button"
@@ -330,12 +330,7 @@ export default function AIChatPage() {
         <section className="ai-chat-panel">
           <header className="ai-chat-panel__header">
             <div>
-              <h1 className="ai-chat-panel__title">AI 对话实验室</h1>
-              <p className="ai-chat-panel__subtitle">
-                {activeConversation
-                  ? `当前对话：${activeConversation.title}（#${activeConversation.id}）`
-                  : '当前为新对话，发送第一条消息后自动创建'}
-              </p>
+              <h1 className="ai-chat-panel__title">AI 聊天助手</h1>
             </div>
 
             <div className="ai-chat-panel__switches">

@@ -375,7 +375,7 @@ export default function OpenAPIKnowledgePage() {
           <Database size={22} />
           <div>
             <h1>OpenAPI 知识库</h1>
-            <p>上传文档后将更新共享知识库，供管理员 AI 对话调用。</p>
+            <p>上传文档后将更新共享知识库，供管理员 AI 助手调用。</p>
           </div>
         </div>
         <button
