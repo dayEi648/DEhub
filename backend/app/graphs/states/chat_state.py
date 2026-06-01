@@ -1,11 +1,11 @@
-from langchain.agents.middleware.types import AgentState
+from langgraph.graph import MessagesState
 
 
-class ChatState(AgentState):
+class ChatState(MessagesState):
     """LangGraph 对话状态。
 
     动态组装 system prompt 所需的运行时字段，随 checkpoint 流转。
-    这些字段不直接暴露给前端，仅服务于 prompt 组装中间件。
+    这些字段不直接暴露给前端，仅服务于 prompt 组装节点。
     """
 
     user_id: int | None = None

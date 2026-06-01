@@ -57,6 +57,21 @@ def update_last_message_at(
     return result
 
 
+def update_conversation_current_goal(
+    db: Session, conversation_id: int, current_goal: str | None
+) -> int:
+    result = (
+        db.query(AIConversation)
+        .filter(AIConversation.id == conversation_id)
+        .update(
+            {"current_goal": current_goal, "updated_at": func.now()},
+            synchronize_session=False,
+        )
+    )
+    db.commit()
+    return result
+
+
 def list_ai_conversations_by_user(
     db: Session, user_id: int, skip: int = 0, limit: int = 20
 ) -> tuple[list[AIConversation], int]:

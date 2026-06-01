@@ -836,3 +836,119 @@ class TestChatDynamicFields:
 
         call_kwargs = self.service.graph.ainvoke.call_args[0][0]
         assert call_kwargs["current_goal"] == "旧目标"
+
+    @patch("app.services.chat_service.conv_crud.create_ai_conversation")
+    @patch("app.services.chat_service.msg_crud.create_conversation_message")
+    @patch.object(ChatService, "_ensure_title_async")
+    async def test_chat_saves_new_current_goal_to_db(
+        self, mock_title, mock_create_msg, mock_create_conv
+    ):
+        """current_goal 非 None 时应写入数据库。"""
+        mock_conv = MagicMock()
+        mock_conv.id = 42
+        mock_create_conv.return_value = mock_conv
+
+        self.service.graph.aget_state = AsyncMock(return_value=None)
+        self.service.graph.ainvoke = AsyncMock(
+            return_value={"messages": [AIMessage(content="AI reply")]}
+        )
+
+        with patch(
+            "app.services.chat_service.conv_crud.update_conversation_current_goal"
+        ) as mock_update_goal:
+            with patch.object(
+                self.service, "_count_goal_context_chars", return_value=10000
+            ):
+                with patch.object(
+                    self.service,
+                    "_generate_current_goal",
+                    new=AsyncMock(return_value="新目标"),
+                ):
+                    chat_in = ChatRequest(user_input="Hello", conversation_id=None)
+                    await self.service.chat(chat_in, user_id=1)
+
+                    mock_update_goal.assert_called_once_with(
+                        self.mock_db, 42, "新目标"
+                    )
+
+    @patch("app.services.chat_service.conv_crud.create_ai_conversation")
+    @patch("app.services.chat_service.msg_crud.create_conversation_message")
+    @patch.object(ChatService, "_ensure_title_async")
+    async def test_chat_skips_db_update_when_goal_is_none(
+        self, mock_title, mock_create_msg, mock_create_conv
+    ):
+        """新对话短输入时 current_goal 为 None，不应触发数据库写入。"""
+        mock_conv = MagicMock()
+        mock_conv.id = 42
+        mock_create_conv.return_value = mock_conv
+
+        self.service.graph.aget_state = AsyncMock(return_value=None)
+        self.service.graph.ainvoke = AsyncMock(
+            return_value={"messages": [AIMessage(content="AI reply")]}
+        )
+
+        with patch(
+            "app.services.chat_service.conv_crud.update_conversation_current_goal"
+        ) as mock_update_goal:
+            chat_in = ChatRequest(user_input="短消息", conversation_id=None)
+            await self.service.chat(chat_in, user_id=1)
+
+            mock_update_goal.assert_not_called()
+
+
+class TestRestoreState:
+    """测试从数据库恢复 checkpoint 状态。"""
+
+    def setup_method(self):
+        self.mock_db = MagicMock()
+        with patch("app.services.chat_service.get_chat_graph"):
+            self.service = ChatService(self.mock_db)
+            self.service.graph = MagicMock()
+
+    @patch("app.services.chat_service.msg_crud.list_conversation_messages")
+    @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
+    async def test_restore_state_loads_current_goal_from_db(
+        self, mock_get_conv, mock_list_msg
+    ):
+        """从数据库恢复对话时，应同时恢复 current_goal 到 checkpoint。"""
+        mock_list_msg.return_value = []
+        mock_conv = MagicMock()
+        mock_conv.current_goal = "旧目标"
+        mock_get_conv.return_value = mock_conv
+
+        self.service.profile_service = MagicMock()
+        self.service.profile_service.get_profile_text = MagicMock(return_value="")
+        self.service.graph.aupdate_state = AsyncMock()
+
+        await self.service._restore_state_from_db(
+            config={"configurable": {"thread_id": 1}},
+            conversation_id=1,
+            user_id=1,
+        )
+
+        call_payload = self.service.graph.aupdate_state.call_args.args[1]
+        assert call_payload["current_goal"] == "旧目标"
+
+    @patch("app.services.chat_service.msg_crud.list_conversation_messages")
+    @patch("app.services.chat_service.conv_crud.get_ai_conversation_by_id")
+    async def test_restore_state_skips_none_current_goal(
+        self, mock_get_conv, mock_list_msg
+    ):
+        """数据库中 current_goal 为 None 时，不应写入 checkpoint。"""
+        mock_list_msg.return_value = []
+        mock_conv = MagicMock()
+        mock_conv.current_goal = None
+        mock_get_conv.return_value = mock_conv
+
+        self.service.profile_service = MagicMock()
+        self.service.profile_service.get_profile_text = MagicMock(return_value="")
+        self.service.graph.aupdate_state = AsyncMock()
+
+        await self.service._restore_state_from_db(
+            config={"configurable": {"thread_id": 1}},
+            conversation_id=1,
+            user_id=1,
+        )
+
+        call_payload = self.service.graph.aupdate_state.call_args.args[1]
+        assert "current_goal" not in call_payload

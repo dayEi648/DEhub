@@ -2,11 +2,8 @@ import logging
 import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, ai_chat as chat, user_favorites, uploads, system_logs, openapi_knowledge
-from app.db.base import Base
-from app.db.session import engine
 # 确保所有模型类被导入并注册到 Base.metadata
 from app import models
 from app.api.v1.openapi_knowledge import recover_pending_documents
@@ -27,6 +24,8 @@ from app.infrastructure.checkpoint_client import init_checkpoint_client, close_c
 from app.infrastructure.background_tasks import background_task_manager
 from app.core.config import settings
 from contextlib import asynccontextmanager
+from alembic.config import Config
+from alembic import command
 
 
 def _setup_system_log_handler() -> None:
@@ -43,13 +42,12 @@ async def lifespan(app: FastAPI):
     # 启动时
     _setup_system_log_handler()
 
-    # 自动建表：先启用 pgvector 扩展，再创建所有不存在的表
-    def _create_tables() -> None:
-        with engine.begin() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        Base.metadata.create_all(bind=engine)
+    # 数据库迁移：自动执行到最新版本（替代 Base.metadata.create_all）
+    def _run_migrations() -> None:
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
 
-    await asyncio.to_thread(_create_tables)
+    await asyncio.to_thread(_run_migrations)
 
     await init_redis_client()
     init_sync_redis_client()

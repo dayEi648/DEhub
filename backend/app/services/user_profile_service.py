@@ -26,9 +26,16 @@ class UserProfileService:
         self.db = db
 
     def get_profile_text(self, user_id: int) -> str:
-        """获取用户画像文本，无则返回空字符串。"""
+        """获取用户画像文本，无则返回空字符串。
+
+        若画像非空，末尾附加数据库中的 updated_at 时间戳，
+        便于 LLM 判断画像时效性。
+        """
         record = profile_crud.get_user_profile(self.db, user_id)
-        return record.profile_text if record else ""
+        if not record or not record.profile_text:
+            return ""
+        ts = record.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+        return f"{record.profile_text}\n（画像更新时间：{ts}）"
 
     @staticmethod
     def _build_compact_aware_transcript(messages: list) -> str:

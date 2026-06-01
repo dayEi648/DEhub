@@ -126,7 +126,7 @@ class ChatService:
     def __init__(self, db: Session, permission_level: int = 0):
         self.db = db
         self.permission_level = permission_level
-        self.graph = get_chat_graph(permission_level=permission_level)
+        self.graph = get_chat_graph()
         self.profile_service = UserProfileService(db)
         self._background_tasks = background_task_manager
 
@@ -338,6 +338,13 @@ class ChatService:
         if profile_text:
             state_update["profile_text"] = profile_text
 
+        # 恢复 current_goal（checkpoint TTL 过期后从数据库兜底）
+        conv = await asyncio.to_thread(
+            conv_crud.get_ai_conversation_by_id, self.db, conversation_id
+        )
+        if conv and conv.current_goal:
+            state_update["current_goal"] = conv.current_goal
+
         await self.graph.aupdate_state(config, state_update)
         logger.info(
             "从数据库恢复对话历史到 checkpoint: conv=%s, messages=%d",
@@ -532,7 +539,7 @@ class ChatService:
                 if not messages:
                     state_before = None
                 # 不再因首条是 SystemMessage 或非 SystemMessage 而删除 checkpoint
-                # 旧 SystemMessage 由 PromptAssemblyMiddleware 在请求前过滤
+                # 旧 SystemMessage 由 agent_node 在调用 LLM 前过滤
 
             # checkpoint 为 None 时：新对话、已过期、或消息为空
             if state_before is None:
@@ -590,6 +597,15 @@ class ChatService:
                     user_input=chat_in.user_input,
                     previous_goal=previous_goal,
                     current_messages=current_messages,
+                )
+
+            # 将 current_goal 持久化到数据库，供 checkpoint TTL 过期后恢复
+            if current_goal is not None:
+                await asyncio.to_thread(
+                    conv_crud.update_conversation_current_goal,
+                    self.db,
+                    conversation_id,
+                    current_goal,
                 )
 
             # 确定当前场景

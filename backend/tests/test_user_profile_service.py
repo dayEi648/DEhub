@@ -1,6 +1,7 @@
 """user_profile_service 单元测试。"""
 
-from unittest.mock import MagicMock
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
 
 from app.services.user_profile_service import UserProfileService
 
@@ -47,3 +48,43 @@ class TestUserProfileCompactAwareTranscript:
         assert "压缩前旧问题" not in transcript
         assert "工具前说明" not in transcript
         assert "工具结果" not in transcript
+
+
+class TestGetProfileText:
+    """测试 get_profile_text 返回带时间戳的画像文本。"""
+
+    def setup_method(self):
+        self.mock_db = MagicMock()
+        self.service = UserProfileService(self.mock_db)
+
+    @patch("app.services.user_profile_service.profile_crud.get_user_profile")
+    def test_get_profile_text_includes_timestamp(self, mock_get_profile):
+        """画像非空时，末尾应附加 updated_at 时间戳。"""
+        mock_record = MagicMock()
+        mock_record.profile_text = "用户喜欢 Python 和 Vue。"
+        mock_record.updated_at = datetime(2026, 6, 1, 10, 30, 0, tzinfo=timezone.utc)
+        mock_get_profile.return_value = mock_record
+
+        result = self.service.get_profile_text(1)
+
+        assert "用户喜欢 Python 和 Vue。" in result
+        assert "画像更新时间：2026-06-01 10:30:00" in result
+
+    @patch("app.services.user_profile_service.profile_crud.get_user_profile")
+    def test_get_profile_text_empty_returns_empty(self, mock_get_profile):
+        """画像为空或无记录时，返回空字符串，不附加时间戳。"""
+        mock_record = MagicMock()
+        mock_record.profile_text = ""
+        mock_record.updated_at = datetime(2026, 6, 1, 10, 30, 0, tzinfo=timezone.utc)
+        mock_get_profile.return_value = mock_record
+
+        result = self.service.get_profile_text(1)
+        assert result == ""
+
+    @patch("app.services.user_profile_service.profile_crud.get_user_profile")
+    def test_get_profile_text_none_returns_empty(self, mock_get_profile):
+        """无记录时返回空字符串。"""
+        mock_get_profile.return_value = None
+
+        result = self.service.get_profile_text(1)
+        assert result == ""
