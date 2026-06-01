@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 
+from app.models.blog_post import BlogPost
 from app.models.comment import Comment
+from app.models.forum_reply import ForumReply
 from app.models.user_comment_like import UserCommentLike
 from app.schemas.comment import CommentCreate
 
@@ -66,6 +68,30 @@ def get_comments_by_parent_id(
     return db.query(Comment).filter(Comment.parent_id == parent_id).all()
 
 
+def _increment_comment_count(db: Session, target_type: str, target_id: int) -> None:
+    """增加目标对象的评论计数。"""
+    if target_type == "blog_post":
+        db.query(BlogPost).filter(BlogPost.id == target_id).update(
+            {"comment_count": BlogPost.comment_count + 1}
+        )
+    elif target_type == "forum_reply":
+        db.query(ForumReply).filter(ForumReply.id == target_id).update(
+            {"comment_count": ForumReply.comment_count + 1}
+        )
+
+
+def _decrement_comment_count(db: Session, target_type: str, target_id: int) -> None:
+    """减少目标对象的评论计数。"""
+    if target_type == "blog_post":
+        db.query(BlogPost).filter(BlogPost.id == target_id).update(
+            {"comment_count": BlogPost.comment_count - 1}
+        )
+    elif target_type == "forum_reply":
+        db.query(ForumReply).filter(ForumReply.id == target_id).update(
+            {"comment_count": ForumReply.comment_count - 1}
+        )
+
+
 def create_comment(db: Session, comment_in: CommentCreate, user_id: int) -> Comment:
     db_comment = Comment(
         target_type=comment_in.target_type,
@@ -77,12 +103,21 @@ def create_comment(db: Session, comment_in: CommentCreate, user_id: int) -> Comm
         nested_parent_id=comment_in.nested_parent_id,
     )
     db.add(db_comment)
+
+    _increment_comment_count(db, comment_in.target_type, comment_in.target_id)
+
     db.commit()
     db.refresh(db_comment)
     return db_comment
 
 
 def delete_comment(db: Session, comment_id: int) -> int:
+    comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    if comment is None:
+        return 0
+
+    _decrement_comment_count(db, comment.target_type, comment.target_id)
+
     result = (
         db.query(Comment)
         .filter(Comment.id == comment_id)
@@ -97,6 +132,31 @@ def delete_comments_by_ids(
 ) -> int:
     if not comment_ids:
         return 0
+
+    # 先查询目标类型和ID，用于批量更新计数
+    rows = (
+        db.query(Comment.target_type, Comment.target_id)
+        .filter(Comment.id.in_(comment_ids))
+        .all()
+    )
+
+    blog_post_delta: dict[int, int] = {}
+    forum_reply_delta: dict[int, int] = {}
+    for target_type, target_id in rows:
+        if target_type == "blog_post":
+            blog_post_delta[target_id] = blog_post_delta.get(target_id, 0) + 1
+        elif target_type == "forum_reply":
+            forum_reply_delta[target_id] = forum_reply_delta.get(target_id, 0) + 1
+
+    for target_id, delta in blog_post_delta.items():
+        db.query(BlogPost).filter(BlogPost.id == target_id).update(
+            {"comment_count": BlogPost.comment_count - delta}
+        )
+    for target_id, delta in forum_reply_delta.items():
+        db.query(ForumReply).filter(ForumReply.id == target_id).update(
+            {"comment_count": ForumReply.comment_count - delta}
+        )
+
     result = (
         db.query(Comment)
         .filter(Comment.id.in_(comment_ids))
