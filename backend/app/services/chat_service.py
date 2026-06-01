@@ -14,6 +14,7 @@ from app.crud import ai_conversation as conv_crud
 from app.crud import conversation_message as msg_crud
 from app.db.session import SessionLocal
 from app.graphs.builders.chat_builder import get_chat_graph
+from app.infrastructure.agent_monitoring_callback import AgentMonitoringCallback
 from app.infrastructure.checkpoint_client import delete_checkpoint
 from app.infrastructure.background_tasks import background_task_manager
 from app.infrastructure.llm_client import get_llm_client, get_llm_small_client
@@ -28,6 +29,8 @@ from app.prompts.chat_prompts import (
 from app.redis_client import get_sync_redis_client
 from app.core.config import settings
 from app.schemas.chat import ChatRequest, ChatResponse, MessageResponse
+from app.services.agent_evaluation_service import AgentEvaluationService
+from app.services.agent_monitoring_service import AgentMonitoringService
 from app.services.user_profile_service import UserProfileService
 
 logger = logging.getLogger(__name__)
@@ -507,7 +510,16 @@ class ChatService:
             )
             conversation_id = chat_in.conversation_id
 
-        config = {"configurable": {"thread_id": conversation_id}}
+        callback = AgentMonitoringCallback()
+        config = {
+            "configurable": {"thread_id": conversation_id},
+            "callbacks": [callback],
+            "metadata": {
+                "user_id": user_id,
+                "conversation_id": conversation_id,
+                "input_message": chat_in.user_input,
+            },
+        }
         try:
             lock_token = await self._acquire_conversation_lock(conversation_id)
         except Exception:
@@ -660,6 +672,9 @@ class ChatService:
                         conversation_id,
                     )
                 raise
+
+            # 保存 trace_id 供后续手动埋点使用
+            self._current_trace_id = callback.trace_id
 
             # 遍历本轮严格新增的消息，分类持久化
             final_msg = await self._persist_new_messages(
@@ -930,6 +945,24 @@ class ChatService:
             logger.exception("compact 执行失败，保留原 checkpoint: conv=%s", conversation_id)
             return False
         logger.info("AI 对话上下文已 compact: conv=%s", conversation_id)
+
+        # 手动埋点：compact 业务 span
+        trace_id = getattr(self, "_current_trace_id", None)
+        if trace_id:
+            try:
+                self._background_tasks.create_task(
+                    AgentMonitoringService.persist_span_async(
+                        trace_id=trace_id,
+                        span_type="compact",
+                        span_name="context_compact",
+                        input_data={"transcript_chars": len(transcript) if 'transcript' in dir() else None},
+                        output_data={"summary_chars": len(summary) if 'summary' in dir() else None},
+                    ),
+                    name=f"agent_monitoring.span.compact.{trace_id}",
+                )
+            except Exception:
+                logger.debug("compact 埋点失败", exc_info=True)
+
         return True
 
     def _schedule_side_effects(
@@ -944,9 +977,11 @@ class ChatService:
         if skip_side_effects:
             return
 
+        trace_id = getattr(self, "_current_trace_id", None)
+
         self._background_tasks.create_task(
             self._run_in_new_session(
-                self._ensure_title_async, chat_in, conversation_id
+                self._ensure_title_async, chat_in, conversation_id, trace_id
             ),
             name="chat.ensure_title",
         )
@@ -957,9 +992,16 @@ class ChatService:
         ):
             self._background_tasks.create_task(
                 self._run_in_new_session(
-                    self._maybe_update_profile_async, user_id, conversation_id
+                    self._maybe_update_profile_async, user_id, conversation_id, trace_id
                 ),
                 name="chat.update_profile",
+            )
+
+        # Phase 3: 质量评估（异步后台任务，不影响响应）
+        if trace_id and AgentEvaluationService.should_evaluate():
+            self._background_tasks.create_task(
+                AgentEvaluationService.evaluate_trace_async(trace_id),
+                name="chat.evaluate_trace",
             )
 
     async def _run_in_new_session(self, method, *args) -> None:
@@ -973,20 +1015,30 @@ class ChatService:
             logger.exception("后台任务 %s 失败", method.__name__)
 
     async def _maybe_update_profile_async(
-        self, user_id: int, conversation_id: int
+        self, user_id: int, conversation_id: int, trace_id: str | None = None
     ) -> None:
         """触发用户画像更新判断（后台任务）。"""
         try:
             await self.profile_service.maybe_update_user_profile(
                 user_id, conversation_id
             )
+
+            if trace_id:
+                try:
+                    await AgentMonitoringService.persist_span_async(
+                        trace_id=trace_id,
+                        span_type="profile_update",
+                        span_name="user_profile_update",
+                    )
+                except Exception:
+                    logger.debug("profile_update 埋点失败", exc_info=True)
         except Exception:
             logger.exception(
                 "用户画像更新失败: user=%s conv=%s", user_id, conversation_id
             )
 
     async def _ensure_title_async(
-        self, chat_in: ChatRequest, conversation_id: int
+        self, chat_in: ChatRequest, conversation_id: int, trace_id: str | None = None
     ) -> None:
         """智能生成或更新对话标题。新对话立即生成，已有对话超时后重新生成。"""
         try:
@@ -1011,6 +1063,7 @@ class ChatService:
                 > self._TITLE_REGENERATE_THRESHOLD_SECONDS
             )
 
+            title = None
             if should_regenerate:
                 title = await self._generate_title_async(chat_in.user_input)
                 if title:
@@ -1024,6 +1077,17 @@ class ChatService:
             await asyncio.to_thread(
                 conv_crud.update_last_message_at, self.db, conversation_id
             )
+
+            if trace_id:
+                try:
+                    await AgentMonitoringService.persist_span_async(
+                        trace_id=trace_id,
+                        span_type="title_gen",
+                        span_name="conversation_title_gen",
+                        output_data={"title": title} if title else None,
+                    )
+                except Exception:
+                    logger.debug("title_gen 埋点失败", exc_info=True)
         except Exception:
             logger.exception("标题生成失败: conv=%s", conversation_id)
 

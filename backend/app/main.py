@@ -3,7 +3,21 @@ import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from app.api.v1 import users, blog_posts, blog_categories, comments, forum_zones, forum_posts, forum_replies, ai_chat as chat, user_favorites, uploads, system_logs, openapi_knowledge
+from app.api.v1 import (
+    agent_monitoring,
+    users,
+    blog_posts,
+    blog_categories,
+    comments,
+    forum_zones,
+    forum_posts,
+    forum_replies,
+    ai_chat as chat,
+    user_favorites,
+    uploads,
+    system_logs,
+    openapi_knowledge,
+)
 # 确保所有模型类被导入并注册到 Base.metadata
 from app import models
 from app.api.v1.openapi_knowledge import recover_pending_documents
@@ -91,6 +105,7 @@ app.include_router(user_favorites.router_follows, prefix="/api/v1")
 app.include_router(uploads.router, prefix="/api/v1")
 app.include_router(system_logs.router, prefix="/api/v1")
 app.include_router(openapi_knowledge.router, prefix="/api/v1")
+app.include_router(agent_monitoring.router, prefix="/api/v1")
 
 @app.get("/")
 def root():

@@ -123,6 +123,10 @@ class Settings(BaseSettings):
     AI_CHAT_GOAL_TRANSCRIPT_LINES_LIMIT: int = Field(default=12)
     AI_CHAT_GOAL_GENERATION_CHAR_THRESHOLD: int = Field(default=200)
 
+    # ---------- Agent 质量评估配置 ----------
+    AI_CHAT_EVAL_ENABLED: bool = Field(default=True)
+    AI_CHAT_EVAL_SAMPLE_RATE: float = Field(default=1.0)  # 0.0~1.0，1.0=全部评估
+
     # OpenAPI 文档上传限制（字节）
     OPENAPI_UPLOAD_MAX_SIZE: int = Field(default=10 * 1024 * 1024)
 

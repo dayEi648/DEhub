@@ -1,10 +1,12 @@
 interface StatCardProps {
   label: string
-  value: number
+  value: number | string
   color?: string
+  subValue?: string
 }
 
-export default function StatCard({ label, value, color }: StatCardProps) {
+export default function StatCard({ label, value, color, subValue }: StatCardProps) {
+  const displayValue = typeof value === 'number' ? value.toLocaleString() : value
   return (
     <div
       style={{
@@ -28,8 +30,11 @@ export default function StatCard({ label, value, color }: StatCardProps) {
           letterSpacing: '-0.5px',
         }}
       >
-        {value.toLocaleString()}
+        {displayValue}
       </span>
+      {subValue && (
+        <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>{subValue}</span>
+      )}
       <span
         style={{
           fontSize: 13,

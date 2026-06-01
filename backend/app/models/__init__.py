@@ -1,4 +1,7 @@
 # 集中导入所有模型，确保 SQLAlchemy mapper 正确注册
+from app.models.agent_evaluation import AgentEvaluation
+from app.models.agent_span import AgentSpan
+from app.models.agent_trace import AgentTrace
 from app.models.ai_conversation import AIConversation
 from app.models.blog_category import BlogCategory
 from app.models.blog_post import BlogPost
@@ -21,6 +24,9 @@ from app.models.user_post_favorite import UserPostFavorite
 from app.models.oss_cleanup_task import OssCleanupTask
 
 __all__ = [
+    "AgentEvaluation",
+    "AgentSpan",
+    "AgentTrace",
     "AIConversation",
     "BlogCategory",
     "BlogPost",

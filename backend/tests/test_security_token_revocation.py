@@ -12,6 +12,7 @@ async def test_get_current_user_rejects_invalid_revoked_at_without_500():
     db = MagicMock()
     redis = MagicMock()
     redis.get = AsyncMock(return_value="not-a-timestamp")
+    request = MagicMock()
 
     with (
         patch("app.core.security.decode_token") as mock_decode,
@@ -29,7 +30,7 @@ async def test_get_current_user_rejects_invalid_revoked_at_without_500():
         mock_get_user.return_value = MagicMock(id=1)
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(token="token", db=db)
+            await get_current_user(request, token="token", db=db)
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "令牌校验失败"
@@ -40,6 +41,7 @@ async def test_get_current_user_rejects_invalid_iat_without_500():
     db = MagicMock()
     redis = MagicMock()
     redis.get = AsyncMock(return_value="200")
+    request = MagicMock()
 
     with (
         patch("app.core.security.decode_token") as mock_decode,
@@ -57,7 +59,7 @@ async def test_get_current_user_rejects_invalid_iat_without_500():
         mock_get_user.return_value = MagicMock(id=1)
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(token="token", db=db)
+            await get_current_user(request, token="token", db=db)
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "令牌校验失败"
