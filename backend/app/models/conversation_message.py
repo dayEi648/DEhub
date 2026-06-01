@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, func, Integer, ForeignKey, Text, CheckConstraint
+from sqlalchemy import String, DateTime, func, Integer, ForeignKey, Text, CheckConstraint, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
@@ -24,6 +24,7 @@ class ConversationMessage(Base):
             "role IN ('user', 'assistant', 'system', 'tool')",
             name="ck_conversation_messages_role",
         ),
+        Index("idx_conversation_messages_conv_created", "conversation_id", "created_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -287,6 +287,7 @@ CREATE TABLE ai_conversations (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_message_at TIMESTAMPTZ,
+    current_goal    VARCHAR(500),
 
     CONSTRAINT fk_ai_conversations_user_id
         FOREIGN KEY (user_id) REFERENCES users(id)

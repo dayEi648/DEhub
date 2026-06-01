@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, func, Integer, ForeignKey, Boolean
+from sqlalchemy import String, DateTime, func, Integer, ForeignKey, Boolean, Index, desc
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 from app.db.base import Base
@@ -16,6 +16,10 @@ class AIConversation(Base):
     """
 
     __tablename__ = "ai_conversations"
+
+    __table_args__ = (
+        Index("idx_ai_conversations_user_created", "user_id", desc("created_at")),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(

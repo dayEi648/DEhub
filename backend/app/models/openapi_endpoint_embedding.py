@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, Index, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,21 +18,32 @@ class OpenAPIEndpointEmbedding(Base):
 
     __tablename__ = "openapi_endpoint_embeddings"
 
+    __table_args__ = (
+        Index("idx_openapi_endpoint_embeddings_document_id", "document_id"),
+        Index("idx_openapi_endpoint_embeddings_method", "method"),
+        Index(
+            "idx_openapi_endpoint_embeddings_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
     id: Mapped[int] = mapped_column(primary_key=True)
     document_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("openapi_documents.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     chunk_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     path: Mapped[str] = mapped_column(String(500), nullable=False)
-    method: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    method: Mapped[str] = mapped_column(String(10), nullable=False)
     summary: Mapped[str | None] = mapped_column(String(500))
     description: Mapped[str | None] = mapped_column(String(2000))
     tags: Mapped[list[str] | None] = mapped_column(JSONB)
     operation_id: Mapped[str | None] = mapped_column(String(255))
-    content: Mapped[str] = mapped_column(nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(
         Vector(settings.EMBEDDING_DIMENSION_EFFECTIVE), nullable=False
     )

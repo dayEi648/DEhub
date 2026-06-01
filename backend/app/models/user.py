@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, func, CheckConstraint, Text
+from sqlalchemy import String, DateTime, func, CheckConstraint, Text, SmallInteger, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
@@ -9,6 +9,7 @@ class User(Base):
 
     __table_args__ = (
         CheckConstraint("permission IN (0, 1, 2)", name="ck_users_permission"),
+        Index("idx_users_username", "username"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -20,7 +21,7 @@ class User(Base):
         server_default=func.now(),
         nullable=False
     )
-    permission: Mapped[int] = mapped_column(default=0, nullable=False)
+    permission: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
     is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     personal_profile: Mapped[str | None] = mapped_column(Text, nullable=True)

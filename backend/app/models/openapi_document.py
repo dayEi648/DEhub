@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func, Index, desc
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -16,6 +16,12 @@ class OpenAPIDocument(Base):
 
     __tablename__ = "openapi_documents"
 
+    __table_args__ = (
+        Index("idx_openapi_documents_status", "status"),
+        Index("idx_openapi_documents_content_hash", "content_hash"),
+        Index("idx_openapi_documents_created_at", desc("created_at")),
+    )
+
     id: Mapped[int] = mapped_column(primary_key=True)
     uploaded_by: Mapped[int] = mapped_column(Integer, nullable=False)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -23,8 +29,8 @@ class OpenAPIDocument(Base):
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending"
     )
-    endpoint_count: Mapped[int] = mapped_column(Integer, default=0)
-    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    endpoint_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_message: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

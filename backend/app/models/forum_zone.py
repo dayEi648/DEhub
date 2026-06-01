@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, func, Integer, ForeignKey, Text
+from sqlalchemy import String, DateTime, func, Integer, ForeignKey, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 from app.db.base import Base
@@ -11,6 +11,10 @@ if TYPE_CHECKING:
 
 class ForumZone(Base):
     __tablename__ = "forum_zones"
+
+    __table_args__ = (
+        Index("idx_zones_slug", "slug"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)

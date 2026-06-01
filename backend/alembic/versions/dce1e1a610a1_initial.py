@@ -1,8 +1,8 @@
 """initial
 
-Revision ID: 29d4174cfb51
+Revision ID: dce1e1a610a1
 Revises: 
-Create Date: 2026-06-01 16:38:55.129558
+Create Date: 2026-06-01 17:13:27.563652
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 import pgvector.sqlalchemy.vector
 
 # revision identifiers, used by Alembic.
-revision: str = '29d4174cfb51'
+revision: str = 'dce1e1a610a1'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -44,6 +44,9 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('idx_openapi_documents_content_hash', 'openapi_documents', ['content_hash'], unique=False)
+    op.create_index('idx_openapi_documents_created_at', 'openapi_documents', [sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_openapi_documents_status', 'openapi_documents', ['status'], unique=False)
     op.create_table('oss_cleanup_tasks',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('file_path', sa.String(length=512), nullable=False),
@@ -76,13 +79,17 @@ def upgrade() -> None:
     sa.CheckConstraint("level IN ('WARN', 'ERROR', 'CRITICAL')", name='ck_system_logs_level'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('idx_system_logs_created_at', 'system_logs', [sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_system_logs_level_created', 'system_logs', ['level', sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_system_logs_trace_id', 'system_logs', ['trace_id'], unique=False)
+    op.create_index('idx_system_logs_unresolved', 'system_logs', ['created_at'], unique=False, postgresql_where=sa.text('is_resolved = FALSE'))
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('username', sa.String(length=64), nullable=False),
     sa.Column('email', sa.String(length=255), nullable=False),
     sa.Column('hashed_password', sa.String(length=255), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('permission', sa.Integer(), nullable=False),
+    sa.Column('permission', sa.SmallInteger(), nullable=False),
     sa.Column('is_deleted', sa.Boolean(), nullable=False),
     sa.Column('avatar_url', sa.String(length=255), nullable=True),
     sa.Column('personal_profile', sa.Text(), nullable=True),
@@ -91,6 +98,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('username')
     )
+    op.create_index('idx_users_username', 'users', ['username'], unique=False)
     op.create_table('ai_conversations',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -102,6 +110,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], onupdate='CASCADE', ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('idx_ai_conversations_user_created', 'ai_conversations', ['user_id', sa.literal_column('created_at DESC')], unique=False)
     op.create_table('blog_posts',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('title', sa.String(length=64), nullable=False),
@@ -123,6 +132,10 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('slug')
     )
+    op.create_index('idx_blog_posts_category_id', 'blog_posts', ['category_id'], unique=False)
+    op.create_index('idx_blog_posts_created_at', 'blog_posts', [sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_blog_posts_published_created_at', 'blog_posts', [sa.literal_column('created_at DESC')], unique=False, postgresql_where=sa.text("status = 'published'"))
+    op.create_index('idx_blog_posts_tags', 'blog_posts', ['tags'], unique=False, postgresql_using='gin')
     op.create_table('comments',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('target_type', sa.String(length=32), nullable=False),
@@ -138,6 +151,11 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('idx_comments_created_at', 'comments', [sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_comments_nested_parent_time', 'comments', ['nested_parent_id', sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_comments_parent_nested', 'comments', ['parent_id', 'is_nested', sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_comments_target_likes', 'comments', ['target_type', 'target_id', sa.literal_column('likecount DESC')], unique=False)
+    op.create_index('idx_comments_target_time', 'comments', ['target_type', 'target_id', sa.literal_column('created_at DESC')], unique=False)
     op.create_table('forum_zones',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('slug', sa.String(length=255), nullable=False),
@@ -149,6 +167,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('slug')
     )
+    op.create_index('idx_zones_slug', 'forum_zones', ['slug'], unique=False)
     op.create_table('openapi_endpoint_embeddings',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('document_id', sa.Integer(), nullable=False),
@@ -159,7 +178,7 @@ def upgrade() -> None:
     sa.Column('description', sa.String(length=2000), nullable=True),
     sa.Column('tags', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('operation_id', sa.String(length=255), nullable=True),
-    sa.Column('content', sa.String(), nullable=False),
+    sa.Column('content', sa.Text(), nullable=False),
     sa.Column('embedding', pgvector.sqlalchemy.vector.VECTOR(dim=1024), nullable=False),
     sa.Column('content_hash', sa.String(length=32), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -168,8 +187,9 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('chunk_id')
     )
-    op.create_index(op.f('ix_openapi_endpoint_embeddings_document_id'), 'openapi_endpoint_embeddings', ['document_id'], unique=False)
-    op.create_index(op.f('ix_openapi_endpoint_embeddings_method'), 'openapi_endpoint_embeddings', ['method'], unique=False)
+    op.create_index('idx_openapi_endpoint_embeddings_document_id', 'openapi_endpoint_embeddings', ['document_id'], unique=False)
+    op.create_index('idx_openapi_endpoint_embeddings_hnsw', 'openapi_endpoint_embeddings', ['embedding'], unique=False, postgresql_using='hnsw', postgresql_with={'m': 16, 'ef_construction': 64}, postgresql_ops={'embedding': 'vector_cosine_ops'})
+    op.create_index('idx_openapi_endpoint_embeddings_method', 'openapi_endpoint_embeddings', ['method'], unique=False)
     op.create_table('user_profiles',
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('profile_text', sa.Text(), nullable=False),
@@ -188,6 +208,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('post_id')
     )
+    op.create_index('idx_blog_post_embeddings_hnsw', 'blog_post_embeddings', ['embedding'], unique=False, postgresql_using='hnsw', postgresql_with={'m': 16, 'ef_construction': 64}, postgresql_ops={'embedding': 'vector_cosine_ops'})
     op.create_table('conversation_messages',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('conversation_id', sa.Integer(), nullable=False),
@@ -199,6 +220,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['conversation_id'], ['ai_conversations.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('idx_conversation_messages_conv_created', 'conversation_messages', ['conversation_id', 'created_at'], unique=False)
     op.create_table('forum_posts',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('title', sa.String(length=128), nullable=False),
@@ -214,6 +236,9 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['zone_id'], ['forum_zones.id'], onupdate='CASCADE', ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('idx_posts_user_id', 'forum_posts', ['user_id'], unique=False)
+    op.create_index('idx_posts_zone_created', 'forum_posts', ['zone_id', sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_posts_zone_view', 'forum_posts', ['zone_id', sa.literal_column('view_count DESC')], unique=False)
     op.create_table('user_blog_post_favorites',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -224,6 +249,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id', 'blog_post_id', name='uq_user_blog_post_favorites')
     )
+    op.create_index('idx_ubpf_blog_post', 'user_blog_post_favorites', ['blog_post_id'], unique=False)
+    op.create_index('idx_ubpf_user', 'user_blog_post_favorites', ['user_id', sa.literal_column('created_at DESC')], unique=False)
     op.create_table('user_comment_likes',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('comment_id', sa.Integer(), nullable=False),
@@ -234,6 +261,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('comment_id', 'user_id', name='uq_user_comment_likes_user')
     )
+    op.create_index('idx_user_comment_likes_created', 'user_comment_likes', [sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_user_comment_likes_user', 'user_comment_likes', ['user_id', sa.literal_column('created_at DESC')], unique=False)
     op.create_table('user_zone_follows',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -244,6 +273,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id', 'zone_id', name='uq_user_zone_follows')
     )
+    op.create_index('idx_uzf_user', 'user_zone_follows', ['user_id', sa.literal_column('created_at DESC')], unique=False)
+    op.create_index('idx_uzf_zone', 'user_zone_follows', ['zone_id'], unique=False)
     op.create_table('forum_replies',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('post_id', sa.Integer(), nullable=False),
@@ -256,6 +287,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], onupdate='CASCADE', ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('idx_forum_replies_post_time', 'forum_replies', ['post_id', sa.literal_column('created_at DESC')], unique=False)
     op.create_table('user_post_favorites',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -266,6 +298,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id', 'post_id', name='uq_user_post_favorites')
     )
+    op.create_index('idx_upf_post', 'user_post_favorites', ['post_id'], unique=False)
+    op.create_index('idx_upf_user', 'user_post_favorites', ['user_id', sa.literal_column('created_at DESC')], unique=False)
     op.create_table('user_forum_reply_likes',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('reply_id', sa.Integer(), nullable=False),
@@ -283,27 +317,61 @@ def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('user_forum_reply_likes')
+    op.drop_index('idx_upf_user', table_name='user_post_favorites')
+    op.drop_index('idx_upf_post', table_name='user_post_favorites')
     op.drop_table('user_post_favorites')
+    op.drop_index('idx_forum_replies_post_time', table_name='forum_replies')
     op.drop_table('forum_replies')
+    op.drop_index('idx_uzf_zone', table_name='user_zone_follows')
+    op.drop_index('idx_uzf_user', table_name='user_zone_follows')
     op.drop_table('user_zone_follows')
+    op.drop_index('idx_user_comment_likes_user', table_name='user_comment_likes')
+    op.drop_index('idx_user_comment_likes_created', table_name='user_comment_likes')
     op.drop_table('user_comment_likes')
+    op.drop_index('idx_ubpf_user', table_name='user_blog_post_favorites')
+    op.drop_index('idx_ubpf_blog_post', table_name='user_blog_post_favorites')
     op.drop_table('user_blog_post_favorites')
+    op.drop_index('idx_posts_zone_view', table_name='forum_posts')
+    op.drop_index('idx_posts_zone_created', table_name='forum_posts')
+    op.drop_index('idx_posts_user_id', table_name='forum_posts')
     op.drop_table('forum_posts')
+    op.drop_index('idx_conversation_messages_conv_created', table_name='conversation_messages')
     op.drop_table('conversation_messages')
+    op.drop_index('idx_blog_post_embeddings_hnsw', table_name='blog_post_embeddings', postgresql_using='hnsw', postgresql_with={'m': 16, 'ef_construction': 64}, postgresql_ops={'embedding': 'vector_cosine_ops'})
     op.drop_table('blog_post_embeddings')
     op.drop_table('user_profiles')
-    op.drop_index(op.f('ix_openapi_endpoint_embeddings_method'), table_name='openapi_endpoint_embeddings')
-    op.drop_index(op.f('ix_openapi_endpoint_embeddings_document_id'), table_name='openapi_endpoint_embeddings')
+    op.drop_index('idx_openapi_endpoint_embeddings_method', table_name='openapi_endpoint_embeddings')
+    op.drop_index('idx_openapi_endpoint_embeddings_hnsw', table_name='openapi_endpoint_embeddings', postgresql_using='hnsw', postgresql_with={'m': 16, 'ef_construction': 64}, postgresql_ops={'embedding': 'vector_cosine_ops'})
+    op.drop_index('idx_openapi_endpoint_embeddings_document_id', table_name='openapi_endpoint_embeddings')
     op.drop_table('openapi_endpoint_embeddings')
+    op.drop_index('idx_zones_slug', table_name='forum_zones')
     op.drop_table('forum_zones')
+    op.drop_index('idx_comments_target_time', table_name='comments')
+    op.drop_index('idx_comments_target_likes', table_name='comments')
+    op.drop_index('idx_comments_parent_nested', table_name='comments')
+    op.drop_index('idx_comments_nested_parent_time', table_name='comments')
+    op.drop_index('idx_comments_created_at', table_name='comments')
     op.drop_table('comments')
+    op.drop_index('idx_blog_posts_tags', table_name='blog_posts', postgresql_using='gin')
+    op.drop_index('idx_blog_posts_published_created_at', table_name='blog_posts', postgresql_where=sa.text("status = 'published'"))
+    op.drop_index('idx_blog_posts_created_at', table_name='blog_posts')
+    op.drop_index('idx_blog_posts_category_id', table_name='blog_posts')
     op.drop_table('blog_posts')
+    op.drop_index('idx_ai_conversations_user_created', table_name='ai_conversations')
     op.drop_table('ai_conversations')
+    op.drop_index('idx_users_username', table_name='users')
     op.drop_table('users')
+    op.drop_index('idx_system_logs_unresolved', table_name='system_logs', postgresql_where=sa.text('is_resolved = FALSE'))
+    op.drop_index('idx_system_logs_trace_id', table_name='system_logs')
+    op.drop_index('idx_system_logs_level_created', table_name='system_logs')
+    op.drop_index('idx_system_logs_created_at', table_name='system_logs')
     op.drop_table('system_logs')
     op.drop_index('idx_oss_cleanup_tasks_status_next_retry', table_name='oss_cleanup_tasks')
     op.drop_index('idx_oss_cleanup_tasks_created_at', table_name='oss_cleanup_tasks')
     op.drop_table('oss_cleanup_tasks')
+    op.drop_index('idx_openapi_documents_status', table_name='openapi_documents')
+    op.drop_index('idx_openapi_documents_created_at', table_name='openapi_documents')
+    op.drop_index('idx_openapi_documents_content_hash', table_name='openapi_documents')
     op.drop_table('openapi_documents')
     op.drop_table('blog_categories')
     # ### end Alembic commands ###

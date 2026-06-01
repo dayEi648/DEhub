@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import DateTime, func, Integer, BigInteger, ForeignKey, Text
+from sqlalchemy import DateTime, func, Integer, BigInteger, ForeignKey, Text, Index, desc
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 from app.db.base import Base
@@ -11,6 +11,10 @@ if TYPE_CHECKING:
 
 class ForumReply(Base):
     __tablename__ = "forum_replies"
+
+    __table_args__ = (
+        Index("idx_forum_replies_post_time", "post_id", desc("created_at")),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     post_id: Mapped[int] = mapped_column(

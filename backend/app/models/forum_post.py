@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, func, BigInteger, Integer, ForeignKey, Text, CheckConstraint
+from sqlalchemy import String, DateTime, func, BigInteger, Integer, ForeignKey, Text, CheckConstraint, Index, desc
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 from app.db.base import Base
@@ -15,6 +15,9 @@ class ForumPost(Base):
 
     __table_args__ = (
         CheckConstraint("reply_count >= 0", name="chk_posts_reply_count_nonnegative"),
+        Index("idx_posts_user_id", "user_id"),
+        Index("idx_posts_zone_created", "zone_id", desc("created_at")),
+        Index("idx_posts_zone_view", "zone_id", desc("view_count")),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -29,7 +32,7 @@ class ForumPost(Base):
     view_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     reply_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
