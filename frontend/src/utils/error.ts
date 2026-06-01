@@ -39,3 +39,8 @@ export function parseErrorMessage(
   const msg = extractDetailMessage(error.response?.data)
   return msg || fallback
 }
+
+export function isAuthError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  return (error as Record<string, unknown>).__is_auth_error === true
+}

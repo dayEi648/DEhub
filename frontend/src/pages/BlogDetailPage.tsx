@@ -32,6 +32,7 @@ import {
   unpublishBlogPost,
 } from '../api/blog'
 import { getUser } from '../utils/auth'
+import { isAuthError } from '../utils/error'
 import BlogEditorModal from '../components/BlogEditorModal'
 import { getCommentList, createComment, deleteComment, likeComment, unlikeComment } from '../api/comments'
 import { favoriteBlogPost, unfavoriteBlogPost, getBlogPostFavoriteStatus } from '../api/favorites'
@@ -931,8 +932,10 @@ export default function BlogDetailPage() {
       } else {
         setIsFavorited(false)
       }
-    } catch {
-      setError('文章加载失败，请稍后重试')
+    } catch (error) {
+      if (!isAuthError(error)) {
+        setError('文章加载失败，请稍后重试')
+      }
     } finally {
       setLoading(false)
     }

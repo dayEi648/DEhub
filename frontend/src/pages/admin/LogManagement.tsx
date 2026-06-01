@@ -31,6 +31,16 @@ export default function LogManagement() {
   const [loading, setLoading] = useState(false)
   const [detailLog, setDetailLog] = useState<SystemLog | null>(null)
 
+  const toLocalDayStartUTC = (dateStr: string): string => {
+    const [year, month, day] = dateStr.split('-').map(Number)
+    return new Date(year, month - 1, day, 0, 0, 0).toISOString()
+  }
+
+  const toLocalDayEndUTC = (dateStr: string): string => {
+    const [year, month, day] = dateStr.split('-').map(Number)
+    return new Date(year, month - 1, day, 23, 59, 59, 999).toISOString()
+  }
+
   const fetchLogs = useCallback(async () => {
     setLoading(true)
     try {
@@ -40,8 +50,8 @@ export default function LogManagement() {
         ...(filters.level && { level: filters.level }),
         ...(filters.is_resolved && { is_resolved: filters.is_resolved === 'true' }),
         ...(filters.module && { module: filters.module }),
-        ...(filters.created_after && { created_after: new Date(filters.created_after).toISOString() }),
-        ...(filters.created_before && { created_before: new Date(filters.created_before).toISOString() }),
+        ...(filters.created_after && { created_after: toLocalDayStartUTC(filters.created_after) }),
+        ...(filters.created_before && { created_before: toLocalDayEndUTC(filters.created_before) }),
       }
       const res = await getLogList(params)
       setLogs(res.data.items)

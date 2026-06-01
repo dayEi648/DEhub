@@ -19,6 +19,7 @@ import AppTopNav from '../components/AppTopNav'
 import { useLogout } from '../hooks/useLogout'
 import { useViewport } from '../hooks/useViewport'
 import { formatDate } from '../utils/format'
+import { isAuthError } from '../utils/error'
 import type { BlogPostListItem } from '../types/blog'
 import type { ForumPostListItem, ForumZone } from '../types/forum'
 
@@ -851,8 +852,10 @@ export default function HomePage() {
         hotPosts: postRes.data.items || [],
         zones: zoneRes.data || [],
       })
-    } catch {
-      setError('数据加载失败，请刷新页面重试')
+    } catch (error) {
+      if (!isAuthError(error)) {
+        setError('数据加载失败，请刷新页面重试')
+      }
     } finally {
       setLoading(false)
     }

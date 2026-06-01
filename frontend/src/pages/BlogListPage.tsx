@@ -17,6 +17,7 @@ import {
   createBlogCategory,
 } from '../api/blog'
 import { getUser } from '../utils/auth'
+import { isAuthError } from '../utils/error'
 import BlogEditorModal from '../components/BlogEditorModal'
 import BaseModal from '../components/BaseModal'
 import AppTopNav from '../components/AppTopNav'
@@ -557,8 +558,10 @@ export default function BlogListPage() {
       })
       setBlogs(res.data.items)
       setTotal(res.data.total)
-    } catch {
-      setError('加载文章失败，请稍后重试')
+    } catch (error) {
+      if (!isAuthError(error)) {
+        setError('加载文章失败，请稍后重试')
+      }
     } finally {
       setLoading(false)
     }

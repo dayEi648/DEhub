@@ -43,3 +43,32 @@ export function clearAuth() {
 export function isLoggedIn(): boolean {
   return !!getToken()
 }
+
+export function decodeTokenPayload(token: string): { exp?: number } | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padding = payload.length % 4
+    if (padding) {
+      payload += '='.repeat(4 - padding)
+    }
+    const decoded = JSON.parse(atob(payload))
+    return typeof decoded === 'object' && decoded !== null ? decoded : null
+  } catch {
+    return null
+  }
+}
+
+export function isTokenExpired(): boolean {
+  const token = getToken()
+  if (!token) return true
+  const payload = decodeTokenPayload(token)
+  if (!payload || typeof payload.exp !== 'number') return true
+  // 预留 60 秒缓冲，避免临界过期
+  return payload.exp * 1000 < Date.now() + 60_000
+}
+
+export function isAuthenticated(): boolean {
+  return !!getToken() && !isTokenExpired()
+}

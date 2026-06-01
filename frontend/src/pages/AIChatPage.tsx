@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Archive, Bot, MessageSquarePlus, Send, ShieldAlert, Trash2 } from 'lucide-react'
-import { parseErrorMessage } from '../utils/error'
+import { parseErrorMessage, isAuthError } from '../utils/error'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useNavigate } from 'react-router-dom'
@@ -84,7 +84,9 @@ export default function AIChatPage() {
         setConversationTotal(res.data.total || 0)
         setConversations((prev) => (reset ? incomingItems : prev.concat(incomingItems)))
       } catch (error) {
-        toast.error(parseErrorMessage(error, '对话列表加载失败'))
+        if (!isAuthError(error)) {
+          toast.error(parseErrorMessage(error, '对话列表加载失败'))
+        }
       } finally {
         setConversationsLoading(false)
       }
@@ -221,7 +223,9 @@ export default function AIChatPage() {
       }
       await fetchConversations(true, 0)
     } catch (error) {
-      toast.error(parseErrorMessage(error, '删除失败，请稍后重试'))
+      if (!isAuthError(error)) {
+        toast.error(parseErrorMessage(error, '删除失败，请稍后重试'))
+      }
     }
   }
 

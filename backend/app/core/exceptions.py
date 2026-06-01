@@ -28,11 +28,22 @@ def _build_log_extra(request: Request, exc: Exception) -> dict:
     if trace_id:
         extra["trace_id"] = trace_id
 
+    user = getattr(request.state, "user", None)
+    if user is not None:
+        extra["user_id"] = user.id
+
     return extra
 
 
 def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """HTTP 异常处理器（400/404 等主动抛出的业务异常）。"""
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+        # 401 为预期未登录行为，不记录任何系统日志
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"code": exc.status_code, "message": exc.detail},
+        )
+
     if exc.status_code >= 500:
         extra = _build_log_extra(request, exc)
         logger.error("HTTP 异常: %s", exc.detail, extra=extra)

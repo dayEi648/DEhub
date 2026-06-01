@@ -3,7 +3,7 @@ import time
 from jose import jwt, JWTError
 from app.core.config import settings
 from datetime import datetime, timedelta, timezone
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from app.models.user import User
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.api.deps import get_db
@@ -80,7 +80,7 @@ def decode_token(token: str) -> dict | None:
         return None
 
 
-async def get_current_user(token: str = Depends(get_token_from_header), db: Session = Depends(get_db)) -> User:
+async def get_current_user(request: Request, token: str = Depends(get_token_from_header), db: Session = Depends(get_db)) -> User:
     """根据令牌获取当前用户，用于保护路由。"""
     payload = decode_token(token)
     if not payload:
@@ -128,6 +128,7 @@ async def get_current_user(token: str = Depends(get_token_from_header), db: Sess
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+    request.state.user = user
     return user
 
 

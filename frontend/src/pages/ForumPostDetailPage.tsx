@@ -33,6 +33,7 @@ import { favoriteForumPost, unfavoriteForumPost, getForumPostFavoriteStatus } fr
 import { toast } from 'sonner'
 import { usePasteImageUpload } from '../hooks/usePasteImageUpload'
 import { getUser } from '../utils/auth'
+import { isAuthError } from '../utils/error'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import { useLogout } from '../hooks/useLogout'
@@ -814,8 +815,10 @@ export default function ForumPostDetailPage() {
       } catch {
         // ignore zone fetch error
       }
-    } catch {
-      setError('帖子加载失败，请稍后重试')
+    } catch (error) {
+      if (!isAuthError(error)) {
+        setError('帖子加载失败，请稍后重试')
+      }
     } finally {
       setLoading(false)
     }

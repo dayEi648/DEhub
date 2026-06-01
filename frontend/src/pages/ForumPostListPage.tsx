@@ -16,6 +16,7 @@ import BaseModal from '../components/BaseModal'
 import { toast } from 'sonner'
 import { getForumPostList, getForumZoneBySlug, createForumPost } from '../api/forum'
 import { followZone, unfollowZone, getFollowedZones } from '../api/favorites'
+import { isAuthError } from '../utils/error'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import Pagination from '../components/Pagination'
@@ -263,8 +264,10 @@ export default function ForumPostListPage() {
       ])
       setZone(zoneRes.data)
       setIsFollowed(followRes.data.items.some((item) => item.id === zoneRes.data.id))
-    } catch {
-      setError('分区不存在')
+    } catch (error) {
+      if (!isAuthError(error)) {
+        setError('分区不存在')
+      }
     }
   }, [slug])
 
@@ -281,8 +284,10 @@ export default function ForumPostListPage() {
       })
       setPosts(res.data.items)
       setTotal(res.data.total)
-    } catch {
-      setError('加载帖子失败，请稍后重试')
+    } catch (error) {
+      if (!isAuthError(error)) {
+        setError('加载帖子失败，请稍后重试')
+      }
     } finally {
       setLoading(false)
     }

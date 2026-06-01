@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
-import { getUser, isLoggedIn } from '../utils/auth'
+import { getUser, isAuthenticated, clearAuth } from '../utils/auth'
 
 interface AuthGuardProps {
   requireAdmin?: boolean
@@ -8,6 +8,7 @@ interface AuthGuardProps {
 
 export default function AuthGuard({ requireAdmin = false }: AuthGuardProps) {
   const [unauthorized, setUnauthorized] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
     const handler = () => setUnauthorized(true)
@@ -15,13 +16,24 @@ export default function AuthGuard({ requireAdmin = false }: AuthGuardProps) {
     return () => window.removeEventListener('unauthorized', handler)
   }, [])
 
+  useEffect(() => {
+    setAuthChecked(true)
+  }, [])
+
+  if (!authChecked) {
+    return null
+  }
+
   if (unauthorized) {
+    clearAuth()
     return <Navigate to="/login" replace />
   }
 
-  if (!isLoggedIn()) {
+  if (!isAuthenticated()) {
+    clearAuth()
     return <Navigate to="/login" replace />
   }
+
   if (requireAdmin) {
     const user = getUser()
     if (!user || (user.permission ?? 0) < 1) {

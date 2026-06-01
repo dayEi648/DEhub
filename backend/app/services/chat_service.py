@@ -1041,6 +1041,7 @@ class ChatService:
             )
             return title[:self._TITLE_MAX_LENGTH] if title else ""
         except Exception:
+            logger.warning("生成对话标题失败", exc_info=True)
             return ""
 
     def get_conversation_if_owned(

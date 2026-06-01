@@ -12,6 +12,7 @@ import {
 import { toast } from 'sonner'
 import { getForumZoneList, createForumZone, updateForumZone, deleteForumZone } from '../api/forum'
 import { getUser } from '../utils/auth'
+import { isAuthError } from '../utils/error'
 import ZoneEditorModal from '../components/ZoneEditorModal'
 import AppTopNav from '../components/AppTopNav'
 import { useLogout } from '../hooks/useLogout'
@@ -264,8 +265,10 @@ export default function ForumZoneListPage() {
     try {
       const res = await getForumZoneList()
       setZones(res.data)
-    } catch {
-      setError('加载分区失败，请稍后重试')
+    } catch (error) {
+      if (!isAuthError(error)) {
+        setError('加载分区失败，请稍后重试')
+      }
     } finally {
       setLoading(false)
     }
