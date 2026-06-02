@@ -250,6 +250,7 @@ Thumbs.db
 *.tar.gz
 
 # 测试产物
+error.txt
 test-results/
 test-screenshots/
 

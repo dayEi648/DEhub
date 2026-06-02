@@ -1,5 +1,6 @@
 # LangChain Tool 节点定义（供 LLM Tool Calling 使用）
 from app.graphs.nodes.toolnodes.blog_search import search_blog
+from app.graphs.nodes.toolnodes.list_blog_categories import list_blog_categories
 from app.graphs.nodes.toolnodes.openapi_codegen import generate_openapi_call_example
 from app.graphs.nodes.toolnodes.openapi_search import search_openapi_docs
 from app.graphs.nodes.toolnodes.user_actions import (
@@ -30,6 +31,17 @@ registry.register(
         scope=ToolScope.PUBLIC,
         concurrency_safe=True,
         category="search",
+    )
+)
+
+registry.register(
+    ToolMetadata(
+        name=list_blog_categories.name,
+        tool=list_blog_categories,
+        risk=ToolRisk.READONLY,
+        scope=ToolScope.PUBLIC,
+        concurrency_safe=True,
+        category="info",
     )
 )
 
@@ -158,6 +170,7 @@ registry.register(
 
 __all__ = [
     "search_blog",
+    "list_blog_categories",
     "search_web",
     "search_openapi_docs",
     "generate_openapi_call_example",

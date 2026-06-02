@@ -47,6 +47,11 @@ class Settings(BaseSettings):
 
     # RAG 博客检索参数
     RAG_BLOG_TOP_K: int = Field(default=3)
+    # 多查询检索配置
+    RAG_QUERY_EXPANSION_ENABLED: bool = Field(default=True)
+    RAG_QUERY_EXPANSION_COUNT: int = Field(default=5)
+    RAG_QUERY_EXPANSION_TIMEOUT: int = Field(default=15)
+    RAG_MULTI_QUERY_TOP_K_PER_QUERY: int = Field(default=5)
 
     # RAG OpenAPI 工具参数
     RAG_OPENAPI_SEARCH_TOP_K: int = Field(default=5)
