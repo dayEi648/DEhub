@@ -8,7 +8,11 @@ interface CapturedChatRequest {
 test.describe('AI chat page', () => {
   test('loads conversations and sends messages with mocked API', async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('token', 'mock-token')
+      const payload = btoa(JSON.stringify({ exp: 4102444800 }))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '')
+      localStorage.setItem('token', `mock.${payload}.signature`)
       localStorage.setItem(
         'user',
         JSON.stringify({
@@ -189,7 +193,7 @@ test.describe('AI chat page', () => {
 
     await page.goto('/ai-chat')
 
-    await expect(page.locator('h1:has-text("AI 对话实验室")')).toBeVisible()
+    await expect(page.locator('h1:has-text("AI 聊天助手")')).toBeVisible()
     await expect(
       page.getByRole('button', { name: '旧对话 2026.05.22 09:00 ID: 1' }),
     ).toBeVisible()

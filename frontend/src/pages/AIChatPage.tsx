@@ -66,6 +66,7 @@ export default function AIChatPage() {
   const [includeHidden, setIncludeHidden] = useState(false)
   const [panelError, setPanelError] = useState('')
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const skipNextMessagesFetchRef = useRef<number | null>(null)
   const currentUser = getUser()
   const canViewHiddenMessages = (currentUser?.permission ?? 0) >= 1
 
@@ -129,6 +130,10 @@ export default function AIChatPage() {
       setPanelError('')
       return
     }
+    if (skipNextMessagesFetchRef.current === activeConversationId) {
+      skipNextMessagesFetchRef.current = null
+      return
+    }
     void fetchMessages(activeConversationId)
   }, [activeConversationId, fetchMessages])
 
@@ -189,10 +194,21 @@ export default function AIChatPage() {
         meta: null,
         created_at: new Date().toISOString(),
       }
-      setMessages((prev) => prev.concat(optimisticAssistantMessage))
+      setMessages((prev) =>
+        prev
+          .map((message) =>
+            message.id === optimisticUserMessage.id
+              ? { ...message, conversation_id: resolvedConversationId }
+              : message,
+          )
+          .concat(optimisticAssistantMessage),
+      )
       setNewConversationMode(false)
+      if (activeConversationId !== resolvedConversationId) {
+        skipNextMessagesFetchRef.current = resolvedConversationId
+      }
       setActiveConversationId(resolvedConversationId)
-      await Promise.all([fetchConversations(true, 0), fetchMessages(resolvedConversationId)])
+      await fetchConversations(true, 0)
     } catch (error) {
       const message = parseErrorMessage(error, '发送失败，请稍后重试')
       toast.error(message)
