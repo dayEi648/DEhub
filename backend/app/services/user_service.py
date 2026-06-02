@@ -23,8 +23,19 @@ from app.services.oss_cleanup_service import OssCleanupService
 from app.redis_client import get_redis_client, get_sync_redis_client
 from app.infrastructure.checkpoint_client import delete_checkpoint_sync
 from app.infrastructure.cache_invalidator import ForumCacheInvalidator, BlogCacheInvalidator
+from app.services.content_moderation_service import ContentModerationService
 
 logger = logging.getLogger(__name__)
+
+
+def _build_user_snapshot(user: User) -> dict[str, str]:
+    """构建用户资料的审核字段快照。"""
+    snapshot: dict[str, str] = {}
+    if user.username:
+        snapshot["username"] = user.username
+    if user.personal_profile:
+        snapshot["personal_profile"] = user.personal_profile
+    return snapshot
 
 
 class UserService:
@@ -65,7 +76,21 @@ class UserService:
 
         self._ensure_username_unique(user_in.username)
         self._ensure_email_unique(user_in.email)
-        return user_crud.create_user(self.db, user_in)
+        user = user_crud.create_user(self.db, user_in)
+
+        # 触发内容审核
+        snapshot = _build_user_snapshot(user)
+        if snapshot:
+            self.db.refresh(user)
+            ContentModerationService(self.db).enqueue(
+                target_type="user",
+                target_id=user.id,
+                target_version=user.updated_at.isoformat(),
+                trigger_action="create",
+                snapshot=snapshot,
+                created_by_user_id=user.id,
+            )
+        return user
 
     def get_user(self, user_id: int, current_user: User) -> User:
         """根据用户ID获取用户。若用户已注销，仅管理员及以上可查看。"""
@@ -170,6 +195,19 @@ class UserService:
             await cleanup_service.delete_file_after_commit(
                 convert_oss_url_to_file_path(old_avatar_url),
                 source="user.avatar",
+            )
+
+        # 触发内容审核（如果资料有审核字段）
+        snapshot = _build_user_snapshot(updated)
+        if snapshot and hasattr(updated, "updated_at") and updated.updated_at is not None:
+            self.db.refresh(updated)
+            ContentModerationService(self.db).enqueue(
+                target_type="user",
+                target_id=updated.id,
+                target_version=updated.updated_at.isoformat(),
+                trigger_action="update",
+                snapshot=snapshot,
+                created_by_user_id=current_user.id,
             )
 
         return updated
@@ -398,7 +436,21 @@ class UserService:
         user_data = UserCreate.model_validate(
             user_register.model_copy(update={"permission": PermissionLevel.USER}).model_dump()
         )
-        return user_crud.create_user(self.db, user_data)
+        user = user_crud.create_user(self.db, user_data)
+
+        # 触发内容审核
+        snapshot = _build_user_snapshot(user)
+        if snapshot:
+            self.db.refresh(user)
+            ContentModerationService(self.db).enqueue(
+                target_type="user",
+                target_id=user.id,
+                target_version=user.updated_at.isoformat(),
+                trigger_action="create",
+                snapshot=snapshot,
+                created_by_user_id=user.id,
+            )
+        return user
 
     def change_password(
         self,

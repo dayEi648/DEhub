@@ -5,6 +5,8 @@ import AgentTraceDetailPage from './AgentTraceDetailPage'
 import AgentMonitoringDashboard from './AgentMonitoringDashboard'
 import UserManagement from './UserManagement'
 import OpenAPIKnowledgePage from './OpenAPIKnowledgePage'
+import ContentModerationList from './ContentModerationList'
+import ContentModerationDetail from './ContentModerationDetail'
 
 export default function AdminDashboard() {
   return (
@@ -16,6 +18,8 @@ export default function AdminDashboard() {
       <Route path="agent-monitoring" element={<AgentMonitoringPage />} />
       <Route path="users" element={<UserManagement />} />
       <Route path="openapi-knowledge" element={<OpenAPIKnowledgePage />} />
+      <Route path="content-moderation/:id" element={<ContentModerationDetail />} />
+      <Route path="content-moderation" element={<ContentModerationList />} />
       <Route path="*" element={<Navigate to="/admin/logs" replace />} />
     </Routes>
   )

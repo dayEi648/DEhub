@@ -10,6 +10,7 @@ from app.crud import comment as comment_crud
 from app.crud import blog_post as blog_post_crud
 from app.crud import forum_reply as forum_reply_crud
 from app.infrastructure.cache_invalidator import BlogCacheInvalidator
+from app.services.content_moderation_service import ContentModerationService
 
 
 TARGET_TYPE_VALIDATORS = {
@@ -146,6 +147,18 @@ class CommentService:
             BlogCacheInvalidator.invalidate_blog_posts()
 
         refreshed = comment_crud.get_comment_by_id(self.db, db_comment.id)
+
+        # 触发内容审核
+        self.db.refresh(refreshed)
+        ContentModerationService(self.db).enqueue(
+            target_type="comment",
+            target_id=refreshed.id,
+            target_version=refreshed.updated_at.isoformat(),
+            trigger_action="create",
+            snapshot={"content": refreshed.content},
+            created_by_user_id=current_user.id,
+        )
+
         return refreshed
 
     def delete_comment(self, comment_id: int, current_user: User) -> None:

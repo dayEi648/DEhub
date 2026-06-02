@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from app.api.v1 import (
     agent_monitoring,
+    content_moderation,
     users,
     blog_posts,
     blog_categories,
@@ -56,6 +57,7 @@ def _setup_system_log_handler() -> None:
 async def lifespan(app: FastAPI):
     # 启动时
     _setup_system_log_handler()
+    background_task_manager.bind_loop(asyncio.get_running_loop())
 
     # 数据库迁移：自动执行到最新版本（替代 Base.metadata.create_all）
     def _run_migrations() -> None:
@@ -81,6 +83,7 @@ async def lifespan(app: FastAPI):
     yield
     # 关闭时
     await background_task_manager.shutdown(timeout=10)
+    background_task_manager.clear_loop()
     await close_checkpoint_client()
     await close_embedding_client()
     close_llm_small_client()
@@ -112,6 +115,7 @@ app.include_router(uploads.router, prefix="/api/v1")
 app.include_router(system_logs.router, prefix="/api/v1")
 app.include_router(openapi_knowledge.router, prefix="/api/v1")
 app.include_router(agent_monitoring.router, prefix="/api/v1")
+app.include_router(content_moderation.router, prefix="/api/v1")
 
 @app.get("/")
 def root():

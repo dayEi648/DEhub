@@ -23,8 +23,17 @@ from app.infrastructure.view_counter import ViewCounter
 from app.core.config import settings
 from app.storage.oss import convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
 from app.services.oss_cleanup_service import OssCleanupService
+from app.services.content_moderation_service import ContentModerationService
 
 logger = logging.getLogger(__name__)
+
+
+def _build_post_snapshot(post: ForumPost) -> dict[str, str]:
+    """构建论坛帖子的审核字段快照。"""
+    return {
+        "title": post.title,
+        "content": post.content,
+    }
 
 
 class ForumPostService:
@@ -57,6 +66,17 @@ class ForumPostService:
         db_post = forum_post_crud.create_post(self.db, post_in, current_user.id)
         refreshed = forum_post_crud.get_post_by_id(self.db, db_post.id)
 
+        # 触发内容审核
+        self.db.refresh(refreshed)
+        ContentModerationService(self.db).enqueue(
+            target_type="forum_post",
+            target_id=refreshed.id,
+            target_version=refreshed.updated_at.isoformat(),
+            trigger_action="create",
+            snapshot=_build_post_snapshot(refreshed),
+            created_by_user_id=current_user.id,
+        )
+
         ForumCacheInvalidator.invalidate_forum_posts(zone_id=post_in.zone_id)
         return refreshed
 
@@ -81,6 +101,17 @@ class ForumPostService:
 
         old_zone_id = db_post.zone_id
         updated = forum_post_crud.update_post(self.db, db_post, post_in)
+
+        # 触发内容审核
+        self.db.refresh(updated)
+        ContentModerationService(self.db).enqueue(
+            target_type="forum_post",
+            target_id=updated.id,
+            target_version=updated.updated_at.isoformat(),
+            trigger_action="update",
+            snapshot=_build_post_snapshot(updated),
+            created_by_user_id=current_user.id,
+        )
 
         ForumCacheInvalidator.invalidate_forum_posts_for_zone_change(
             old_zone_id=old_zone_id,

@@ -139,13 +139,13 @@ class ViewCounter:
         blog_deltas: dict[int, int] = {}
         for key, val in zip(blog_keys, values[: len(blog_keys)]):
             if val:
-                post_id = int(key.decode().split(":")[-1])
+                post_id = int(key.split(":")[-1])
                 blog_deltas[post_id] = int(val)
 
         forum_deltas: dict[int, int] = {}
         for key, val in zip(forum_keys, values[len(blog_keys) :]):
             if val:
-                post_id = int(key.decode().split(":")[-1])
+                post_id = int(key.split(":")[-1])
                 forum_deltas[post_id] = int(val)
 
         db = SessionLocal()

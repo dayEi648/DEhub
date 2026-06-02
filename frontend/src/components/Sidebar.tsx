@@ -9,6 +9,7 @@ import {
   Database,
   Activity,
   BarChart3,
+  Shield,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { logout } from '../api/users'
@@ -22,6 +23,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: '/admin/logs', label: '日志管理', icon: <ScrollText size={18} /> },
+  { to: '/admin/content-moderation', label: '内容审核', icon: <Shield size={18} /> },
   { to: '/admin/agent-monitoring', label: 'Agent 监控', icon: <Activity size={18} /> },
   { to: '/admin/agent-monitoring/dashboard', label: '质量仪表盘', icon: <BarChart3 size={18} /> },
   { to: '/admin/users', label: '用户管理', icon: <Users size={18} /> },

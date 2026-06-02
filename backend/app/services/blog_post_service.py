@@ -37,9 +37,23 @@ from app.infrastructure.cache_invalidator import BlogCacheInvalidator
 from app.infrastructure.view_counter import ViewCounter
 from app.core.config import settings
 from app.prompts.blog_prompts import render_blog_summary_prompt
+from app.services.content_moderation_service import ContentModerationService
 from langchain_core.messages import SystemMessage, HumanMessage
 
 logger = logging.getLogger(__name__)
+
+
+def _build_blog_snapshot(post: BlogPost) -> dict[str, str]:
+    """构建博客文章的审核字段快照。"""
+    snapshot: dict[str, str] = {
+        "title": post.title,
+        "content_md": post.content_md,
+    }
+    if post.summary:
+        snapshot["summary"] = post.summary
+    if post.tags:
+        snapshot["tags"] = ", ".join(post.tags)
+    return snapshot
 
 
 class BlogPostService:
@@ -165,6 +179,17 @@ class BlogPostService:
 
         BlogCacheInvalidator.invalidate_all()
 
+        # 触发内容审核
+        self.db.refresh(db_post)
+        ContentModerationService(self.db).enqueue(
+            target_type="blog_post",
+            target_id=db_post.id,
+            target_version=db_post.updated_at.isoformat(),
+            trigger_action="publish",
+            snapshot=_build_blog_snapshot(db_post),
+            created_by_user_id=current_user.id,
+        )
+
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, db_post.id)
         return refreshed
 
@@ -251,6 +276,18 @@ class BlogPostService:
             await asyncio.to_thread(embed_service.delete_post_embedding, updated.id)
 
         BlogCacheInvalidator.invalidate_all()
+
+        # 已发布文章更新后触发审核
+        if updated.status == "published":
+            self.db.refresh(updated)
+            ContentModerationService(self.db).enqueue(
+                target_type="blog_post",
+                target_id=updated.id,
+                target_version=updated.updated_at.isoformat(),
+                trigger_action="update",
+                snapshot=_build_blog_snapshot(updated),
+                created_by_user_id=current_user.id,
+            )
 
         refreshed = blog_post_crud.get_blog_post_by_id(self.db, updated.id)
         return refreshed

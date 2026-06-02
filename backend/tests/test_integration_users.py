@@ -7,7 +7,7 @@ from app.main import app
 
 
 class TestUserRegister:
-    def test_register_user_success(self, client):
+    def test_register_user_success(self, client, recwarn):
         """正常注册用户应返回 201 及用户基本信息。"""
         payload = {
             "username": "newbie",
@@ -21,6 +21,10 @@ class TestUserRegister:
         assert data["email"] == "newbie@example.com"
         assert "id" in data
         assert data["permission"] == 0
+        assert not [
+            warning for warning in recwarn
+            if issubclass(warning.category, RuntimeWarning)
+        ]
 
     def test_register_duplicate_username_should_fail(self, client, normal_user):
         """重复用户名应返回 400。"""

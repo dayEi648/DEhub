@@ -52,25 +52,30 @@ def get_llm_small_client() -> ChatOpenAI:
     return _llm_small_client
 
 
-_llm_small_client_overrides: dict[int, ChatOpenAI] = {}
+_llm_small_client_overrides: dict[tuple[int, str], ChatOpenAI] = {}
 
 
-def create_llm_small_client(timeout: int | None = None) -> ChatOpenAI:
+def create_llm_small_client(
+    timeout: int | None = None,
+    model: str | None = None,
+) -> ChatOpenAI:
     """
     获取或创建一个带自定义 timeout 的小模型 ChatOpenAI 实例。
     相同 timeout 的实例会被缓存复用，避免频繁创建导致连接资源累积。
     """
     effective_timeout = timeout if timeout is not None else settings.LLM_SMALL_TIMEOUT
-    if effective_timeout not in _llm_small_client_overrides:
-        _llm_small_client_overrides[effective_timeout] = ChatOpenAI(
+    effective_model = model or settings.LLM_SMALL_MODEL
+    cache_key = (effective_timeout, effective_model)
+    if cache_key not in _llm_small_client_overrides:
+        _llm_small_client_overrides[cache_key] = ChatOpenAI(
             api_key=settings.LLM_SMALL_API_KEY,
             base_url=normalize_openai_base_url(settings.LLM_SMALL_BASE_URL),
-            model=settings.LLM_SMALL_MODEL,
+            model=effective_model,
             max_tokens=settings.LLM_SMALL_MAX_TOKENS,
             temperature=settings.LLM_SMALL_TEMPERATURE,
             timeout=effective_timeout,
         )
-    return _llm_small_client_overrides[effective_timeout]
+    return _llm_small_client_overrides[cache_key]
 
 
 def close_llm_client() -> None:

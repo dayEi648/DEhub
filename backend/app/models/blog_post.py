@@ -37,7 +37,9 @@ class BlogPost(Base):
     view_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     comment_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     embedding: Mapped["BlogPostEmbedding | None"] = relationship(
         "BlogPostEmbedding", back_populates="post", uselist=False

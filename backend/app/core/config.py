@@ -153,6 +153,15 @@ class Settings(BaseSettings):
     # 博客向量文本最大长度（超过则截断到句子边界）
     BLOG_EMBEDDING_MAX_TEXT_LENGTH: int = Field(default=6000)
 
+    # ---------- 内容审核配置 ----------
+    CONTENT_MODERATION_ENABLED: bool = Field(default=True)
+    CONTENT_MODERATION_MODEL: str = Field(default="")
+    CONTENT_MODERATION_TIMEOUT: int = Field(default=60)
+    CONTENT_MODERATION_MAX_TEXT_CHARS: int = Field(default=12000)
+    CONTENT_MODERATION_RETRY_LIMIT: int = Field(default=3)
+    CONTENT_MODERATION_STALE_RUNNING_MINUTES: int = Field(default=30)
+    CONTENT_MODERATION_LOG_SNAPSHOT_MAX_CHARS: int = Field(default=2000)
+
     @property
     def EMBEDDING_DIMENSION_EFFECTIVE(self) -> int:
         """返回生效的向量维度（若未配置则使用默认值 1024）。"""

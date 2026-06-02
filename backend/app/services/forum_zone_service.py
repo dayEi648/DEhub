@@ -19,6 +19,15 @@ from app.infrastructure.cache import build_cache_key, get_json_cache, set_json_c
 from app.infrastructure.cache_invalidator import ForumCacheInvalidator
 from app.core.config import settings
 from app.schemas.forum_zone import ForumZoneResponse
+from app.services.content_moderation_service import ContentModerationService
+
+
+def _build_zone_snapshot(zone: ForumZone) -> dict[str, str]:
+    """构建论坛分区的审核字段快照。"""
+    snapshot: dict[str, str] = {"zone_name": zone.zone_name}
+    if zone.description:
+        snapshot["description"] = zone.description
+    return snapshot
 
 
 class ForumZoneService:
@@ -70,6 +79,17 @@ class ForumZoneService:
         db_zone = forum_zone_crud.create_zone(self.db, zone_in, target_manager_id)
         refreshed = forum_zone_crud.get_zone_by_id(self.db, db_zone.id)
 
+        # 触发内容审核
+        self.db.refresh(refreshed)
+        ContentModerationService(self.db).enqueue(
+            target_type="forum_zone",
+            target_id=refreshed.id,
+            target_version=refreshed.updated_at.isoformat(),
+            trigger_action="create",
+            snapshot=_build_zone_snapshot(refreshed),
+            created_by_user_id=current_user.id,
+        )
+
         ForumCacheInvalidator.invalidate_forum_zones()
         return refreshed
 
@@ -117,6 +137,17 @@ class ForumZoneService:
             set_zone_manager_cache(updated_zone.id, update_data["manager_id"])
 
         refreshed = forum_zone_crud.get_zone_by_id(self.db, updated_zone.id)
+
+        # 触发内容审核
+        self.db.refresh(refreshed)
+        ContentModerationService(self.db).enqueue(
+            target_type="forum_zone",
+            target_id=refreshed.id,
+            target_version=refreshed.updated_at.isoformat(),
+            trigger_action="update",
+            snapshot=_build_zone_snapshot(refreshed),
+            created_by_user_id=current_user.id,
+        )
 
         ForumCacheInvalidator.invalidate_forum_zones()
         return refreshed

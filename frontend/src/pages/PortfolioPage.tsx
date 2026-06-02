@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   ArrowLeft,
-  ArrowUpRight,
   Brain,
   Briefcase,
   FolderCode,
@@ -32,10 +32,8 @@ function ProjectCard({ project }: { project: Project }) {
   const Icon = iconMap[project.coverIcon] || Sparkles
 
   return (
-    <a
-      href={project.link}
-      target="_blank"
-      rel="noopener noreferrer"
+    <div
+      onClick={() => toast.info('正在开发中')}
       className="card-lift-strong"
       style={{
         display: 'flex',
@@ -43,7 +41,7 @@ function ProjectCard({ project }: { project: Project }) {
         backgroundColor: 'var(--color-surface-card)',
         borderRadius: 'var(--rounded-lg)',
         overflow: 'hidden',
-        textDecoration: 'none',
+        cursor: 'pointer',
       }}
     >
       {/* Cover */}
@@ -73,7 +71,7 @@ function ProjectCard({ project }: { project: Project }) {
             backdropFilter: 'blur(4px)',
           }}
         >
-          <ArrowUpRight size={14} color="rgba(255,255,255,0.9)" />
+          <Sparkles size={14} color="rgba(255,255,255,0.9)" />
         </div>
       </div>
 
@@ -138,7 +136,7 @@ function ProjectCard({ project }: { project: Project }) {
           ))}
         </div>
       </div>
-    </a>
+    </div>
   )
 }
 

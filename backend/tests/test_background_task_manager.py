@@ -46,3 +46,19 @@ async def test_background_task_manager_cancels_tasks_on_shutdown_timeout():
 
     assert task.cancelled()
     assert manager.pending_count == 0
+
+
+@pytest.mark.asyncio
+async def test_background_task_manager_schedules_from_worker_thread():
+    manager = BackgroundTaskManager()
+    manager.bind_loop(asyncio.get_running_loop())
+    completed = asyncio.Event()
+
+    async def work() -> None:
+        completed.set()
+
+    await asyncio.to_thread(manager.create_task, work(), "unit.thread")
+    await asyncio.wait_for(completed.wait(), timeout=1)
+    await manager.shutdown(timeout=1)
+
+    assert manager.pending_count == 0

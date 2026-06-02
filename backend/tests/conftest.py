@@ -27,6 +27,12 @@ _mock_modules = [
 for _m in _mock_modules:
     patch(_m, new_callable=AsyncMock if "init_" in _m else lambda: AsyncMock).start()
 
+# 默认关闭内容审核后台任务的自动调度，避免通用测试被异步副作用污染。
+patch(
+    "app.services.content_moderation_service.background_task_manager.create_task",
+    return_value=None,
+).start()
+
 # 现在安全导入 app
 from app.core.config import settings
 from app.core.security import get_current_user

@@ -14,8 +14,14 @@ from app.core.zone_manager import is_zone_manager
 from app.infrastructure.cache_invalidator import ForumCacheInvalidator
 from app.storage.oss import convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
 from app.services.oss_cleanup_service import OssCleanupService
+from app.services.content_moderation_service import ContentModerationService
 
 logger = logging.getLogger(__name__)
+
+
+def _build_reply_snapshot(reply: ForumReply) -> dict[str, str]:
+    """构建论坛回复的审核字段快照。"""
+    return {"content": reply.content}
 
 
 class ForumReplyService:
@@ -63,6 +69,17 @@ class ForumReplyService:
             raise
 
         refreshed = forum_reply_crud.get_reply_by_id(self.db, db_reply.id)
+
+        # 触发内容审核
+        self.db.refresh(refreshed)
+        ContentModerationService(self.db).enqueue(
+            target_type="forum_reply",
+            target_id=refreshed.id,
+            target_version=refreshed.updated_at.isoformat(),
+            trigger_action="create",
+            snapshot=_build_reply_snapshot(refreshed),
+            created_by_user_id=current_user.id,
+        )
 
         ForumCacheInvalidator.invalidate_forum_posts(zone_id=post.zone_id)
         return refreshed
