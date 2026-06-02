@@ -222,3 +222,27 @@ CONVERSATION_TITLE_PROMPT = (
     "标题应概括用户的核心需求或话题，不要包含寒暄。"
     "只输出标题文字，不要加引号，不要添加任何解释。"
 )
+
+
+# -------------------------------------------------------------------
+# Web Search Query Expansion Prompt（small model 用）
+# -------------------------------------------------------------------
+WEB_SEARCH_QUERY_EXPANSION_PROMPT = (
+    "你是搜索 query 优化助手。请将用户的原始搜索关键词扩展为 3 个有差异、"
+    "不同角度的专业搜索 query，以获取更全面的搜索结果。\n\n"
+    "要求：\n"
+    "1. 3 个 query 必须围绕同一主题，但从不同角度切入（如：技术原理、"
+    "应用场景、最新动态、优缺点对比、教程指南等）；\n"
+    "2. 每个 query 应具体、专业，避免过于宽泛；\n"
+    "3. 输出必须是合法的 JSON 数组，如 [\"query1\", \"query2\", \"query3\"]；\n"
+    "4. 不要输出任何解释、markdown 代码块标记或其他额外文字；\n"
+    "5. 如果原始 query 已经非常具体或无法拆分，可以返回单元素或双元素数组。\n\n"
+    "原始搜索关键词：{original_query}\n\n"
+    "扩展后的搜索 query："
+)
+
+
+def render_web_search_expansion_prompt(original_query: str) -> str:
+    """渲染联网搜索 query 扩展 prompt。"""
+    return WEB_SEARCH_QUERY_EXPANSION_PROMPT.format(original_query=original_query)
+

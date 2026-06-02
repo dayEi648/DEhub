@@ -59,6 +59,8 @@ class Settings(BaseSettings):
 
     # 联网搜索参数
     IQS_NUM_RESULTS: int = Field(default=10)
+    IQS_NUM_RESULTS_PER_QUERY: int = Field(default=5)
+    WEB_SEARCH_QUERY_EXPANSION_TIMEOUT: int = Field(default=10)
 
     # 前端路由配置（供后端生成跳转链接）
     FRONTEND_BLOG_DETAIL_PATH: str = Field(default="/blog/{slug}")
