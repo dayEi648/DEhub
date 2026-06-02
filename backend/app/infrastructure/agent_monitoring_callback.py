@@ -54,8 +54,8 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
         metadata = kwargs.get("metadata") or {}
         return metadata.get("langgraph_node")
 
-    def _safe_extract_usage(self, response: LLMResult) -> dict[str, int]:
-        """从 LLMResult 中提取 token usage。"""
+    def _safe_extract_usage(self, response: LLMResult) -> dict[str, Any]:
+        """从 LLMResult 中提取 token usage（含 DeepSeek 扩展字段）。"""
         try:
             if not response.generations:
                 return {}
@@ -63,11 +63,22 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
             message = getattr(first_gen, "message", None)
             if message is None:
                 return {}
-            usage = getattr(message, "usage_metadata", None) or {}
+
+            # 优先从 response_metadata.token_usage 读取 DeepSeek 完整字段
+            resp_meta = getattr(message, "response_metadata", None) or {}
+            token_usage = resp_meta.get("token_usage") or {}
+            completion_details = token_usage.get("completion_tokens_details") or {}
+
+            # usage_metadata 作为 fallback 提供标准字段
+            usage_meta = getattr(message, "usage_metadata", None) or {}
+
             return {
-                "prompt_tokens": usage.get("input_tokens") or usage.get("prompt_tokens", 0),
-                "completion_tokens": usage.get("output_tokens") or usage.get("completion_tokens", 0),
-                "total_tokens": usage.get("total_tokens", 0),
+                "prompt_tokens": token_usage.get("prompt_tokens") or usage_meta.get("input_tokens", 0),
+                "completion_tokens": token_usage.get("completion_tokens") or usage_meta.get("output_tokens", 0),
+                "total_tokens": token_usage.get("total_tokens") or usage_meta.get("total_tokens", 0),
+                "prompt_cache_hit_tokens": token_usage.get("prompt_cache_hit_tokens", 0),
+                "prompt_cache_miss_tokens": token_usage.get("prompt_cache_miss_tokens", 0),
+                "reasoning_tokens": completion_details.get("reasoning_tokens", 0),
             }
         except Exception:
             return {}
@@ -121,6 +132,9 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
                     "total_tokens": 0,
                     "prompt_tokens": 0,
                     "completion_tokens": 0,
+                    "prompt_cache_hit_tokens": 0,
+                    "prompt_cache_miss_tokens": 0,
+                    "reasoning_tokens": 0,
                     "spans": [],
                     "error_type": None,
                     "error_message": None,
@@ -257,6 +271,9 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
             buf["total_tokens"] = (buf.get("total_tokens") or 0) + usage.get("total_tokens", 0)
             buf["prompt_tokens"] = (buf.get("prompt_tokens") or 0) + usage.get("prompt_tokens", 0)
             buf["completion_tokens"] = (buf.get("completion_tokens") or 0) + usage.get("completion_tokens", 0)
+            buf["prompt_cache_hit_tokens"] = (buf.get("prompt_cache_hit_tokens") or 0) + usage.get("prompt_cache_hit_tokens", 0)
+            buf["prompt_cache_miss_tokens"] = (buf.get("prompt_cache_miss_tokens") or 0) + usage.get("prompt_cache_miss_tokens", 0)
+            buf["reasoning_tokens"] = (buf.get("reasoning_tokens") or 0) + usage.get("reasoning_tokens", 0)
 
             # 更新最后一个未完成的 llm span
             for span in reversed(buf.get("spans", [])):

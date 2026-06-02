@@ -485,24 +485,31 @@ class TestChatCompact:
         assert result.meta == {"compact_summary": True}
 
     @pytest.mark.asyncio
-    @patch("app.services.chat_service.get_llm_client")
-    async def test_should_compact_uses_fixed_85_percent_threshold(self, mock_get_client):
-        """上下文 token 达到 1M 的 85% 时才触发 compact。"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-
-        mock_client.get_num_tokens_from_messages.return_value = 849_999
+    async def test_should_compact_uses_last_prompt_tokens(self):
+        """优先使用 last_prompt_tokens（DeepSeek API 真实值）判断 compact 阈值。"""
         below = await self.service._should_compact(
-            {"messages": [HumanMessage(content="hello"), AIMessage(content="reply")]}
+            {
+                "messages": [HumanMessage(content="hello"), AIMessage(content="reply")],
+                "last_prompt_tokens": 800_000,
+            }
         )
-
-        mock_client.get_num_tokens_from_messages.return_value = 850_000
         reached = await self.service._should_compact(
-            {"messages": [HumanMessage(content="hello"), AIMessage(content="reply")]}
+            {
+                "messages": [HumanMessage(content="hello"), AIMessage(content="reply")],
+                "last_prompt_tokens": 900_000,
+            }
         )
 
         assert below is False
         assert reached is True
+
+    @pytest.mark.asyncio
+    async def test_should_compact_fallback_when_no_last_tokens(self):
+        """无 last_prompt_tokens 时 fallback 到字符估算。"""
+        result = await self.service._should_compact(
+            {"messages": [HumanMessage(content="x" * 1_700_000)]}
+        )
+        assert result is True
 
     @pytest.mark.asyncio
     @patch("app.services.chat_service.get_sync_redis_client")

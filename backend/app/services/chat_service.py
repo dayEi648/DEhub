@@ -793,33 +793,38 @@ class ChatService:
         return final_msg
 
     async def _should_compact(self, result: dict) -> bool:
-        """判断当前上下文是否达到 compact 阈值。"""
+        """判断当前上下文是否达到 compact 阈值。
+
+        优先使用本轮 LLM 调用返回的真实 prompt_tokens（DeepSeek API usage），
+        该值已包含 system prompt + 全部历史消息 + 本轮用户输入。
+        不再依赖 tiktoken 估算。无记录时 fallback 到字符估算。
+        """
         messages = result.get("messages") or []
         if not messages:
             return False
-        system_prompt = render_chat_system_prompt(
-            current_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            scene=result.get("prompt_scene"),
-            profile_text=result.get("profile_text"),
-            current_goal=result.get("current_goal"),
-            permission_level=self.permission_level,
-        )
-        token_messages = [SystemMessage(content=system_prompt), *messages]
-        try:
-            token_count = await asyncio.to_thread(
-                get_llm_client().get_num_tokens_from_messages,
-                token_messages,
+
+        # 优先使用 DeepSeek API 返回的真实 prompt token 数
+        # agent_node 调用 LLM 时已将本轮用户输入计入，无需额外增量
+        last_prompt_tokens = result.get("last_prompt_tokens")
+        if last_prompt_tokens is not None and last_prompt_tokens > 0:
+            token_count = last_prompt_tokens
+        else:
+            # fallback：旧 checkpoint 或无 usage 时，字符估算
+            system_prompt = render_chat_system_prompt(
+                current_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                scene=result.get("prompt_scene"),
+                profile_text=result.get("profile_text"),
+                current_goal=result.get("current_goal"),
+                permission_level=self.permission_level,
             )
-        except NotImplementedError:
-            logger.warning(
-                "模型 %s 不支持 token 统计，使用字符数估算作为 compact 依据",
-                getattr(get_llm_client(), "model_name", "unknown"),
-            )
+            token_messages = [SystemMessage(content=system_prompt), *messages]
             char_count = sum(len(m.content or "") for m in token_messages)
             token_count = char_count // 2
-        except Exception:
-            logger.exception("统计上下文 token 失败，跳过 compact")
-            return False
+            logger.debug(
+                "last_prompt_tokens 缺失，使用字符估算作为 compact 依据: estimated=%s",
+                token_count,
+            )
+
         threshold = int(self._MAIN_CONTEXT_WINDOW_TOKENS * self._COMPACT_THRESHOLD_RATIO)
         return token_count >= threshold
 
@@ -955,8 +960,14 @@ class ChatService:
                         trace_id=trace_id,
                         span_type="compact",
                         span_name="context_compact",
-                        input_data={"transcript_chars": len(transcript) if 'transcript' in dir() else None},
-                        output_data={"summary_chars": len(summary) if 'summary' in dir() else None},
+                        input_data={
+                            "transcript_chars": len(transcript) if 'transcript' in dir() else None,
+                            "last_prompt_tokens": result.get("last_prompt_tokens"),
+                            "last_total_tokens": result.get("last_total_tokens"),
+                        },
+                        output_data={
+                            "summary_chars": len(summary) if 'summary' in dir() else None,
+                        },
                     ),
                     name=f"agent_monitoring.span.compact.{trace_id}",
                 )

@@ -17,6 +17,7 @@ pytest-asyncio
 langchain
 langgraph
 langchain-openai
+langchain-deepseek
 pgvector
 langchain-community
 mcp

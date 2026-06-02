@@ -39,6 +39,12 @@ class AgentMonitoringService:
             with SessionLocal() as db:
                 # 检查是否已存在（防止重复写入）
                 existing = trace_crud.get_agent_trace_by_trace_id(db, trace_id)
+                # 将 DeepSeek 扩展 token 字段合并到 metadata
+                metadata = buf.get("metadata") or {}
+                for key in ("prompt_cache_hit_tokens", "prompt_cache_miss_tokens", "reasoning_tokens"):
+                    if key in buf:
+                        metadata[key] = buf[key]
+
                 if existing:
                     trace = trace_crud.update_agent_trace(
                         db,
@@ -54,7 +60,7 @@ class AgentMonitoringService:
                         ended_at=buf.get("ended_at"),
                         error_type=buf.get("error_type"),
                         error_message=buf.get("error_message"),
-                        metadata=buf.get("metadata"),
+                        metadata=metadata,
                     )
                     logger.debug("更新已有 AgentTrace: %s", trace_id)
                 else:
@@ -77,7 +83,7 @@ class AgentMonitoringService:
                         ended_at=buf.get("ended_at"),
                         error_type=buf.get("error_type"),
                         error_message=buf.get("error_message"),
-                        metadata=buf.get("metadata"),
+                        metadata=metadata,
                     )
                     logger.debug("新建 AgentTrace: %s", trace_id)
 

@@ -76,5 +76,19 @@ async def agent_node(state: ChatState, config: RunnableConfig) -> dict:
     # 3. 调用 LLM
     response = await model.ainvoke(messages_for_llm, config)
 
-    # 4. 返回 AIMessage（add_messages reducer 会自动追加到 state）
-    return {"messages": [response]}
+    # 4. 提取 DeepSeek API 返回的真实 token usage
+    usage_meta = response.usage_metadata or {}
+    resp_meta = response.response_metadata or {}
+    token_usage = resp_meta.get("token_usage") or {}
+    completion_details = token_usage.get("completion_tokens_details") or {}
+
+    # 5. 返回 AIMessage + token 统计（add_messages reducer 会自动追加 messages）
+    return {
+        "messages": [response],
+        "last_prompt_tokens": usage_meta.get("input_tokens"),
+        "last_completion_tokens": usage_meta.get("output_tokens"),
+        "last_total_tokens": usage_meta.get("total_tokens"),
+        "last_cache_hit_tokens": token_usage.get("prompt_cache_hit_tokens"),
+        "last_cache_miss_tokens": token_usage.get("prompt_cache_miss_tokens"),
+        "last_reasoning_tokens": completion_details.get("reasoning_tokens"),
+    }
