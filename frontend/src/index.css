@@ -2,7 +2,7 @@
 
 @font-face {
   font-family: 'SF Pro Local';
-  src: url('../../planing/前端/Fonts/SF-Pro-Text-Regular.otf') format('opentype');
+  src: url('/fonts/SF-Pro-Text-Regular.otf') format('opentype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -10,7 +10,7 @@
 
 @font-face {
   font-family: 'SF Pro Local';
-  src: url('../../planing/前端/Fonts/SF-Pro-Text-Semibold.otf') format('opentype');
+  src: url('/fonts/SF-Pro-Text-Semibold.otf') format('opentype');
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -18,7 +18,7 @@
 
 @font-face {
   font-family: 'JetBrains Mono Local';
-  src: url('../../planing/前端/Fonts/JetBrains/JetBrainsMono/JetBrainsMonoNerdFont-Regular.ttf') format('truetype');
+  src: url('/fonts/jetbrains/JetBrainsMonoNerdFont-Regular.ttf') format('truetype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;

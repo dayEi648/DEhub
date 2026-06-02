@@ -234,6 +234,8 @@ workflow.md
 
 png/
 Fonts/
+!frontend/public/fonts/
+!frontend/public/fonts/**
 
 # Node.js / 前端构建产物
 node_modules/
@@ -277,4 +279,3 @@ docker-compose.yml
 deploy/MIGRATE.md
 DEPLOY.md
 deploy/nginx/nginx.conf
-

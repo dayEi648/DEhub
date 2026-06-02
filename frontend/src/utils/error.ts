@@ -36,6 +36,9 @@ export function parseErrorMessage(
   fallback = '操作失败，请稍后重试',
 ): string {
   if (!isAxiosError(error)) return fallback
+  if (error.code === 'ECONNABORTED' || error.message.toLowerCase().includes('timeout')) {
+    return '请求超时，AI 仍可能正在处理中，请稍后刷新查看结果'
+  }
   const msg = extractDetailMessage(error.response?.data)
   return msg || fallback
 }

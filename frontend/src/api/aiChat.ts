@@ -8,8 +8,12 @@ import type {
   AIMessageListParams,
 } from '../types/aiChat'
 
+const AI_CHAT_REQUEST_TIMEOUT_MS = 180_000
+
 export function chatWithAI(data: AIChatRequest) {
-  return request.post<AIChatResponse>('/ai_chat/chat', data)
+  return request.post<AIChatResponse>('/ai_chat/chat', data, {
+    timeout: AI_CHAT_REQUEST_TIMEOUT_MS,
+  })
 }
 
 export function getConversationList(params: AIConversationListParams = {}) {
@@ -23,4 +27,3 @@ export function getConversationMessages(conversationId: number, params: AIMessag
 export function deleteConversation(conversationId: number) {
   return request.delete(`/ai_chat/conversations/${conversationId}`)
 }
-
