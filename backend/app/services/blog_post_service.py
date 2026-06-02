@@ -34,6 +34,7 @@ from app.infrastructure.cache import (
     release_cache_lock,
 )
 from app.infrastructure.cache_invalidator import BlogCacheInvalidator
+from app.infrastructure.view_counter import ViewCounter
 from app.core.config import settings
 from app.prompts.blog_prompts import render_blog_summary_prompt
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -305,8 +306,14 @@ class BlogPostService:
         return query
 
     def _build_list_item(self, post: BlogPost) -> BlogPostListItem:
-        """构建列表项，若 summary 为空则自动从正文截取纯文本摘要。"""
+        """构建列表项，若 summary 为空则自动从正文截取纯文本摘要。
+
+        浏览量会与 Redis 计数器中的增量合并后返回。
+        """
         item = BlogPostListItem.model_validate(post)
+        merged_view_count = ViewCounter.get_blog_view_count(post.id, post.view_count)
+        if merged_view_count != post.view_count:
+            item = item.model_copy(update={"view_count": merged_view_count})
         if not item.summary and post.content_md:
             return item.model_copy(update={"summary": extract_plain_text_summary(post.content_md)})
         return item
@@ -341,6 +348,10 @@ class BlogPostService:
             .first()
         )
         response_data = BlogPostResponse.model_validate(db_post).model_dump()
+        # 合并 Redis 计数器中的浏览量增量
+        response_data["view_count"] = ViewCounter.get_blog_view_count(
+            db_post.id, response_data.get("view_count", db_post.view_count)
+        )
         response_data["prev_post"] = (
             self._build_list_item(prev_post) if prev_post else None
         )
@@ -349,27 +360,69 @@ class BlogPostService:
         )
         return BlogPostDetailResponse.model_validate(response_data)
 
+    def _refresh_detail_view_counts(self, detail: BlogPostDetailResponse) -> BlogPostDetailResponse:
+        """将详情响应中的浏览量替换为实时合并值（DB + Redis Counter）。"""
+        updates: dict = {}
+        merged = ViewCounter.get_blog_view_count(detail.id, detail.view_count)
+        if merged != detail.view_count:
+            updates["view_count"] = merged
+        if detail.prev_post:
+            prev_vc = ViewCounter.get_blog_view_count(detail.prev_post.id, detail.prev_post.view_count)
+            if prev_vc != detail.prev_post.view_count:
+                updates["prev_post"] = detail.prev_post.model_copy(update={"view_count": prev_vc})
+        if detail.next_post:
+            next_vc = ViewCounter.get_blog_view_count(detail.next_post.id, detail.next_post.view_count)
+            if next_vc != detail.next_post.view_count:
+                updates["next_post"] = detail.next_post.model_copy(update={"view_count": next_vc})
+        if updates:
+            return detail.model_copy(update=updates)
+        return detail
+
     def get_blog_post(self, post_id: int, current_user: User) -> BlogPostDetailResponse:
+        # 仅普通用户访问已发布文章时走缓存
+        cache_key = None
+        if current_user.permission < PermissionLevel.SUPER_ADMIN:
+            cache_key = build_cache_key("blog_posts:detail:id", {"post_id": post_id})
+            cached = get_json_cache(cache_key, BlogPostDetailResponse)
+            if cached is not None:
+                ViewCounter.incr_blog_view_count(post_id, self.db)
+                return self._refresh_detail_view_counts(cached)
+
         query = self._build_visible_query(current_user)
         db_post = query.filter(BlogPost.id == post_id).first()
         if not db_post:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
 
-        blog_post_crud.increment_view_count(self.db, post_id)
-        self.db.refresh(db_post)
+        ViewCounter.incr_blog_view_count(post_id, self.db)
+        result = self._build_detail_response(db_post, current_user)
 
-        return self._build_detail_response(db_post, current_user)
+        if cache_key is not None:
+            set_json_cache(cache_key, result, settings.CACHE_BLOG_DETAIL_TTL, tags=["blog_posts"])
+
+        return result
 
     def get_blog_post_by_slug(self, slug: str, current_user: User) -> BlogPostDetailResponse:
+        # 仅普通用户访问已发布文章时走缓存
+        cache_key = None
+        if current_user.permission < PermissionLevel.SUPER_ADMIN:
+            cache_key = build_cache_key("blog_posts:detail:slug", {"slug": slug})
+            cached = get_json_cache(cache_key, BlogPostDetailResponse)
+            if cached is not None:
+                ViewCounter.incr_blog_view_count(cached.id, self.db)
+                return self._refresh_detail_view_counts(cached)
+
         query = self._build_visible_query(current_user)
         db_post = query.filter(BlogPost.slug == slug).first()
         if not db_post:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在")
 
-        blog_post_crud.increment_view_count(self.db, db_post.id)
-        self.db.refresh(db_post)
+        ViewCounter.incr_blog_view_count(db_post.id, self.db)
+        result = self._build_detail_response(db_post, current_user)
 
-        return self._build_detail_response(db_post, current_user)
+        if cache_key is not None:
+            set_json_cache(cache_key, result, settings.CACHE_BLOG_DETAIL_TTL, tags=["blog_posts"])
+
+        return result
 
     def list_blog_posts(
         self,

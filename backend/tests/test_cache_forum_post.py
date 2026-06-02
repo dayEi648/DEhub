@@ -83,8 +83,8 @@ class TestForumPostListCache:
 
         service.list_posts(zone_id=None, sort_by="view", skip=0, limit=6)
         _, _, ttl = mock_set_cache.call_args[0]
-        # 热门 TTL 应使用 CACHE_FORUM_HOT_POST_TTL (30)
-        assert ttl == 30
+        # 热门 TTL 应使用 CACHE_FORUM_HOT_POST_TTL (90)
+        assert ttl == 90
 
     @patch("app.services.forum_post_service.release_cache_lock")
     @patch("app.services.forum_post_service.acquire_cache_lock")
@@ -141,15 +141,18 @@ class TestForumPostCacheInvalidation:
         db_post.view_count = 0
         mock_get_post.return_value = db_post
 
-        def refresh_side_effect(post):
-            post.view_count = 1
+        def increment_side_effect(db_arg, post_id):
+            db_post.view_count = 1
 
-        db.refresh.side_effect = refresh_side_effect
+        mock_increment.side_effect = increment_side_effect
 
         result = service.get_post(1)
 
+        # 浏览量通过 ViewCounter 异步化；Redis 不可用时降级为直接调用 increment_post_view_count
         mock_increment.assert_called_once_with(db, 1)
-        db.refresh.assert_called_once_with(db_post)
+        # db.refresh 不再被调用（浏览量已异步化到 Redis Counter）
+        db.refresh.assert_not_called()
+        assert isinstance(result, ForumPostResponse)
         assert result.view_count == 1
 
     @patch("app.services.forum_post_service.ForumCacheInvalidator.invalidate_forum_posts")

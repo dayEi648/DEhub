@@ -4,7 +4,7 @@
 所有方法均为静态方法，便于在 Service 写操作成功后直接调用。
 """
 
-from app.infrastructure.cache import invalidate_cache_tags
+from app.infrastructure.cache import invalidate_cache_tags, delete_cache_keys, build_cache_key
 
 
 class BlogCacheInvalidator:
@@ -63,3 +63,25 @@ class ForumCacheInvalidator:
         if new_zone_id is not None and new_zone_id != old_zone_id:
             tags.append(f"forum_posts:zone:{new_zone_id}")
         invalidate_cache_tags(tags)
+
+
+class UserCacheInvalidator:
+    """用户私有数据缓存失效器。按 user_id 维度精确失效。"""
+
+    @staticmethod
+    def invalidate_zone_follows(user_id: int) -> None:
+        """失效指定用户的分区关注列表缓存。"""
+        key = build_cache_key("follows:zones:user", {"user_id": user_id})
+        delete_cache_keys([key])
+
+    @staticmethod
+    def invalidate_blog_post_favorites(user_id: int) -> None:
+        """失效指定用户的博客文章收藏列表缓存。"""
+        key = build_cache_key("favorites:blog_posts:user", {"user_id": user_id})
+        delete_cache_keys([key])
+
+    @staticmethod
+    def invalidate_forum_post_favorites(user_id: int) -> None:
+        """失效指定用户的论坛帖子收藏列表缓存。"""
+        key = build_cache_key("favorites:forum_posts:user", {"user_id": user_id})
+        delete_cache_keys([key])

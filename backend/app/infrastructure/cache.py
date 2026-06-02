@@ -160,6 +160,23 @@ def invalidate_cache_tags(tags: list[str]) -> None:
         logger.warning("缓存失效失败，tags=%s", tags, exc_info=True)
 
 
+def delete_cache_keys(keys: list[str]) -> None:
+    """直接删除指定的缓存 key。
+
+    用于需要精确失效单个 key（如按 user_id 维度的私有数据缓存）的场景。
+
+    Args:
+        keys: 待删除的 Redis key 列表。
+    """
+    redis = _get_redis()
+    if redis is None or not keys:
+        return
+    try:
+        redis.delete(*keys)
+    except Exception:
+        logger.warning("缓存 key 删除失败: keys=%s", keys, exc_info=True)
+
+
 def acquire_cache_lock(key: str, ttl: int = 5) -> str | None:
     """获取缓存重建锁（用于热点 key 防击穿）。
 

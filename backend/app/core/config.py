@@ -86,9 +86,14 @@ class Settings(BaseSettings):
     CACHE_BLOG_LIST_TTL: int = Field(default=60)
     CACHE_BLOG_HOME_TTL: int = Field(default=120)
     CACHE_BLOG_CATEGORY_TTL: int = Field(default=300)
+    CACHE_BLOG_DETAIL_TTL: int = Field(default=300)
     CACHE_FORUM_ZONE_TTL: int = Field(default=300)
     CACHE_FORUM_POST_LIST_TTL: int = Field(default=60)
-    CACHE_FORUM_HOT_POST_TTL: int = Field(default=30)
+    CACHE_FORUM_HOT_POST_TTL: int = Field(default=90)
+    CACHE_FORUM_POST_DETAIL_TTL: int = Field(default=180)
+
+    # 浏览量计数器回写周期（秒）
+    VIEW_COUNTER_FLUSH_INTERVAL_SECONDS: int = Field(default=180)
 
     POSTGRES_HOST: str = Field(default="localhost")
     POSTGRES_PORT: int = Field(default=5432)

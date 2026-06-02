@@ -36,6 +36,7 @@ from app.infrastructure.llm_client import (
 from app.infrastructure.embedding_client import init_embedding_client, close_embedding_client
 from app.infrastructure.checkpoint_client import init_checkpoint_client, close_checkpoint_client
 from app.infrastructure.background_tasks import background_task_manager
+from app.infrastructure.view_counter import view_counter_flush_loop
 from app.core.config import settings
 from contextlib import asynccontextmanager
 from alembic.config import Config
@@ -72,6 +73,11 @@ async def lifespan(app: FastAPI):
     await init_checkpoint_client()
     # 恢复因重启中断的 OpenAPI 解析任务
     recover_pending_documents()
+    # 启动浏览量计数器回写后台协程
+    background_task_manager.create_task(
+        view_counter_flush_loop(),
+        name="view_counter.flush_loop",
+    )
     yield
     # 关闭时
     await background_task_manager.shutdown(timeout=10)

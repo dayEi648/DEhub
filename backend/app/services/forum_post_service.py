@@ -19,6 +19,7 @@ from app.infrastructure.cache import (
     release_cache_lock,
 )
 from app.infrastructure.cache_invalidator import ForumCacheInvalidator
+from app.infrastructure.view_counter import ViewCounter
 from app.core.config import settings
 from app.storage.oss import convert_oss_url_to_file_path, extract_oss_image_urls_from_markdown
 from app.services.oss_cleanup_service import OssCleanupService
@@ -143,16 +144,30 @@ class ForumPostService:
                 source="forum.post.delete",
             )
 
-    def get_post(self, post_id: int) -> ForumPost:
+    def get_post(self, post_id: int) -> ForumPostResponse:
+        cache_key = build_cache_key("forum_posts:detail", {"post_id": post_id})
+        cached = get_json_cache(cache_key, ForumPostResponse)
+        if cached is not None:
+            ViewCounter.incr_forum_post_view_count(post_id, self.db)
+            merged_vc = ViewCounter.get_forum_post_view_count(post_id, cached.view_count)
+            if merged_vc != cached.view_count:
+                cached = cached.model_copy(update={"view_count": merged_vc})
+            return cached
+
         db_post = forum_post_crud.get_post_by_id(self.db, post_id)
         if not db_post:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="帖子不存在"
             )
 
-        forum_post_crud.increment_post_view_count(self.db, post_id)
-        self.db.refresh(db_post)
-        return db_post
+        ViewCounter.incr_forum_post_view_count(post_id, self.db)
+        db_post.view_count = ViewCounter.get_forum_post_view_count(post_id, db_post.view_count)
+
+        result = ForumPostResponse.model_validate(db_post)
+        set_json_cache(
+            cache_key, result, settings.CACHE_FORUM_POST_DETAIL_TTL, tags=["forum_posts"]
+        )
+        return result
 
     def list_posts(
         self,
@@ -194,8 +209,15 @@ class ForumPostService:
         items, total = forum_post_crud.get_posts(
             self.db, zone_id=zone_id, sort_by=sort_by, skip=skip, limit=limit
         )
+        list_items = []
+        for post in items:
+            item = ForumPostListItem.model_validate(post)
+            merged_view_count = ViewCounter.get_forum_post_view_count(post.id, post.view_count)
+            if merged_view_count != post.view_count:
+                item = item.model_copy(update={"view_count": merged_view_count})
+            list_items.append(item)
         result = ForumPostListResponse(
-            items=[ForumPostListItem.model_validate(post) for post in items],
+            items=list_items,
             total=total,
         )
 
