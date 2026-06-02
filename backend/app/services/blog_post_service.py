@@ -308,9 +308,7 @@ class BlogPostService:
         """构建列表项，若 summary 为空则自动从正文截取纯文本摘要。"""
         item = BlogPostListItem.model_validate(post)
         if not item.summary and post.content_md:
-            return item.model_construct(
-                **{**item.model_dump(), "summary": extract_plain_text_summary(post.content_md)}
-            )
+            return item.model_copy(update={"summary": extract_plain_text_summary(post.content_md)})
         return item
 
     def _build_detail_response(self, db_post: BlogPost, current_user: User) -> BlogPostDetailResponse:
