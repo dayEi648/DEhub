@@ -92,10 +92,20 @@ request.interceptors.response.use(
         }
       }
 
-      // 刷新失败、无 refresh token、或前置拦截的过期 token：统一清理并提示
-      clearAuth()
-      showAuthToast()
-      window.dispatchEvent(new CustomEvent('unauthorized'))
+      // 登录请求返回 401 时，应显示后端具体错误（如"用户不存在或密码错误"），
+      // 而不是提示"请先登录"
+      const isLoginRequest = originalRequest.url?.includes('users/login') ?? false
+      if (isLoginRequest) {
+        const msg = parseErrorMessage(error, '登录失败，请稍后重试')
+        if (msg) {
+          toast.error(msg)
+        }
+      } else {
+        // 刷新失败、无 refresh token、或前置拦截的过期 token：统一清理并提示
+        clearAuth()
+        showAuthToast()
+        window.dispatchEvent(new CustomEvent('unauthorized'))
+      }
       markAuthError(error)
       return Promise.reject(error)
     }
