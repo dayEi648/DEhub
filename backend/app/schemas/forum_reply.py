@@ -7,7 +7,7 @@ from app.schemas.user import UserBriefInfo
 class ForumReplyBase(BaseModel):
     """论坛回复基础字段"""
     post_id: int = Field(ge=1)
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=50000)
 
 
 class ForumReplyCreate(ForumReplyBase):
@@ -30,7 +30,7 @@ class ForumReplyResponse(ForumReplyBase):
 
 class ForumReplyContent(BaseModel):
     """嵌套路由下仅需 content，post_id 来自路径参数"""
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=50000)
 
 
 class ForumReplyListResponse(BaseModel):

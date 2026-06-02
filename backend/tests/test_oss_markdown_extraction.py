@@ -88,3 +88,48 @@ class TestExtractOssImageUrlsFromMarkdown:
         urls = extract_oss_image_urls_from_markdown(content)
         assert len(urls) == 1
         assert urls[0] == "https://cdn.example.com/uploads/images/20240101/abc.jpg"
+
+    @patch("app.storage.oss.settings.OSS_DOMAIN", "https://cdn.example.com")
+    @patch("app.storage.oss.settings.OSS_BUCKET_NAME", "my-bucket")
+    @patch("app.storage.oss.settings.OSS_ENDPOINT", "oss-cn-beijing.aliyuncs.com")
+    def test_url_with_unescaped_parenthesis(self):
+        """URL 中含未转义的 ) 应被正确提取（原正则无法处理）"""
+        content = "![图](https://cdn.example.com/uploads/images/20240101/image(1).jpg)"
+        urls = extract_oss_image_urls_from_markdown(content)
+        assert len(urls) == 1
+        assert urls[0] == "https://cdn.example.com/uploads/images/20240101/image(1).jpg"
+
+    @patch("app.storage.oss.settings.OSS_DOMAIN", "https://cdn.example.com")
+    @patch("app.storage.oss.settings.OSS_BUCKET_NAME", "my-bucket")
+    @patch("app.storage.oss.settings.OSS_ENDPOINT", "oss-cn-beijing.aliyuncs.com")
+    def test_url_with_nested_parentheses(self):
+        """URL 中含多层嵌套括号应被正确提取"""
+        content = "![图](https://cdn.example.com/uploads/images/20240101/img(a(b)).jpg)"
+        urls = extract_oss_image_urls_from_markdown(content)
+        assert len(urls) == 1
+        assert urls[0] == "https://cdn.example.com/uploads/images/20240101/img(a(b)).jpg"
+
+    @patch("app.storage.oss.settings.OSS_DOMAIN", "https://cdn.example.com")
+    @patch("app.storage.oss.settings.OSS_BUCKET_NAME", "my-bucket")
+    @patch("app.storage.oss.settings.OSS_ENDPOINT", "oss-cn-beijing.aliyuncs.com")
+    def test_url_followed_by_extra_closing_parenthesis(self):
+        """URL 后紧跟其他 ) 时不应过度匹配"""
+        content = "![图](https://cdn.example.com/uploads/images/20240101/abc.jpg) (caption)"
+        urls = extract_oss_image_urls_from_markdown(content)
+        assert len(urls) == 1
+        assert urls[0] == "https://cdn.example.com/uploads/images/20240101/abc.jpg"
+
+    @patch("app.storage.oss.settings.OSS_DOMAIN", "https://cdn.example.com")
+    @patch("app.storage.oss.settings.OSS_BUCKET_NAME", "my-bucket")
+    @patch("app.storage.oss.settings.OSS_ENDPOINT", "oss-cn-beijing.aliyuncs.com")
+    def test_multiple_images_with_parentheses_in_urls(self):
+        """多个含括号的图片 URL 混合场景"""
+        content = """
+![图1](https://cdn.example.com/uploads/images/20240101/image(1).jpg)
+![图2](https://cdn.example.com/uploads/images/20240101/img(a(b)).png)
+![外部](https://external.com/pic(1).jpg)
+"""
+        urls = extract_oss_image_urls_from_markdown(content)
+        assert len(urls) == 2
+        assert urls[0] == "https://cdn.example.com/uploads/images/20240101/image(1).jpg"
+        assert urls[1] == "https://cdn.example.com/uploads/images/20240101/img(a(b)).png"

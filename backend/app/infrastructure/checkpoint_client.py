@@ -8,12 +8,9 @@ import logging
 from app.core.config import settings
 from app.redis_client import get_checkpoint_redis_client, get_sync_redis_client
 
-from .redis_checkpoint import AsyncRedisCheckpointSaver
+from .redis_checkpoint import AsyncRedisCheckpointSaver, _CKPT_PREFIX, _WRITE_PREFIX
 
 logger = logging.getLogger(__name__)
-
-_CKPT_PREFIX = "dehub:ckpt"
-_WRITE_PREFIX = "dehub:write"
 
 _checkpointer: AsyncRedisCheckpointSaver | None = None
 

@@ -39,8 +39,9 @@ def favorite_blog_post(slug: str) -> str:
     if not user_id:
         return "错误：无法获取当前用户身份，请确认已登录。"
 
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         service = UserFavoriteService(db)
         service.favorite_blog_post_by_slug(slug, user_id)
         return "收藏成功。"
@@ -50,7 +51,8 @@ def favorite_blog_post(slug: str) -> str:
         logger.exception("收藏博客失败: slug=%s user=%s", slug, user_id)
         return "收藏服务暂时不可用，请稍后再试。"
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 @tool
@@ -70,8 +72,9 @@ def unfavorite_blog_post(slug: str) -> str:
     if not user_id:
         return "错误：无法获取当前用户身份，请确认已登录。"
 
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         service = UserFavoriteService(db)
         service.unfavorite_blog_post_by_slug(slug, user_id)
         return "已取消收藏。"
@@ -81,7 +84,8 @@ def unfavorite_blog_post(slug: str) -> str:
         logger.exception("取消收藏博客失败: slug=%s user=%s", slug, user_id)
         return "取消收藏服务暂时不可用，请稍后再试。"
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 # ------------------------------------------------------------------
@@ -99,8 +103,9 @@ def list_forum_zones() -> str:
     Returns:
         str: 格式化后的论坛分区列表
     """
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         zones = forum_zone_crud.get_all_zones(db)
         if not zones:
             return "当前网站暂无论坛分区。"
@@ -116,7 +121,8 @@ def list_forum_zones() -> str:
         logger.exception("列出论坛分区失败")
         return "论坛分区列表获取失败，请稍后再试。"
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 @tool
@@ -136,8 +142,9 @@ def follow_forum_zone(zone_id: int) -> str:
     if not user_id:
         return "错误：无法获取当前用户身份，请确认已登录。"
 
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         service = UserFavoriteService(db)
         service.follow_zone_by_id(zone_id, user_id)
         return "关注成功。"
@@ -147,7 +154,8 @@ def follow_forum_zone(zone_id: int) -> str:
         logger.exception("关注分区失败: zone_id=%s user=%s", zone_id, user_id)
         return "关注服务暂时不可用，请稍后再试。"
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 @tool
@@ -167,8 +175,9 @@ def unfollow_forum_zone(zone_id: int) -> str:
     if not user_id:
         return "错误：无法获取当前用户身份，请确认已登录。"
 
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         service = UserFavoriteService(db)
         service.unfollow_zone_by_id(zone_id, user_id)
         return "已取消关注。"
@@ -178,7 +187,8 @@ def unfollow_forum_zone(zone_id: int) -> str:
         logger.exception("取消关注分区失败: zone_id=%s user=%s", zone_id, user_id)
         return "取消关注服务暂时不可用，请稍后再试。"
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 # ------------------------------------------------------------------
@@ -198,8 +208,9 @@ def get_blog_post_detail(slug: str) -> str:
     Returns:
         str: 博客标题和完整正文
     """
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         post = blog_post_crud.get_blog_post_by_slug(db, slug)
         if not post or post.status != "published":
             return "未找到该博客文章，或文章尚未发布。"
@@ -210,7 +221,8 @@ def get_blog_post_detail(slug: str) -> str:
         logger.exception("获取博客详情失败: slug=%s", slug)
         return "博客详情获取失败，请稍后再试。"
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 @tool
@@ -228,8 +240,9 @@ def list_my_blog_favorites() -> str:
     if not user_id:
         return "错误：无法获取当前用户身份，请确认已登录。"
 
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         items, total = favorite_crud.get_user_blog_post_favorites(
             db, user_id=user_id, skip=0, limit=100, status="published"
         )
@@ -244,7 +257,8 @@ def list_my_blog_favorites() -> str:
         logger.exception("获取博客收藏列表失败: user=%s", user_id)
         return "收藏列表获取失败，请稍后再试。"
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 @tool
@@ -262,8 +276,9 @@ def list_my_zone_follows() -> str:
     if not user_id:
         return "错误：无法获取当前用户身份，请确认已登录。"
 
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         items, total = favorite_crud.get_user_zone_follows(
             db, user_id=user_id, skip=0, limit=100
         )
@@ -278,4 +293,5 @@ def list_my_zone_follows() -> str:
         logger.exception("获取分区关注列表失败: user=%s", user_id)
         return "关注列表获取失败，请稍后再试。"
     finally:
-        db.close()
+        if db:
+            db.close()

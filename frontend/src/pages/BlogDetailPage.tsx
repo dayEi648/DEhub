@@ -23,6 +23,8 @@ import {
 } from 'lucide-react'
 import UserAvatar from '../components/UserAvatar'
 import ReplyEditor from '../components/ReplyEditor'
+import { Skeleton } from '../components/ui/Skeleton'
+import ErrorState from '../components/ui/ErrorState'
 import {
   getBlogPostBySlug,
   getBlogCategories,
@@ -215,7 +217,11 @@ function InnerReplyItem({
                 padding: 0,
               }}
             >
-              <Heart size={12} fill={comment.is_liked ? 'var(--color-primary)' : 'none'} />
+              <Heart
+                size={12}
+                fill={comment.is_liked ? 'var(--color-primary)' : 'none'}
+                className={comment.is_liked ? 'animate-heart-beat' : ''}
+              />
               {comment.likecount}
             </button>
 
@@ -410,7 +416,11 @@ function SurfaceCommentItem({
                 padding: 0,
               }}
             >
-              <Heart size={14} fill={comment.is_liked ? 'var(--color-primary)' : 'none'} />
+              <Heart
+                size={14}
+                fill={comment.is_liked ? 'var(--color-primary)' : 'none'}
+                className={comment.is_liked ? 'animate-heart-beat' : ''}
+              />
               {comment.likecount}
             </button>
 
@@ -956,8 +966,13 @@ export default function BlogDetailPage() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
         <AppTopNav onLogout={handleLogout} />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-muted)' }}>
-          加载中...
+        <div style={{ flex: 1, padding: 'var(--spacing-xl) var(--spacing-xl)' }}>
+          <div style={{ maxWidth: 800, margin: '0 auto' }}>
+            <Skeleton.Text lines={4} />
+            <div style={{ marginTop: 'var(--spacing-lg)' }}>
+              <Skeleton.Text lines={12} />
+            </div>
+          </div>
         </div>
         <Footer />
       </div>
@@ -968,29 +983,10 @@ export default function BlogDetailPage() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
         <AppTopNav onLogout={handleLogout} />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-muted)', gap: 'var(--spacing-md)' }}>
-          <BookOpen size={48} style={{ opacity: 0.3 }} />
-          <p style={{ fontSize: 16, margin: 0 }}>{error || '文章不存在'}</p>
-          <button
-            onClick={() => navigate('/blogs')}
-            style={{
-              padding: '10px var(--spacing-lg)',
-              backgroundColor: 'var(--color-primary)',
-              color: 'var(--color-on-primary)',
-              borderRadius: 'var(--rounded-md)',
-              fontSize: 14,
-              fontWeight: 500,
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <ArrowLeft size={14} />
-            返回博客列表
-          </button>
-        </div>
+        <ErrorState
+          title={error || '文章不存在'}
+          onRetry={() => navigate('/blogs')}
+        />
         <Footer />
       </div>
     )

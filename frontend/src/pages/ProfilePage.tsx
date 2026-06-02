@@ -37,6 +37,7 @@ import type { ForumPostListItem, ForumZone } from '../types/forum'
 import { parseErrorMessage } from '../utils/error'
 import { validateImageFile, createImagePreview } from '../utils/upload'
 import UserAvatar from '../components/UserAvatar'
+import { Skeleton } from '../components/ui/Skeleton'
 
 type TabKey = 'profile' | 'security' | 'favorites'
 type FavSubTab = 'zones' | 'posts' | 'blogs'
@@ -490,23 +491,13 @@ export default function ProfilePage() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: 'var(--color-muted)',
         }}
       >
-        <div style={{ textAlign: 'center' }}>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              border: '3px solid var(--color-hairline)',
-              borderTopColor: 'var(--color-primary)',
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite',
-              margin: '0 auto var(--spacing-md)',
-            }}
-          />
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          <span style={{ fontSize: 14 }}>加载中…</span>
+        <div style={{ width: '100%', maxWidth: 480, padding: 'var(--spacing-xl)' }}>
+          <Skeleton.Avatar size={64} />
+          <div style={{ marginTop: 'var(--spacing-lg)' }}>
+            <Skeleton.Text lines={8} />
+          </div>
         </div>
       </div>
     )

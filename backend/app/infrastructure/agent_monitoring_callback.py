@@ -25,7 +25,10 @@ logger = logging.getLogger(__name__)
 
 # 模块级缓冲：trace_id -> trace_data
 # 在 graph 级 on_chain_end 时统一写入
-_trace_buffers: dict[str, dict[str, Any]] = {}
+# 使用 OrderedDict + 容量上限，防止极端情况下内存无限增长
+from collections import OrderedDict
+_trace_buffers: OrderedDict[str, dict[str, Any]] = OrderedDict()
+_MAX_TRACE_BUFFER_SIZE = 1000
 
 
 class AgentMonitoringCallback(AsyncCallbackHandler):
@@ -120,6 +123,9 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
                         if isinstance(content, str):
                             input_message = content
 
+                # 容量保护：超出上限时淘汰最旧的 trace
+                if len(_trace_buffers) >= _MAX_TRACE_BUFFER_SIZE:
+                    _trace_buffers.popitem(last=False)
                 _trace_buffers[self.trace_id] = {
                     "trace_id": self.trace_id,
                     "user_id": user_id,

@@ -63,7 +63,7 @@ export default function RegisterPage() {
 
       {/* Right: Form panel */}
       <div
-        className="auth-form-panel"
+        className="auth-form-panel animate-fadeInRight"
         style={{
           backgroundColor: '#faf9f5',
           padding: 'var(--spacing-xl)',

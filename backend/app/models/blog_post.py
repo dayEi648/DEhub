@@ -34,7 +34,7 @@ class BlogPost(Base):
     category: Mapped["BlogCategory"] = relationship("BlogCategory", back_populates="posts")
     tags: Mapped[list[str]] = mapped_column(ARRAY(TEXT), default=list)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
-    view_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    view_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     comment_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

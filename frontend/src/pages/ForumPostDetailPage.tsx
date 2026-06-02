@@ -36,6 +36,8 @@ import { getUser } from '../utils/auth'
 import { isAuthError } from '../utils/error'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
+import { Skeleton } from '../components/ui/Skeleton'
+import ErrorState from '../components/ui/ErrorState'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate, formatDateTime } from '../utils/format'
 import type { ForumPost, ForumReply, ForumZone } from '../types/forum'
@@ -909,8 +911,13 @@ export default function ForumPostDetailPage() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
         <AppTopNav onLogout={handleLogout} />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-muted)' }}>
-          加载中...
+        <div style={{ flex: 1, padding: 'var(--spacing-xl) var(--spacing-xl)' }}>
+          <div style={{ maxWidth: 800, margin: '0 auto' }}>
+            <Skeleton.Text lines={6} />
+            <div style={{ marginTop: 'var(--spacing-lg)' }}>
+              <Skeleton.List count={5} />
+            </div>
+          </div>
         </div>
         <Footer />
       </div>
@@ -921,29 +928,10 @@ export default function ForumPostDetailPage() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
         <AppTopNav onLogout={handleLogout} />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-muted)', gap: 'var(--spacing-md)' }}>
-          <MessageCircle size={48} style={{ opacity: 0.3 }} />
-          <p style={{ fontSize: 16, margin: 0 }}>{error || '帖子不存在'}</p>
-          <button
-            onClick={() => navigate('/forums')}
-            style={{
-              padding: '10px var(--spacing-lg)',
-              backgroundColor: 'var(--color-primary)',
-              color: 'var(--color-on-primary)',
-              borderRadius: 'var(--rounded-md)',
-              fontSize: 14,
-              fontWeight: 500,
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <ArrowLeft size={14} />
-            返回论坛
-          </button>
-        </div>
+        <ErrorState
+          title={error || '帖子不存在'}
+          onRetry={() => navigate('/forums')}
+        />
         <Footer />
       </div>
     )

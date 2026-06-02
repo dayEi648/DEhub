@@ -961,12 +961,12 @@ class ChatService:
                         span_type="compact",
                         span_name="context_compact",
                         input_data={
-                            "transcript_chars": len(transcript) if 'transcript' in dir() else None,
+                            "transcript_chars": len(transcript),
                             "last_prompt_tokens": result.get("last_prompt_tokens"),
                             "last_total_tokens": result.get("last_total_tokens"),
                         },
                         output_data={
-                            "summary_chars": len(summary) if 'summary' in dir() else None,
+                            "summary_chars": len(summary),
                         },
                     ),
                     name=f"agent_monitoring.span.compact.{trace_id}",

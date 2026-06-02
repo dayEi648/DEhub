@@ -51,8 +51,9 @@ def search_openapi_docs(
     if not query or not query.strip():
         return "未提供有效的搜索关键词。"
 
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         service = OpenAPIEmbeddingService(db)
         results = service.search(
             query.strip(),
@@ -91,4 +92,5 @@ def search_openapi_docs(
         logger.exception("OpenAPI 知识库检索失败")
         raise ToolException("OpenAPI 知识库检索服务暂时不可用。") from exc
     finally:
-        db.close()
+        if db:
+            db.close()

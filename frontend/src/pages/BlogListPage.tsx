@@ -23,6 +23,10 @@ import BaseModal from '../components/BaseModal'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import Pagination from '../components/Pagination'
+import StaggerChildren from '../components/ui/StaggerChildren'
+import { Skeleton } from '../components/ui/Skeleton'
+import EmptyState from '../components/ui/EmptyState'
+import ErrorState from '../components/ui/ErrorState'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate } from '../utils/format'
 import type { BlogPostListItem, BlogCategoryWithPostCount } from '../types/blog'
@@ -241,6 +245,7 @@ function BlogCard({ blog }: { blog: BlogPostListItem }) {
   return (
     <article
       onClick={() => navigate(`/blogs/${blog.slug}`)}
+      className="card-lift"
       style={{
         backgroundColor: 'var(--color-surface-card)',
         borderRadius: 'var(--rounded-lg)',
@@ -248,15 +253,6 @@ function BlogCard({ blog }: { blog: BlogPostListItem }) {
         display: 'flex',
         flexDirection: 'column',
         cursor: 'pointer',
-        transition: 'transform 150ms ease, box-shadow 150ms ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(20,20,19,0.06)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
       }}
     >
       {/* Cover image */}
@@ -689,24 +685,25 @@ export default function BlogListPage() {
             </div>
           )}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-muted)' }}>
-              加载中...
-            </div>
+            <Skeleton.CardGrid count={6} />
           ) : error ? (
-            <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-error)' }}>
-              {error}
-            </div>
+            <ErrorState title="加载文章失败" description={error} onRetry={fetchBlogs} />
           ) : blogs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-muted)' }}>
-              <BookOpen size={48} style={{ marginBottom: 'var(--spacing-md)', opacity: 0.3 }} />
-              <p style={{ fontSize: 16, margin: 0 }}>暂无文章</p>
-              <p style={{ fontSize: 14, color: 'var(--color-muted-soft)', marginTop: 'var(--spacing-xs)' }}>
-                {activeSearch || activeCategory ? '尝试切换筛选条件' : '敬请期待'}
-              </p>
-            </div>
+            <EmptyState
+              icon={BookOpen}
+              title="暂无文章"
+              description={activeSearch || activeCategory ? '尝试切换筛选条件' : '敬请期待'}
+              action={
+                isSuperAdmin
+                  ? { label: '新建文章', onClick: () => setShowEditor(true) }
+                  : undefined
+              }
+            />
           ) : (
             <>
-              <div
+              <StaggerChildren
+                animation="fadeInUp"
+                staggerDelay={0.06}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -716,7 +713,7 @@ export default function BlogListPage() {
                 {blogs.map((blog) => (
                   <BlogCard key={blog.id} blog={blog} />
                 ))}
-              </div>
+              </StaggerChildren>
               <Pagination current={page} total={totalPages} onChange={setPage} />
             </>
           )}

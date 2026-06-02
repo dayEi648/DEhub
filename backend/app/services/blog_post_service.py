@@ -445,6 +445,6 @@ class BlogPostService:
             if not is_hot_key or lock_acquired:
                 set_json_cache(cache_key, result, ttl, tags=["blog_posts"])
             if lock_acquired:
-                release_cache_lock(cache_key)
+                release_cache_lock(cache_key, lock_acquired)
 
         return result

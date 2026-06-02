@@ -136,18 +136,22 @@ async def upload_document(
             detail="未上传文件",
         )
 
+    # 先检查原始文件大小，防止超大文件导致内存耗尽
+    raw_file = file.file
+    raw_file.seek(0, 2)
+    raw_size = raw_file.tell()
+    raw_file.seek(0)
+    if raw_size > settings.OPENAPI_UPLOAD_MAX_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="文件超过大小限制（10MB）",
+        )
+
     content = await file.read()
     if not content:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="空文件",
-        )
-
-    # 文件大小限制
-    if len(content) > settings.OPENAPI_UPLOAD_MAX_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="文件超过大小限制（10MB）",
         )
 
     filename = file.filename

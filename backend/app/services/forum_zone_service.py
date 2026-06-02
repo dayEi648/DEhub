@@ -143,7 +143,7 @@ class ForumZoneService:
         delete_zone_manager_cache(zone_id)
         ForumCacheInvalidator.invalidate_forum_zones()
 
-    def get_zone(self, zone_id: int) -> ForumZone:
+    def get_zone(self, zone_id: int) -> ForumZoneResponse:
         cache_key = build_cache_key("forum_zones:id", {"zone_id": zone_id})
         cached = get_json_cache(cache_key, ForumZoneResponse)
         if cached is not None:
@@ -161,7 +161,7 @@ class ForumZoneService:
         )
         return result
 
-    def get_zone_by_slug(self, slug: str) -> ForumZone:
+    def get_zone_by_slug(self, slug: str) -> ForumZoneResponse:
         cache_key = build_cache_key("forum_zones:slug", {"slug": slug})
         cached = get_json_cache(cache_key, ForumZoneResponse)
         if cached is not None:
@@ -179,7 +179,7 @@ class ForumZoneService:
         )
         return result
 
-    def list_zones(self) -> list[ForumZone]:
+    def list_zones(self) -> list[ForumZoneResponse]:
         cache_key = build_cache_key("forum_zones:list")
         cached = get_json_cache(cache_key, list[ForumZoneResponse])
         if cached is not None:

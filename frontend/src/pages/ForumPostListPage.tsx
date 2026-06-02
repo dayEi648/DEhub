@@ -20,6 +20,10 @@ import { isAuthError } from '../utils/error'
 import AppTopNav from '../components/AppTopNav'
 import Footer from '../components/Footer'
 import Pagination from '../components/Pagination'
+import StaggerChildren from '../components/ui/StaggerChildren'
+import { Skeleton } from '../components/ui/Skeleton'
+import EmptyState from '../components/ui/EmptyState'
+import ErrorState from '../components/ui/ErrorState'
 import { useLogout } from '../hooks/useLogout'
 import { formatDate } from '../utils/format'
 import { usePasteImageUpload } from '../hooks/usePasteImageUpload'
@@ -150,6 +154,7 @@ function PostCard({ post }: { post: ForumPostListItem }) {
   return (
     <div
       onClick={() => navigate(`/forums/p/${post.id}`)}
+      className="coral-bar-hover"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -157,14 +162,7 @@ function PostCard({ post }: { post: ForumPostListItem }) {
         padding: 'var(--spacing-md) var(--spacing-lg)',
         borderRadius: 'var(--rounded-md)',
         cursor: 'pointer',
-        transition: 'background-color 150ms ease',
         borderBottom: '1px solid var(--color-hairline-soft)',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'transparent'
       }}
     >
       {/* Avatar */}
@@ -307,29 +305,7 @@ export default function ForumPostListPage() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-canvas)' }}>
         <AppTopNav onLogout={handleLogout} />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-muted)', gap: 'var(--spacing-md)' }}>
-          <MessageSquare size={48} style={{ opacity: 0.3 }} />
-          <p style={{ fontSize: 16, margin: 0 }}>{error}</p>
-          <button
-            onClick={() => navigate('/forums')}
-            style={{
-              padding: '10px var(--spacing-lg)',
-              backgroundColor: 'var(--color-primary)',
-              color: 'var(--color-on-primary)',
-              borderRadius: 'var(--rounded-md)',
-              fontSize: 14,
-              fontWeight: 500,
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <ArrowLeft size={14} />
-            返回论坛首页
-          </button>
-        </div>
+        <ErrorState title={error} onRetry={() => navigate('/forums')} />
         <Footer />
       </div>
     )
@@ -550,17 +526,14 @@ export default function ForumPostListPage() {
 
           {/* List */}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-muted)' }}>
-              加载中...
-            </div>
+            <Skeleton.List count={8} />
           ) : posts.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-muted)' }}>
-              <MessageSquare size={48} style={{ marginBottom: 'var(--spacing-md)', opacity: 0.3 }} />
-              <p style={{ fontSize: 16, margin: 0 }}>暂无帖子</p>
-              <p style={{ fontSize: 14, color: 'var(--color-muted-soft)', marginTop: 'var(--spacing-xs)' }}>
-                快来发表第一篇帖子吧
-              </p>
-            </div>
+            <EmptyState
+              icon={MessageSquare}
+              title="暂无帖子"
+              description="快来发表第一篇帖子吧"
+              action={{ label: '发表新帖', onClick: () => setShowCreateModal(true) }}
+            />
           ) : (
             <div
               style={{
@@ -569,9 +542,11 @@ export default function ForumPostListPage() {
                 overflow: 'hidden',
               }}
             >
-              {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
-              ))}
+              <StaggerChildren animation="fadeInUp" staggerDelay={0.04}>
+                {posts.map((post) => (
+                  <PostCard key={post.id} post={post} />
+                ))}
+              </StaggerChildren>
             </div>
           )}
 

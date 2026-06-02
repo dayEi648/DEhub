@@ -15,6 +15,10 @@ import { getUser } from '../utils/auth'
 import { isAuthError } from '../utils/error'
 import ZoneEditorModal from '../components/ZoneEditorModal'
 import AppTopNav from '../components/AppTopNav'
+import StaggerChildren from '../components/ui/StaggerChildren'
+import { Skeleton } from '../components/ui/Skeleton'
+import EmptyState from '../components/ui/EmptyState'
+import ErrorState from '../components/ui/ErrorState'
 import { useLogout } from '../hooks/useLogout'
 import type { ForumZone } from '../types/forum'
 
@@ -98,6 +102,7 @@ function ZoneCard({
   return (
     <article
       onClick={() => navigate(`/forums/z/${zone.slug}`)}
+      className="card-lift"
       style={{
         backgroundColor: 'var(--color-surface-card)',
         borderRadius: 'var(--rounded-lg)',
@@ -106,15 +111,6 @@ function ZoneCard({
         flexDirection: 'column',
         gap: 'var(--spacing-sm)',
         cursor: 'pointer',
-        transition: 'transform 150ms ease, box-shadow 150ms ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(20,20,19,0.06)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 2 }}>
@@ -357,20 +353,20 @@ export default function ForumZoneListPage() {
             </div>
           )}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-muted)' }}>
-              加载中...
-            </div>
+            <Skeleton.CardGrid count={6} />
           ) : error ? (
-            <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-error)' }}>
-              {error}
-            </div>
+            <ErrorState title="加载分区失败" description={error} onRetry={fetchZones} />
           ) : zones.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 'var(--spacing-section) 0', color: 'var(--color-muted)' }}>
-              <LayoutGrid size={48} style={{ marginBottom: 'var(--spacing-md)', opacity: 0.3 }} />
-              <p style={{ fontSize: 16, margin: 0 }}>暂无分区</p>
-            </div>
+            <EmptyState
+              icon={LayoutGrid}
+              title="暂无分区"
+              description="快来创建第一个分区吧"
+              action={isAdmin ? { label: '新建分区', onClick: () => setShowEditor(true) } : undefined}
+            />
           ) : (
-            <div
+            <StaggerChildren
+              animation="fadeInUp"
+              staggerDelay={0.08}
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
@@ -390,7 +386,7 @@ export default function ForumZoneListPage() {
                   onDelete={handleDelete}
                 />
               ))}
-            </div>
+            </StaggerChildren>
           )}
         </div>
       </section>

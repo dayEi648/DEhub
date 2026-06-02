@@ -16,6 +16,10 @@ import {
 import { getBlogPostList } from '../api/blog'
 import { getForumPostList, getForumZoneList } from '../api/forum'
 import AppTopNav from '../components/AppTopNav'
+import AnimatedSection from '../components/ui/AnimatedSection'
+import StaggerChildren from '../components/ui/StaggerChildren'
+import { Skeleton } from '../components/ui/Skeleton'
+import ErrorState from '../components/ui/ErrorState'
 import { useLogout } from '../hooks/useLogout'
 import { useViewport } from '../hooks/useViewport'
 import { formatDate } from '../utils/format'
@@ -53,6 +57,7 @@ function HeroSection() {
         {/* Left: Text */}
         <div>
           <div
+            className="animate-fadeInUp"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -73,6 +78,7 @@ function HeroSection() {
           </div>
 
           <h1
+            className="animate-fadeInUp delay-1"
             style={{
               fontFamily: 'var(--font-display)',
               fontSize: 'clamp(48px, 6vw, 80px)',
@@ -87,6 +93,7 @@ function HeroSection() {
           </h1>
 
           <p
+            className="animate-fadeInUp delay-2"
             style={{
               fontFamily: 'var(--font-display)',
               fontSize: 'clamp(20px, 2.5vw, 28px)',
@@ -101,6 +108,7 @@ function HeroSection() {
           </p>
 
           <div
+            className="animate-fadeInUp delay-2"
             style={{
               width: 48,
               height: 3,
@@ -111,6 +119,7 @@ function HeroSection() {
           />
 
           <p
+            className="animate-fadeInUp delay-3"
             style={{
               fontSize: 16,
               lineHeight: 1.6,
@@ -122,9 +131,10 @@ function HeroSection() {
             汇集技术博客、社区论坛与项目作品。记录学习思考，分享实战经验，与志同道合的开发者共同成长。
           </p>
 
-          <div style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
+          <div className="animate-fadeInUp delay-4" style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
             <a
               href="/blogs"
+              className="ripple-container"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -137,17 +147,21 @@ function HeroSection() {
                 fontSize: 14,
                 fontWeight: 500,
                 textDecoration: 'none',
-                transition: 'background-color 150ms ease',
+                transition: 'background-color 0.2s ease, transform 0.15s ease',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = 'var(--color-primary-active)'
+                const arrow = e.currentTarget.querySelector('.btn-arrow') as HTMLElement
+                if (arrow) arrow.style.transform = 'translateX(3px)'
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = 'var(--color-primary)'
+                const arrow = e.currentTarget.querySelector('.btn-arrow') as HTMLElement
+                if (arrow) arrow.style.transform = 'translateX(0)'
               }}
             >
               浏览博客
-              <ArrowRight size={15} />
+              <ArrowRight size={15} className="btn-arrow" style={{ transition: 'transform 0.2s ease' }} />
             </a>
             <a
               href="#forum"
@@ -164,7 +178,7 @@ function HeroSection() {
                 fontWeight: 500,
                 textDecoration: 'none',
                 border: '1px solid var(--color-hairline)',
-                transition: 'background-color 150ms ease',
+                transition: 'background-color 0.2s ease, transform 0.15s ease',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = 'var(--color-surface-soft)'
@@ -180,6 +194,7 @@ function HeroSection() {
 
         {/* Right: Code mockup card */}
         <div
+          className="animate-scaleIn delay-2"
           style={{
             backgroundColor: 'var(--color-surface-dark)',
             borderRadius: 'var(--rounded-xl)',
@@ -242,6 +257,7 @@ function BlogCard({ blog }: { blog: BlogPostListItem }) {
   return (
     <article
       onClick={() => navigate(`/blogs/${blog.slug}`)}
+      className="card-lift"
       style={{
         cursor: 'pointer',
         backgroundColor: 'var(--color-surface-card)',
@@ -250,15 +266,6 @@ function BlogCard({ blog }: { blog: BlogPostListItem }) {
         display: 'flex',
         flexDirection: 'column',
         gap: 'var(--spacing-sm)',
-        transition: 'transform 150ms ease, box-shadow 150ms ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(20,20,19,0.06)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', marginBottom: 2 }}>
@@ -399,6 +406,7 @@ function BlogSection({ blogs }: { blogs: BlogPostListItem[] }) {
           </div>
           <button
             onClick={() => navigate('/blogs')}
+            className="ripple-container"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -411,23 +419,31 @@ function BlogSection({ blogs }: { blogs: BlogPostListItem[] }) {
               fontWeight: 500,
               border: 'none',
               cursor: 'pointer',
-              transition: 'background-color 150ms ease',
+              transition: 'background-color 0.2s ease, transform 0.15s ease',
               flexShrink: 0,
               height: 40,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--color-primary-active)'
+              const arrow = e.currentTarget.querySelector('.btn-arrow') as HTMLElement
+              if (arrow) arrow.style.transform = 'translateX(3px)'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--color-primary)'
+              const arrow = e.currentTarget.querySelector('.btn-arrow') as HTMLElement
+              if (arrow) arrow.style.transform = 'translateX(0)'
             }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.97)' }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
           >
             查看全部
-            <ArrowRight size={14} />
+            <ArrowRight size={14} className="btn-arrow" style={{ transition: 'transform 0.2s ease' }} />
           </button>
         </div>
 
-        <div
+        <StaggerChildren
+          animation="fadeInUp"
+          staggerDelay={0.08}
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -437,7 +453,7 @@ function BlogSection({ blogs }: { blogs: BlogPostListItem[] }) {
           {blogs.map((blog) => (
             <BlogCard key={blog.id} blog={blog} />
           ))}
-        </div>
+        </StaggerChildren>
       </div>
     </section>
   )
@@ -584,10 +600,16 @@ function ForumSection({ posts, zones }: { posts: ForumPostListItem[]; zones: For
               <Flame size={16} color="var(--color-primary)" />
               热门帖子
             </h3>
+            <StaggerChildren
+              animation="fadeInUp"
+              staggerDelay={0.06}
+              style={{ display: 'flex', flexDirection: 'column' }}
+            >
             {posts.map((post, idx) => (
               <div
                 key={post.id}
                 onClick={() => navigate(`/forums/p/${post.id}`)}
+                className="coral-bar-hover"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -595,13 +617,6 @@ function ForumSection({ posts, zones }: { posts: ForumPostListItem[]; zones: For
                   padding: '14px 16px',
                   borderRadius: 'var(--rounded-md)',
                   cursor: 'pointer',
-                  transition: 'background-color 150ms ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent'
                 }}
               >
                 <span
@@ -654,6 +669,7 @@ function ForumSection({ posts, zones }: { posts: ForumPostListItem[]; zones: For
                 <ChevronRight size={16} color="var(--color-muted-soft)" />
               </div>
             ))}
+            </StaggerChildren>
           </div>
         </div>
       </div>
@@ -707,6 +723,7 @@ function PortfolioSection() {
           </p>
           <button
             onClick={() => navigate('/portfolio')}
+            className="ripple-container ripple-container--dark"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -720,17 +737,23 @@ function PortfolioSection() {
               fontWeight: 500,
               border: 'none',
               cursor: 'pointer',
-              transition: 'background-color 150ms ease',
+              transition: 'background-color 0.2s ease, transform 0.15s ease',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--color-surface-cream-strong)'
+              const arrow = e.currentTarget.querySelector('.btn-arrow') as HTMLElement
+              if (arrow) arrow.style.transform = 'translateX(3px)'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
+              const arrow = e.currentTarget.querySelector('.btn-arrow') as HTMLElement
+              if (arrow) arrow.style.transform = 'translateX(0)'
             }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.97)' }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
           >
             查看作品
-            <ArrowRight size={15} />
+            <ArrowRight size={15} className="btn-arrow" style={{ transition: 'transform 0.2s ease' }} />
           </button>
         </div>
       </div>
@@ -874,70 +897,31 @@ export default function HomePage() {
       <HeroSection />
 
       {loading ? (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 'var(--spacing-section)',
-            gap: 'var(--spacing-md)',
-            color: 'var(--color-muted)',
-          }}
-        >
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              border: '3px solid var(--color-hairline)',
-              borderTopColor: 'var(--color-primary)',
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          <span style={{ fontSize: 14 }}>正在加载内容…</span>
-        </div>
+        <Skeleton.Home />
       ) : error ? (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 'var(--spacing-section)',
-            gap: 'var(--spacing-md)',
-            color: 'var(--color-error)',
-          }}
-        >
-          <p style={{ fontSize: 14 }}>{error}</p>
-          <button
-            onClick={fetchData}
-            style={{
-              height: 36,
-              padding: '0 16px',
-              borderRadius: 'var(--rounded-md)',
-              backgroundColor: 'var(--color-primary)',
-              color: 'var(--color-on-primary)',
-              fontSize: 13,
-              fontWeight: 500,
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            重新加载
-          </button>
-        </div>
+        <ErrorState
+          title="数据加载失败"
+          description="请检查网络连接后刷新页面重试"
+          onRetry={fetchData}
+        />
       ) : (
         <>
-          {data.blogs.length > 0 && <BlogSection blogs={data.blogs} />}
+          {data.blogs.length > 0 && (
+            <AnimatedSection animation="fadeInUp">
+              <BlogSection blogs={data.blogs} />
+            </AnimatedSection>
+          )}
           {(data.hotPosts.length > 0 || data.zones.length > 0) && (
-            <ForumSection posts={data.hotPosts} zones={data.zones} />
+            <AnimatedSection animation="fadeInUp" delay={0.1}>
+              <ForumSection posts={data.hotPosts} zones={data.zones} />
+            </AnimatedSection>
           )}
         </>
       )}
 
-      <PortfolioSection />
+      <AnimatedSection animation="fadeInUp" delay={0.1}>
+        <PortfolioSection />
+      </AnimatedSection>
       <FooterSection />
 
       {/* Mobile responsive override for forum grid */}

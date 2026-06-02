@@ -6,7 +6,6 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useNavigate } from 'react-router-dom'
 import AppTopNav from '../components/AppTopNav'
-import Footer from '../components/Footer'
 import { useLogout } from '../hooks/useLogout'
 import { chatWithAI, deleteConversation, getConversationList, getConversationMessages } from '../api/aiChat'
 import { formatDateTime } from '../utils/format'
@@ -384,7 +383,8 @@ export default function AIChatPage() {
                   return (
                     <article
                       key={message.id}
-                      className={`ai-chat-bubble ai-chat-bubble--${message.role}`}
+                      className={`ai-chat-bubble ai-chat-bubble--${message.role} animate-fadeIn`}
+                      style={{ animationDuration: '0.25s' }}
                     >
                       <div className="ai-chat-bubble__meta">
                         <strong>{roleLabel(message.role)}</strong>
@@ -431,10 +431,25 @@ export default function AIChatPage() {
               <button
                 data-testid="ai-chat-send"
                 type="button"
+                className="ripple-container"
                 onClick={() => {
                   void handleSendMessage()
                 }}
                 disabled={sending || !inputValue.trim()}
+                style={{
+                  transition: 'background-color 0.2s ease, transform 0.1s ease',
+                }}
+                onMouseDown={(e) => {
+                  if (!sending && inputValue.trim()) {
+                    e.currentTarget.style.transform = 'scale(0.95)'
+                  }
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)'
+                }}
               >
                 <Send size={14} />
                 {sending ? '发送中...' : '发送'}
@@ -443,8 +458,6 @@ export default function AIChatPage() {
           </div>
         </section>
       </main>
-
-      <Footer />
     </div>
   )
 }

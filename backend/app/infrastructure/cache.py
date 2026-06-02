@@ -9,7 +9,7 @@ import json
 import logging
 import random
 import secrets
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, TypeAdapter
 

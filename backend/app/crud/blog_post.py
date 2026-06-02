@@ -40,7 +40,8 @@ def get_blog_posts(
     if tag:
         query = query.filter(BlogPost.tags.contains([tag]))
     if q:
-        query = query.filter(BlogPost.title.ilike(f"%{q}%"))
+        escaped_q = q.replace("%", r"\%").replace("_", r"\_")
+        query = query.filter(BlogPost.title.ilike(f"%{escaped_q}%", escape="\\"))
 
     return query.order_by(BlogPost.created_at.desc()).offset(skip).limit(limit).all()
 
@@ -61,7 +62,8 @@ def get_blog_posts_count(
     if tag:
         query = query.filter(BlogPost.tags.contains([tag]))
     if q:
-        query = query.filter(BlogPost.title.ilike(f"%{q}%"))
+        escaped_q = q.replace("%", r"\%").replace("_", r"\_")
+        query = query.filter(BlogPost.title.ilike(f"%{escaped_q}%", escape="\\"))
 
     return query.count()
 

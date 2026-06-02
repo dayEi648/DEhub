@@ -32,8 +32,9 @@ def list_blog_categories() -> str:
     Returns:
         str: 格式化后的分类列表，包含分类名称、slug 和文章数量。
     """
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         categories = blog_category_crud.get_all_categories(db)
         if not categories:
             return "当前网站暂无博客分类。"
@@ -54,4 +55,5 @@ def list_blog_categories() -> str:
         logger.exception("列出博客分类失败")
         raise ToolException("博客分类列表获取失败，请稍后再试。") from exc
     finally:
-        db.close()
+        if db:
+            db.close()

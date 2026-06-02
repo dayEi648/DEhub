@@ -28,9 +28,11 @@ def get_users(
     if not include_deleted:
         query = query.filter(User.is_deleted == False)
     if username:
-        query = query.filter(User.username.ilike(f"%{username}%"))
+        escaped_username = username.replace("%", r"\%").replace("_", r"\_")
+        query = query.filter(User.username.ilike(f"%{escaped_username}%", escape="\\"))
     if email:
-        query = query.filter(User.email.ilike(f"%{email}%"))
+        escaped_email = email.replace("%", r"\%").replace("_", r"\_")
+        query = query.filter(User.email.ilike(f"%{escaped_email}%", escape="\\"))
     if permission is not None:
         query = query.filter(User.permission == permission)
     total = query.count()

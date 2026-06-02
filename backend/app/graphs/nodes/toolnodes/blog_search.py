@@ -40,8 +40,9 @@ async def search_blog(query: str, category_slug: str | None = None) -> str:
     if not query or not query.strip():
         return "未提供有效的搜索关键词。"
 
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         blog_service = BlogPostEmbeddingService(db)
         blog_results = await blog_service.blog_post_embedding_search_multi_query(
             query.strip(),
@@ -70,4 +71,5 @@ async def search_blog(query: str, category_slug: str | None = None) -> str:
         logger.exception("博客向量检索失败")
         raise ToolException("博客检索服务暂时不可用。") from exc
     finally:
-        db.close()
+        if db:
+            db.close()

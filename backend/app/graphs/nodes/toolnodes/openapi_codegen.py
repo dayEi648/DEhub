@@ -52,8 +52,9 @@ def generate_openapi_call_example(
     if not query or not query.strip():
         return "未提供有效的搜索关键词。"
 
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         service = OpenAPIEmbeddingService(db)
         results = service.search(
             query.strip(),
@@ -68,20 +69,20 @@ def generate_openapi_call_example(
 
         parts = ["基于知识库中的以下接口，建议的调用示例：\n"]
         for result in results:
-            method = result["method"]
+            result_method = result["method"]
             path = result["path"]
             summary = result.get("summary", "")
             content = result.get("content", "")
 
             lines = [
-                f"【接口】{method} {path}",
+                f"【接口】{result_method} {path}",
             ]
             if summary:
                 lines.append(f"摘要：{summary}")
 
             # 提取 content 中的参数和请求体信息（结构化展示）
             lines.append("\n调用结构参考：")
-            lines.append(f"{method} {path}")
+            lines.append(f"{result_method} {path}")
             # 展示 content 的关键行（请求体和响应体），并按长度预算真实截断
             truncated = False
             for line in content.split("\n"):
@@ -112,4 +113,5 @@ def generate_openapi_call_example(
         logger.exception("OpenAPI 调用示例生成失败")
         raise ToolException("OpenAPI 调用示例生成服务暂时不可用。") from exc
     finally:
-        db.close()
+        if db:
+            db.close()

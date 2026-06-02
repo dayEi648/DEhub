@@ -18,7 +18,7 @@ class CommentCreate(BaseModel):
     parent_id: int | None = Field(default=None, ge=1)
     is_nested: bool = Field(default=False)
     nested_parent_id: int | None = Field(default=None, ge=1)
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=50000)
 
 
 class CommentResponse(BaseModel):

@@ -11,6 +11,8 @@ import {
   Zap,
 } from 'lucide-react'
 import AppTopNav from '../components/AppTopNav'
+import StaggerChildren from '../components/ui/StaggerChildren'
+import EmptyState from '../components/ui/EmptyState'
 import { useLogout } from '../hooks/useLogout'
 import { getProjects } from '../data/projects'
 import type { Project } from '../data/projects'
@@ -34,6 +36,7 @@ function ProjectCard({ project }: { project: Project }) {
       href={project.link}
       target="_blank"
       rel="noopener noreferrer"
+      className="card-lift-strong"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -41,15 +44,6 @@ function ProjectCard({ project }: { project: Project }) {
         borderRadius: 'var(--rounded-lg)',
         overflow: 'hidden',
         textDecoration: 'none',
-        transition: 'transform 150ms ease, box-shadow 150ms ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-4px)'
-        e.currentTarget.style.boxShadow = '0 8px 24px rgba(20,20,19,0.08)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
       }}
     >
       {/* Cover */}
@@ -243,18 +237,11 @@ export default function PortfolioPage() {
 
         {/* Grid */}
         {projectList.length === 0 ? (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: 'var(--spacing-section)',
-              color: 'var(--color-muted)',
-            }}
-          >
-            <FolderCode size={40} style={{ marginBottom: 'var(--spacing-md)', opacity: 0.4 }} />
-            <p style={{ fontSize: 15 }}>暂无项目展示，敬请期待</p>
-          </div>
+          <EmptyState icon={FolderCode} title="暂无项目展示" description="敬请期待" />
         ) : (
-          <div
+          <StaggerChildren
+            animation="fadeInUp"
+            staggerDelay={0.1}
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -264,7 +251,7 @@ export default function PortfolioPage() {
             {projectList.map((project) => (
               <ProjectCard key={project.id} project={project} />
             ))}
-          </div>
+          </StaggerChildren>
         )}
       </main>
     </div>

@@ -23,7 +23,8 @@ def get_logs(
     if is_resolved is not None:
         query = query.filter(SystemLog.is_resolved == is_resolved)
     if module:
-        query = query.filter(SystemLog.module.ilike(f"%{module}%"))
+        escaped_module = module.replace("%", r"\%").replace("_", r"\_")
+        query = query.filter(SystemLog.module.ilike(f"%{escaped_module}%", escape="\\"))
     if created_after:
         query = query.filter(SystemLog.created_at >= created_after)
     if created_before:

@@ -8,7 +8,7 @@ from datetime import datetime
 
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import BaseTool
+from langchain_core.runnables import Runnable
 
 from app.graphs.nodes.toolnodes import registry
 from app.graphs.states.chat_state import ChatState
@@ -19,7 +19,7 @@ from app.prompts.chat_prompts import render_chat_system_prompt
 # ------------------------------------------------------------------
 # 模块级缓存：按 permission_level 缓存 bind_tools 后的模型实例
 # ------------------------------------------------------------------
-_bound_models: dict[int, BaseTool] = {}
+_bound_models: dict[int, Runnable] = {}
 
 
 def _get_bound_model(permission_level: int):

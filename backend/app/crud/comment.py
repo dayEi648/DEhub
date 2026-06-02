@@ -78,6 +78,8 @@ def _increment_comment_count(db: Session, target_type: str, target_id: int) -> N
         db.query(ForumReply).filter(ForumReply.id == target_id).update(
             {"comment_count": ForumReply.comment_count + 1}
         )
+    else:
+        raise ValueError(f"Unsupported target_type for increment: {target_type}")
 
 
 def _decrement_comment_count(db: Session, target_type: str, target_id: int) -> None:
@@ -90,6 +92,8 @@ def _decrement_comment_count(db: Session, target_type: str, target_id: int) -> N
         db.query(ForumReply).filter(ForumReply.id == target_id).update(
             {"comment_count": ForumReply.comment_count - 1}
         )
+    else:
+        raise ValueError(f"Unsupported target_type for decrement: {target_type}")
 
 
 def create_comment(db: Session, comment_in: CommentCreate, user_id: int) -> Comment:

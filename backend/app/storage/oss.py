@@ -34,6 +34,11 @@ def _normalize_oss_endpoint(endpoint: str) -> str:
     return f"https://{endpoint}"
 
 
+class OssConfigError(Exception):
+    """OSS 配置缺失或无效时抛出的自定义异常。"""
+    pass
+
+
 def _get_oss_bucket() -> oss2.Bucket:
     """Create the OSS client lazily so imports do not depend on external config."""
     global _bucket
@@ -48,9 +53,8 @@ def _get_oss_bucket() -> oss2.Bucket:
     }
     missing = [name for name, value in required_config.items() if not value]
     if missing:
-        raise HTTPException(
-            status_code=500,
-            detail=f"OSS配置缺失: {', '.join(missing)}",
+        raise OssConfigError(
+            f"OSS配置缺失: {', '.join(missing)}"
         )
 
     auth = oss2.Auth(settings.OSS_ACCESS_KEY_ID, settings.OSS_ACCESS_KEY_SECRET)
@@ -162,17 +166,10 @@ def compress_image(content: bytes, max_size: int | None = None, max_dimension: i
 
     img = Image.open(io.BytesIO(content))
 
-    # 应用 EXIF 方向修正
+    # 应用 EXIF 方向修正（使用 Pillow 标准 API）
     try:
-        exif = img._getexif()
-        if exif:
-            orientation = exif.get(274)
-            if orientation == 3:
-                img = img.rotate(180, expand=True)
-            elif orientation == 6:
-                img = img.rotate(270, expand=True)
-            elif orientation == 8:
-                img = img.rotate(90, expand=True)
+        from PIL import ImageOps
+        img = ImageOps.exif_transpose(img)
     except Exception:
         pass
 
@@ -190,7 +187,7 @@ def compress_image(content: bytes, max_size: int | None = None, max_dimension: i
         img = img.convert('RGB')
 
     # 限制最大边长
-    img.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
+    img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
 
     # 循环降低 JPEG 质量，直到满足大小限制
     quality = INITIAL_JPEG_QUALITY
@@ -206,7 +203,7 @@ def compress_image(content: bytes, max_size: int | None = None, max_dimension: i
     while buffer.tell() > max_size and current_width > MIN_IMAGE_DIMENSION and current_height > MIN_IMAGE_DIMENSION:
         current_width = int(current_width * RESIZE_SCALE_FACTOR)
         current_height = int(current_height * RESIZE_SCALE_FACTOR)
-        resized = img.resize((current_width, current_height), Image.LANCZOS)
+        resized = img.resize((current_width, current_height), Image.Resampling.LANCZOS)
         buffer = io.BytesIO()
         resized.save(buffer, format='JPEG', quality=FINAL_RESIZE_QUALITY, optimize=True)
 
@@ -242,6 +239,15 @@ async def upload_file_to_oss(
     # 校验文件类型（基于客户端声明）
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="不支持的文件类型")
+
+    # 防御性限制：先检查原始文件大小，防止超大文件导致内存耗尽
+    raw_file = file.file
+    raw_file.seek(0, 2)
+    raw_size = raw_file.tell()
+    raw_file.seek(0)
+    MAX_RAW_SIZE = 50 * 1024 * 1024
+    if raw_size > MAX_RAW_SIZE:
+        raise HTTPException(status_code=413, detail=f"文件过大，最大支持 {MAX_RAW_SIZE // 1024 // 1024} MB")
 
     content = await file.read()
 
@@ -314,7 +320,7 @@ def _delete_file_from_oss(file_path: str) -> None:
         return
     bucket = _get_oss_bucket()
     result = bucket.delete_object(file_path)
-    if result.status != 204:
+    if result.status not in (200, 204):
         raise HTTPException(status_code=500, detail="删除文件失败")
 
 
@@ -356,28 +362,29 @@ def convert_oss_url_to_file_path(oss_url: str) -> str:
     """
     if not oss_url:
         return ""
-    # 若配置了 OSS_DOMAIN 且 URL 以其开头，直接截取
-    if settings.OSS_DOMAIN and oss_url.startswith(settings.OSS_DOMAIN):
-        file_path = oss_url[len(settings.OSS_DOMAIN):]
-        return file_path.lstrip("/")
-    # 兜底：通过 URL 解析提取 path
     parsed = urlparse(oss_url)
+    # 若配置了 OSS_DOMAIN 且 URL 的 netloc 完全匹配，直接截取
+    if settings.OSS_DOMAIN:
+        domain_parsed = urlparse(settings.OSS_DOMAIN)
+        if parsed.netloc == domain_parsed.netloc:
+            file_path = parsed.path
+            return file_path.lstrip("/")
+    # 兜底：通过 URL 解析提取 path
     path = parsed.path.lstrip("/")
     # 若路径以 bucket 名开头，去掉 bucket 前缀
     if settings.OSS_BUCKET_NAME and path.startswith(settings.OSS_BUCKET_NAME + "/"):
         path = path[len(settings.OSS_BUCKET_NAME) + 1:]
     return path
 
-_MD_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
-
-
 def _is_oss_url(url: str) -> bool:
     """判断 URL 是否属于当前配置的 OSS。"""
     if not url:
         return False
-    if settings.OSS_DOMAIN and url.startswith(settings.OSS_DOMAIN):
-        return True
     parsed = urlparse(url)
+    if settings.OSS_DOMAIN:
+        domain_parsed = urlparse(settings.OSS_DOMAIN)
+        if parsed.netloc == domain_parsed.netloc:
+            return True
     path = parsed.path.lstrip("/")
     if settings.OSS_BUCKET_NAME and path.startswith(settings.OSS_BUCKET_NAME + "/"):
         return True
@@ -391,6 +398,9 @@ def extract_oss_image_urls_from_markdown(content_md: str) -> list[str]:
     """
     从 Markdown 正文中提取属于当前 OSS 的图片 URL。
 
+    使用括号深度计数精确匹配 ``![alt](url)`` 语法，允许 URL 内部含有
+    未转义的 ``(`` 和 ``)``。
+
     Args:
         content_md: Markdown 格式正文
     Returns:
@@ -398,12 +408,39 @@ def extract_oss_image_urls_from_markdown(content_md: str) -> list[str]:
     """
     if not content_md:
         return []
-    urls = [match.group(2).strip() for match in _MD_IMAGE_RE.finditer(content_md)]
-    oss_urls = [url for url in urls if _is_oss_url(url)]
+
+    urls: list[str] = []
+    i = 0
+    while i < len(content_md):
+        idx = content_md.find("![", i)
+        if idx == -1:
+            break
+
+        bracket_end = content_md.find("](", idx)
+        if bracket_end == -1:
+            break
+
+        paren_start = bracket_end + 2
+        depth = 1
+        j = paren_start
+        while j < len(content_md) and depth > 0:
+            if content_md[j] == "(":
+                depth += 1
+            elif content_md[j] == ")":
+                depth -= 1
+            j += 1
+
+        if depth == 0:
+            url = content_md[paren_start : j - 1].strip()
+            if _is_oss_url(url):
+                urls.append(url)
+
+        i = bracket_end + 2
+
     # 去重保持顺序
     seen = set()
-    result = []
-    for url in oss_urls:
+    result: list[str] = []
+    for url in urls:
         if url not in seen:
             seen.add(url)
             result.append(url)

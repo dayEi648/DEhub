@@ -10,7 +10,7 @@ class BlogPostBase(BaseModel):
     title: str = Field(min_length=1, max_length=64)
     slug: str = Field(min_length=1, max_length=255)
     summary: str | None = None
-    content_md: str
+    content_md: str = Field(max_length=50000)
     category_id: int = Field(ge=1)
     tags: list[str] = Field(default_factory=list)
     status: str = Field(default="draft", pattern=r"^(draft|published)$")
@@ -36,7 +36,7 @@ class BlogPostUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=64)
     slug: str | None = Field(default=None, min_length=1, max_length=255)
     summary: str | None = None  # 后端内部使用，前端传入会被忽略
-    content_md: str | None = None
+    content_md: str | None = Field(default=None, max_length=50000)
     category_id: int | None = Field(default=None, ge=1)
     tags: list[str] | None = None
     status: str | None = Field(default=None, pattern=r"^(draft|published)$")  # 后端会忽略此字段

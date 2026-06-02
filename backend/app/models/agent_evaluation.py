@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     DateTime,
@@ -44,7 +44,7 @@ class AgentEvaluation(Base):
     )  # 0.00 ~ 1.00
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     evaluated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
     evaluator_model: Mapped[str | None] = mapped_column(
         String(50), nullable=True

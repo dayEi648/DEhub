@@ -1,3 +1,5 @@
+@import './styles/animations.css';
+
 @font-face {
   font-family: 'SF Pro Local';
   src: url('../../planing/前端/Fonts/SF-Pro-Text-Regular.otf') format('opentype');
@@ -125,70 +127,29 @@
   color: var(--color-ink);
 }
 
-.app-top-nav__admin,
-.app-top-nav__profile {
-  display: inline-flex;
+.app-top-nav__desktop-actions {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  color: var(--color-muted);
-  font-size: 13px;
-  font-weight: 600;
+  gap: var(--spacing-md);
 }
 
-.app-top-nav__profile {
-  gap: var(--spacing-sm);
-  color: var(--color-body-strong);
-  max-width: 220px;
-}
-
-.app-top-nav__avatar,
-.app-top-nav__logout,
 .app-top-nav__menu {
+  display: none;
   width: 36px;
   height: 36px;
   border-radius: var(--rounded-md);
   border: 1px solid var(--color-hairline);
   background: var(--color-canvas);
-  display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--color-primary);
   flex: 0 0 auto;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
-.app-top-nav__logout {
-  color: var(--color-ink);
-}
-
-.app-top-nav__username {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.app-top-nav__menu {
-  display: none;
-}
-
-.app-top-nav__drawer {
-  position: absolute;
-  left: var(--spacing-md);
-  right: var(--spacing-md);
-  top: calc(100% + var(--spacing-xs));
-  background: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--rounded-md);
-  box-shadow: 0 16px 40px rgba(20, 20, 19, 0.12);
-  padding: var(--spacing-sm);
-  display: grid;
-  gap: var(--spacing-xs);
-}
-
-.app-top-nav__drawer button {
-  min-height: 40px;
-  border-radius: var(--rounded-sm);
-  text-align: left;
-  padding: 0 var(--spacing-sm);
+.app-top-nav__menu:hover {
+  background-color: var(--color-surface-soft);
 }
 
 .auth-page {
@@ -245,19 +206,21 @@
 }
 
 .ai-chat-page {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   background-color: var(--color-canvas);
+  overflow: hidden;
 }
 
 .ai-chat-main {
-  width: min(1240px, calc(100% - 48px));
-  margin: var(--spacing-xl) auto;
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
   gap: var(--spacing-lg);
-  min-height: calc(100vh - 220px);
+  min-height: 0;
+  flex: 1;
 }
 
 .ai-chat-sidebar {
@@ -266,7 +229,7 @@
   background: linear-gradient(180deg, #f4ece0 0%, var(--color-canvas) 100%);
   display: flex;
   flex-direction: column;
-  min-height: 520px;
+  min-height: 0;
 }
 
 .ai-chat-sidebar__top {
@@ -467,8 +430,7 @@
 
 .ai-chat-panel__messages {
   flex: 1;
-  min-height: 420px;
-  max-height: 62vh;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-md);
   display: flex;
@@ -493,7 +455,7 @@
 }
 
 .ai-chat-bubble {
-  max-width: min(840px, 100%);
+  max-width: 100%;
   border-radius: var(--rounded-md);
   border: 1px solid var(--color-hairline);
   padding: var(--spacing-sm) var(--spacing-md);
@@ -1003,9 +965,7 @@
   }
 
   .app-top-nav__links,
-  .app-top-nav__admin,
-  .app-top-nav__username,
-  .app-top-nav__logout {
+  .app-top-nav__desktop-actions {
     display: none;
   }
 
@@ -1016,10 +976,6 @@
 
   .app-top-nav__menu {
     display: inline-flex;
-  }
-
-  .app-top-nav__profile {
-    max-width: none;
   }
 
   .auth-page {

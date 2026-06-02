@@ -1,4 +1,5 @@
 from datetime import datetime
+import sqlalchemy as sa
 from sqlalchemy import String, DateTime, func, CheckConstraint, Text, SmallInteger, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
@@ -22,6 +23,6 @@ class User(Base):
         nullable=False
     )
     permission: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
-    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false(), nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     personal_profile: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -7,7 +7,7 @@ from app.schemas.user import UserBriefInfo
 class ForumPostBase(BaseModel):
     """论坛帖子基础字段"""
     title: str = Field(min_length=1, max_length=128)
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=50000)
     zone_id: int = Field(ge=1)
 
 
@@ -19,7 +19,7 @@ class ForumPostCreate(ForumPostBase):
 class ForumPostUpdate(BaseModel):
     """更新论坛帖子请求：全可选"""
     title: str | None = Field(default=None, min_length=1, max_length=128)
-    content: str | None = Field(default=None, min_length=1)
+    content: str | None = Field(default=None, min_length=1, max_length=50000)
     zone_id: int | None = Field(default=None, ge=1)
 
 

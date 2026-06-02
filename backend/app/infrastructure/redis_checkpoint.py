@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncIterator, Dict, List, Optional, Sequence, cast
+from typing import Any, AsyncIterator, Sequence, cast
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
@@ -54,7 +54,7 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
         redis_client: AsyncRedis,
         ttl_seconds: int = 600,
         *,
-        serde: Optional[SerializerProtocol] = None,
+        serde: dict[SerializerProtocol] = None,
     ) -> None:
         super().__init__(serde=serde)
         self._redis = redis_client
@@ -97,7 +97,7 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
 
     async def aget_tuple(
         self, config: RunnableConfig
-    ) -> Optional[CheckpointTuple]:
+    ) -> dict[CheckpointTuple]:
         """读取最新 checkpoint，成功后刷新 TTL。"""
         thread_id = str(config["configurable"]["thread_id"])
         checkpoint_ns = config["configurable"].get("checkpoint_ns", "")
@@ -110,7 +110,7 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
         # 刷新 TTL
         await self._redis.expire(key, self._ttl)
 
-        storage_data = cast(Dict[str, Any], _decode_typed(raw, self.serde))
+        storage_data = cast(dict[str, Any], _decode_typed(raw, self.serde))
         checkpoint = cast(Checkpoint, storage_data["checkpoint"])
         metadata = cast(CheckpointMetadata, storage_data["metadata"])
         checkpoint_id = storage_data["checkpoint_id"]
@@ -170,7 +170,7 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
 
     async def _load_pending_writes(
         self, thread_id: str, checkpoint_ns: str, checkpoint_id: str
-    ) -> List[PendingWrite]:
+    ) -> list[PendingWrite]:
         """加载与当前 checkpoint 关联的所有 writes。"""
         pattern = (
             f"{_WRITE_PREFIX}:{thread_id}:{checkpoint_ns}:"
@@ -190,12 +190,12 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
         await pipe.execute()
 
         raw_values = await self._redis.mget(keys)
-        writes: List[PendingWrite] = []
+        writes: list[PendingWrite] = []
         for key, raw in zip(keys, raw_values):
             if raw is None:
                 continue
             raw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
-            write_data = cast(Dict[str, Any], _decode_typed(raw_bytes, self.serde))
+            write_data = cast(dict[str, Any], _decode_typed(raw_bytes, self.serde))
             writes.append(
                 (
                     write_data["task_id"],
@@ -211,11 +211,11 @@ class AsyncRedisCheckpointSaver(BaseCheckpointSaver):
 
     async def alist(
         self,
-        config: Optional[RunnableConfig],
+        config: dict[RunnableConfig],
         *,
-        filter: Optional[Dict[str, Any]] = None,
-        before: Optional[RunnableConfig] = None,
-        limit: Optional[int] = None,
+        filter: dict[dict[str, Any]] = None,
+        before: dict[RunnableConfig] = None,
+        limit: dict[int] = None,
     ) -> AsyncIterator[CheckpointTuple]:
         """Shallow 模式下只返回最新 checkpoint。"""
         if config is not None:
