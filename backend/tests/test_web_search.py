@@ -1,10 +1,16 @@
 """联网搜索工具单元测试。"""
 
 import asyncio
+import time
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.infrastructure.agent_monitoring_callback import (
+    AgentMonitoringCallback,
+    get_trace_buffer,
+)
 from app.graphs.nodes.toolnodes.web_search import (
     _deduplicate_results,
     _expand_search_queries,
@@ -485,3 +491,88 @@ class TestSearchWebIntegration:
             result = await search_web.ainvoke({"query": "test"})
 
         assert "【搜索结果】 OK Result" in result
+
+    @pytest.mark.asyncio
+    async def test_records_full_web_search_flow_with_parallel_subqueries(self):
+        """联网搜索应记录 query 扩展、并行子搜索和聚合 span。"""
+        callback = AgentMonitoringCallback()
+        graph_run_id = uuid.uuid4()
+        await callback.on_chain_start(
+            None,
+            {"messages": []},
+            run_id=graph_run_id,
+            metadata={
+                "user_id": 1,
+                "conversation_id": 1,
+                "input_message": "搜索 Python 新闻",
+            },
+        )
+        trace_id = callback.trace_id
+        assert trace_id is not None
+
+        async def _mock_iqs_search(query: str) -> list[dict]:
+            await asyncio.sleep(0.05)
+            summary_by_query = {
+                "q1": "Python release timeline and CPython runtime notes.",
+                "q2": "Python data science ecosystem package updates.",
+                "q3": "Python web framework deployment news.",
+            }
+            return [
+                {
+                    "title": f"Result {query}",
+                    "hostname": "example.com",
+                    "summary": summary_by_query[query],
+                    "link": f"http://example.com/{query}",
+                }
+            ]
+
+        with patch(
+            "app.graphs.nodes.toolnodes.web_search._expand_search_queries",
+            return_value=["q1", "q2", "q3"],
+        ), patch(
+            "app.graphs.nodes.toolnodes.web_search._iqs_search_single",
+            new=_mock_iqs_search,
+        ), patch(
+            "app.graphs.nodes.toolnodes.web_search.settings.IQS_API_KEY",
+            "fake_key",
+        ):
+            start = time.perf_counter()
+            result = await search_web.ainvoke(
+                {"query": "python"},
+                config={
+                    "callbacks": [callback],
+                    "metadata": {"agent_trace_id": trace_id},
+                },
+            )
+            elapsed = time.perf_counter() - start
+
+        assert elapsed < 0.13
+        assert "【搜索结果】 Result q1" in result
+
+        buf = get_trace_buffer(trace_id)
+        assert buf is not None
+        web_spans = [s for s in buf["spans"] if s["span_type"] == "web_search"]
+        assert {s["span_name"] for s in web_spans} >= {
+            "query_expansion",
+            "iqs_search_batch",
+            "iqs_search_single",
+            "result_aggregation",
+        }
+
+        expansion = next(s for s in web_spans if s["span_name"] == "query_expansion")
+        assert expansion["output_data"]["queries"] == ["q1", "q2", "q3"]
+        assert expansion["output_data"]["fallback"] is False
+
+        batch = next(s for s in web_spans if s["span_name"] == "iqs_search_batch")
+        assert batch["output_data"]["query_count"] == 3
+        assert batch["output_data"]["parallel"] is True
+        assert batch["output_data"]["failed_count"] == 0
+
+        singles = [s for s in web_spans if s["span_name"] == "iqs_search_single"]
+        assert len(singles) == 3
+        assert {s["input_data"]["query"] for s in singles} == {"q1", "q2", "q3"}
+        assert all(s["parent_tmp_span_id"] == batch["tmp_span_id"] for s in singles)
+
+        aggregation = next(s for s in web_spans if s["span_name"] == "result_aggregation")
+        assert aggregation["output_data"]["raw_count"] == 3
+        assert aggregation["output_data"]["deduped_count"] == 3

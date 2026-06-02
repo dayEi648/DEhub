@@ -12,11 +12,17 @@ import re
 
 import httpx
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from app.core.config import settings
+from app.infrastructure.agent_monitoring_callback import (
+    get_current_span_tmp_id,
+    get_current_trace_id,
+)
 from app.infrastructure.llm_client import create_llm_small_client
 from app.prompts.chat_prompts import render_web_search_expansion_prompt
+from app.services.agent_monitoring_service import AgentMonitoringService
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +75,34 @@ def _extract_json_array(text: str) -> list[str] | None:
     return None
 
 
-async def _expand_search_queries(original_query: str) -> list[str]:
+def _resolve_trace_id(config: RunnableConfig | None) -> str | None:
+    metadata = (config or {}).get("metadata") or {}
+    return metadata.get("agent_trace_id") or get_current_trace_id()
+
+
+def _resolve_parent_span_tmp_id(config: RunnableConfig | None) -> str | None:
+    metadata = (config or {}).get("metadata") or {}
+    return (
+        metadata.get("agent_current_tool_tmp_span_id")
+        or metadata.get("agent_parent_span_tmp_id")
+        or get_current_span_tmp_id()
+    )
+
+
+def _with_parent_span(
+    config: RunnableConfig | None, parent_tmp_span_id: str | None
+) -> RunnableConfig:
+    child_config = dict(config or {})
+    metadata = dict(child_config.get("metadata") or {})
+    if parent_tmp_span_id:
+        metadata["agent_parent_span_tmp_id"] = parent_tmp_span_id
+    child_config["metadata"] = metadata
+    return child_config
+
+
+async def _expand_search_queries(
+    original_query: str, config: RunnableConfig | None = None
+) -> list[str]:
     """调用 small 模型将原始 query 扩展为多个不同角度的搜索 query。
 
     降级策略：small 模型调用失败或 JSON 解析失败时，返回 [original_query]。
@@ -79,7 +112,7 @@ async def _expand_search_queries(original_query: str) -> list[str]:
             timeout=settings.WEB_SEARCH_QUERY_EXPANSION_TIMEOUT
         )
         prompt = render_web_search_expansion_prompt(original_query)
-        response = await client.ainvoke([HumanMessage(content=prompt)])
+        response = await client.ainvoke([HumanMessage(content=prompt)], config=config)
 
         content = response.content
         if isinstance(content, list):
@@ -234,7 +267,7 @@ def _format_web_search_results(results: list[dict]) -> str:
 # ------------------------------------------------------------------
 
 @tool
-async def search_web(query: str) -> str:
+async def search_web(query: str, config: RunnableConfig) -> str:
     """
     使用联网搜索获取实时、时效性或超出内置知识范围的最新信息。
 
@@ -256,28 +289,122 @@ async def search_web(query: str) -> str:
         logger.error("IQS_API_KEY 未配置")
         return "联网搜索服务暂时不可用。"
 
+    trace_id = _resolve_trace_id(config)
+    tool_parent_tmp_span_id = _resolve_parent_span_tmp_id(config)
+    normalized_query = query.strip()
+
     try:
         # 1. 扩展 query
-        queries = await _expand_search_queries(query.strip())
+        expansion_span_id = AgentMonitoringService.start_buffered_span(
+            trace_id,
+            "web_search",
+            "query_expansion",
+            input_data={"query": normalized_query},
+            parent_tmp_span_id=tool_parent_tmp_span_id,
+        )
+        queries = await _expand_search_queries(
+            normalized_query,
+            config=_with_parent_span(config, expansion_span_id),
+        )
+        AgentMonitoringService.end_buffered_span(
+            trace_id,
+            expansion_span_id,
+            output_data={
+                "queries": queries,
+                "query_count": len(queries),
+                "fallback": queries == [normalized_query],
+            },
+        )
         logger.debug("Query 扩展结果: %s", queries)
 
         # 2. 并行搜索
-        search_tasks = [_iqs_search_single(q) for q in queries]
-        search_results_list = await asyncio.gather(*search_tasks, return_exceptions=True)
+        batch_span_id = AgentMonitoringService.start_buffered_span(
+            trace_id,
+            "web_search",
+            "iqs_search_batch",
+            input_data={"queries": queries},
+            metadata={"parallel": len(queries) > 1},
+            parent_tmp_span_id=tool_parent_tmp_span_id,
+        )
+
+        async def _search_with_span(search_query: str) -> list[dict] | Exception:
+            single_span_id = AgentMonitoringService.start_buffered_span(
+                trace_id,
+                "web_search",
+                "iqs_search_single",
+                input_data={"query": search_query},
+                parent_tmp_span_id=batch_span_id,
+            )
+            try:
+                result = await _iqs_search_single(search_query)
+                AgentMonitoringService.end_buffered_span(
+                    trace_id,
+                    single_span_id,
+                    output_data={
+                        "query": search_query,
+                        "result_count": len(result),
+                    },
+                )
+                return result
+            except Exception as exc:
+                AgentMonitoringService.end_buffered_span(
+                    trace_id,
+                    single_span_id,
+                    status="failed",
+                    error_info={
+                        "query": search_query,
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                    },
+                )
+                return exc
+
+        search_tasks = [_search_with_span(q) for q in queries]
+        search_results_list = await asyncio.gather(*search_tasks)
 
         # 3. 合并结果（过滤掉异常）
         all_results: list[dict] = []
+        failed_count = 0
         for result in search_results_list:
             if isinstance(result, list):
                 all_results.extend(result)
             elif isinstance(result, Exception):
+                failed_count += 1
                 logger.warning("某个子 query 搜索失败: %s", result)
 
+        AgentMonitoringService.end_buffered_span(
+            trace_id,
+            batch_span_id,
+            output_data={
+                "query_count": len(queries),
+                "parallel": len(queries) > 1,
+                "raw_count": len(all_results),
+                "failed_count": failed_count,
+            },
+        )
+
         # 4. 去重
+        aggregation_span_id = AgentMonitoringService.start_buffered_span(
+            trace_id,
+            "web_search",
+            "result_aggregation",
+            input_data={"raw_count": len(all_results)},
+            parent_tmp_span_id=tool_parent_tmp_span_id,
+        )
         deduped = _deduplicate_results(all_results)
 
         # 5. 格式化返回
-        return _format_web_search_results(deduped)
+        formatted = _format_web_search_results(deduped)
+        AgentMonitoringService.end_buffered_span(
+            trace_id,
+            aggregation_span_id,
+            output_data={
+                "raw_count": len(all_results),
+                "deduped_count": len(deduped),
+                "formatted_chars": len(formatted),
+            },
+        )
+        return formatted
     except Exception:
         logger.exception("联网搜索执行失败")
         return "联网搜索服务暂时不可用。"

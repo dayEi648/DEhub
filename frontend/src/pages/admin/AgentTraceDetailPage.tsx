@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronRight,
   User,
+  Search,
 } from 'lucide-react'
 import { getAgentTrace, getAgentTraceSpans, getTraceEvaluations } from '../../api/agentMonitoring'
 import type { AgentTrace, AgentSpan, AgentEvaluation } from '../../types/agentMonitoring'
@@ -22,6 +23,7 @@ const SPAN_TYPE_ICONS: Record<string, React.ReactNode> = {
   goal_gen: <BrainCircuit size={16} />,
   profile_update: <User size={16} />,
   title_gen: <Bot size={16} />,
+  web_search: <Search size={16} />,
 }
 
 const SPAN_TYPE_LABELS: Record<string, string> = {
@@ -32,6 +34,7 @@ const SPAN_TYPE_LABELS: Record<string, string> = {
   goal_gen: '目标生成',
   profile_update: '画像更新',
   title_gen: '标题生成',
+  web_search: '联网搜索',
 }
 
 const SPAN_TYPE_COLORS: Record<string, string> = {
@@ -42,6 +45,48 @@ const SPAN_TYPE_COLORS: Record<string, string> = {
   goal_gen: 'var(--color-muted-soft)',
   profile_update: 'var(--color-muted-soft)',
   title_gen: 'var(--color-muted-soft)',
+  web_search: 'var(--color-accent-teal)',
+}
+
+interface SpanTreeNode extends AgentSpan {
+  children: SpanTreeNode[]
+}
+
+function buildSpanTree(spans: AgentSpan[]): { roots: SpanTreeNode[]; hasHierarchy: boolean } {
+  const nodes = new Map<number, SpanTreeNode>()
+  spans.forEach((span) => {
+    nodes.set(span.id, { ...span, children: [] })
+  })
+
+  let hasHierarchy = false
+  const roots: SpanTreeNode[] = []
+  spans.forEach((span) => {
+    const node = nodes.get(span.id)!
+    if (span.parent_span_id && nodes.has(span.parent_span_id)) {
+      nodes.get(span.parent_span_id)!.children.push(node)
+      hasHierarchy = true
+    } else {
+      roots.push(node)
+    }
+  })
+
+  return { roots, hasHierarchy }
+}
+
+function formatWebSearchSummary(span: AgentSpan): string | null {
+  if (span.span_type !== 'web_search') return null
+  const data = span.output_data || span.meta || {}
+  const queryCount = data.query_count
+  const rawCount = data.raw_count
+  const failedCount = data.failed_count
+  const parallel = data.parallel
+
+  const parts: string[] = []
+  if (typeof queryCount === 'number') parts.push(`${queryCount} queries`)
+  if (parallel === true) parts.push('parallel')
+  if (typeof rawCount === 'number') parts.push(`${rawCount} raw`)
+  if (typeof failedCount === 'number') parts.push(`${failedCount} failed`)
+  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 function formatDuration(ms: number | null): string {
@@ -100,6 +145,8 @@ export default function AgentTraceDetailPage() {
       return next
     })
   }
+
+  const spanTree = useMemo(() => buildSpanTree(spans), [spans])
 
   if (loading) {
     return (
@@ -324,139 +371,17 @@ export default function AgentTraceDetailPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {spans.map((span, index) => {
-              const isExpanded = expandedSpans.has(span.id)
-              const isLast = index === spans.length - 1
-              const color = SPAN_TYPE_COLORS[span.span_type] || 'var(--color-muted)'
-              const icon = SPAN_TYPE_ICONS[span.span_type] || <Bot size={16} />
-              const label = SPAN_TYPE_LABELS[span.span_type] || span.span_type
-
-              return (
-                <div key={span.id} style={{ display: 'flex', gap: 12 }}>
-                  {/* Timeline line */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        backgroundColor: color,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#fff',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {icon}
-                    </div>
-                    {!isLast && (
-                      <div
-                        style={{
-                          width: 2,
-                          flex: 1,
-                          backgroundColor: 'var(--color-hairline)',
-                          marginTop: 4,
-                        }}
-                      />
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div style={{ flex: 1, paddingBottom: 'var(--spacing-lg)' }}>
-                    <div
-                      onClick={() => toggleSpan(span.id)}
-                      style={{
-                        cursor: 'pointer',
-                        backgroundColor: 'var(--color-canvas)',
-                        borderRadius: 'var(--rounded-lg)',
-                        border: '1px solid var(--color-hairline)',
-                        padding: 'var(--spacing-md) var(--spacing-lg)',
-                        transition: 'background-color 150ms ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-surface-soft)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)' }}>
-                            {label}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: 'var(--color-muted)',
-                              fontFamily: 'var(--font-mono)',
-                            }}
-                          >
-                            {span.span_name}
-                          </span>
-                          {span.status === 'failed' && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: 'var(--color-error)',
-                                backgroundColor: 'rgba(198, 69, 69, 0.08)',
-                                padding: '2px 6px',
-                                borderRadius: 'var(--rounded-pill)',
-                              }}
-                            >
-                              失败
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>
-                            {formatDuration(span.latency_ms)}
-                          </span>
-                          {isExpanded ? (
-                            <ChevronDown size={16} color="var(--color-muted)" />
-                          ) : (
-                            <ChevronRight size={16} color="var(--color-muted)" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Token usage for LLM spans */}
-                      {span.span_type === 'llm' && span.token_usage && (
-                        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-muted)' }}>
-                          {`Tokens: ${span.token_usage.total_tokens || 0} | prompt ${span.token_usage.prompt_tokens || 0} | completion ${span.token_usage.completion_tokens || 0}`}
-                        </div>
-                      )}
-
-                      {/* Expanded details */}
-                      {isExpanded && (
-                        <div
-                          style={{
-                            marginTop: 'var(--spacing-md)',
-                            paddingTop: 'var(--spacing-md)',
-                            borderTop: '1px solid var(--color-hairline-soft)',
-                          }}
-                        >
-                          {span.input_data && (
-                            <DetailBlock label="输入" data={span.input_data} />
-                          )}
-                          {span.output_data && (
-                            <DetailBlock label="输出" data={span.output_data} />
-                          )}
-                          {span.error_info && (
-                            <DetailBlock label="错误" data={span.error_info} isError />
-                          )}
-                          <div style={{ marginTop: 8, fontSize: 11, color: 'var(--color-muted-soft)' }}>
-                            开始: {formatTime(span.started_at)} {' '}
-                            {span.ended_at && `· 结束: ${formatTime(span.ended_at)}`}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+            {spanTree.roots.map((span, index) => (
+              <SpanTimelineItem
+                key={span.id}
+                span={span}
+                depth={0}
+                isLast={index === spanTree.roots.length - 1}
+                expandedSpans={expandedSpans}
+                onToggle={toggleSpan}
+                treeMode={spanTree.hasHierarchy}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -525,6 +450,180 @@ function InfoItem({ label, value }: { label: string; value: string | number }) {
     <div>
       <div style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)' }}>{value}</div>
+    </div>
+  )
+}
+
+function SpanTimelineItem({
+  span,
+  depth,
+  isLast,
+  expandedSpans,
+  onToggle,
+  treeMode,
+}: {
+  span: SpanTreeNode
+  depth: number
+  isLast: boolean
+  expandedSpans: Set<number>
+  onToggle: (id: number) => void
+  treeMode: boolean
+}) {
+  const isExpanded = expandedSpans.has(span.id)
+  const color = SPAN_TYPE_COLORS[span.span_type] || 'var(--color-muted)'
+  const icon = SPAN_TYPE_ICONS[span.span_type] || <Bot size={16} />
+  const label = SPAN_TYPE_LABELS[span.span_type] || span.span_type
+  const webSummary = formatWebSearchSummary(span)
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 12, marginLeft: treeMode ? depth * 28 : 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              backgroundColor: color,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              flexShrink: 0,
+            }}
+          >
+            {icon}
+          </div>
+          {!isLast && (
+            <div
+              style={{
+                width: 2,
+                flex: 1,
+                backgroundColor: 'var(--color-hairline)',
+                marginTop: 4,
+              }}
+            />
+          )}
+        </div>
+
+        <div style={{ flex: 1, paddingBottom: 'var(--spacing-lg)' }}>
+          <div
+            onClick={() => onToggle(span.id)}
+            style={{
+              cursor: 'pointer',
+              backgroundColor: 'var(--color-canvas)',
+              borderRadius: 'var(--rounded-lg)',
+              border: '1px solid var(--color-hairline)',
+              padding: 'var(--spacing-md) var(--spacing-lg)',
+              transition: 'background-color 150ms ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-surface-soft)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)' }}>
+                  {label}
+                </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--color-muted)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {span.span_name}
+                </span>
+                {webSummary && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--color-accent-teal)',
+                      backgroundColor: 'rgba(55, 159, 148, 0.1)',
+                      padding: '2px 6px',
+                      borderRadius: 'var(--rounded-pill)',
+                    }}
+                  >
+                    {webSummary}
+                  </span>
+                )}
+                {span.status === 'failed' && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--color-error)',
+                      backgroundColor: 'rgba(198, 69, 69, 0.08)',
+                      padding: '2px 6px',
+                      borderRadius: 'var(--rounded-pill)',
+                    }}
+                  >
+                    失败
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+                  {formatDuration(span.latency_ms)}
+                </span>
+                {isExpanded ? (
+                  <ChevronDown size={16} color="var(--color-muted)" />
+                ) : (
+                  <ChevronRight size={16} color="var(--color-muted)" />
+                )}
+              </div>
+            </div>
+
+            {span.span_type === 'llm' && span.token_usage && (
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-muted)' }}>
+                {`Tokens: ${span.token_usage.total_tokens || 0} | prompt ${span.token_usage.prompt_tokens || 0} | completion ${span.token_usage.completion_tokens || 0}`}
+              </div>
+            )}
+
+            {isExpanded && (
+              <div
+                style={{
+                  marginTop: 'var(--spacing-md)',
+                  paddingTop: 'var(--spacing-md)',
+                  borderTop: '1px solid var(--color-hairline-soft)',
+                }}
+              >
+                {span.input_data && (
+                  <DetailBlock label="输入" data={span.input_data} />
+                )}
+                {span.output_data && (
+                  <DetailBlock label="输出" data={span.output_data} />
+                )}
+                {span.error_info && (
+                  <DetailBlock label="错误" data={span.error_info} isError />
+                )}
+                {span.meta && (
+                  <DetailBlock label="Metadata" data={span.meta} />
+                )}
+                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--color-muted-soft)' }}>
+                  开始: {formatTime(span.started_at)} {' '}
+                  {span.ended_at && `· 结束: ${formatTime(span.ended_at)}`}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {span.children.map((child, index) => (
+        <SpanTimelineItem
+          key={child.id}
+          span={child}
+          depth={depth + 1}
+          isLast={index === span.children.length - 1}
+          expandedSpans={expandedSpans}
+          onToggle={onToggle}
+          treeMode={treeMode}
+        />
+      ))}
     </div>
   )
 }

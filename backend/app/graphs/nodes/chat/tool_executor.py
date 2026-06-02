@@ -8,6 +8,7 @@ import asyncio
 import logging
 
 from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 
 from app.graphs.nodes.toolnodes import registry
 from app.graphs.nodes.toolnodes._context import current_user_id_var
@@ -28,7 +29,23 @@ def _get_lock(tool_name: str) -> asyncio.Lock:
     return _locks[tool_name]
 
 
-async def _execute_single_tool(tool_call: dict) -> ToolMessage:
+def _build_tool_config(tool_call: dict, config: RunnableConfig | None) -> RunnableConfig:
+    """为单个工具调用构造子 config，保留 callbacks/configurable 并追加 metadata。"""
+    base_config = dict(config or {})
+    base_metadata = dict(base_config.get("metadata") or {})
+    base_metadata.update(
+        {
+            "tool_call_id": tool_call["id"],
+            "tool_name": tool_call["name"],
+        }
+    )
+    base_config["metadata"] = base_metadata
+    return base_config
+
+
+async def _execute_single_tool(
+    tool_call: dict, config: RunnableConfig | None = None
+) -> ToolMessage:
     """执行单个 tool_call，异常时包装为 ToolMessage 返回。"""
     tool_name = tool_call["name"]
     tool_call_id = tool_call["id"]
@@ -44,11 +61,7 @@ async def _execute_single_tool(tool_call: dict) -> ToolMessage:
 
     tool = meta.tool
     try:
-        if asyncio.iscoroutinefunction(tool.ainvoke if hasattr(tool, "ainvoke") else None):
-            result = await tool.ainvoke(args)
-        else:
-            # 部分工具只实现了同步 invoke，在线程池中运行
-            result = await asyncio.to_thread(tool.invoke, args)
+        result = await tool.ainvoke(args, config=_build_tool_config(tool_call, config))
         return ToolMessage(
             content=str(result) if result is not None else "",
             tool_call_id=tool_call_id,
@@ -63,7 +76,9 @@ async def _execute_single_tool(tool_call: dict) -> ToolMessage:
         )
 
 
-async def tool_executor_node(state: ChatState) -> dict:
+async def tool_executor_node(
+    state: ChatState, config: RunnableConfig | None = None
+) -> dict:
     """工具执行节点：按并发策略调度 tool_calls，返回 ToolMessages 列表。"""
     # 将当前用户 ID 注入上下文变量，供后续工具内部读取
     current_user_id_var.set(state.get("user_id"))
@@ -95,7 +110,7 @@ async def tool_executor_node(state: ChatState) -> dict:
 
     # 并行执行安全工具
     if safe_calls:
-        safe_tasks = [_execute_single_tool(tc) for tc in safe_calls]
+        safe_tasks = [_execute_single_tool(tc, config) for tc in safe_calls]
         safe_results = await asyncio.gather(*safe_tasks)
         tool_messages.extend(safe_results)
 
@@ -103,7 +118,7 @@ async def tool_executor_node(state: ChatState) -> dict:
     for tc in unsafe_calls:
         tool_name = tc["name"]
         async with _get_lock(tool_name):
-            result = await _execute_single_tool(tc)
+            result = await _execute_single_tool(tc, config)
             tool_messages.append(result)
 
     return {"messages": tool_messages}

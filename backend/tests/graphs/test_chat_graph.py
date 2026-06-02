@@ -119,8 +119,8 @@ class TestToolExecutorNode:
 
     @pytest.mark.asyncio
     async def test_executes_tool_and_returns_tool_message(self):
-        mock_tool = MagicMock()
-        mock_tool.invoke.return_value = "blog result"
+        mock_tool = AsyncMock()
+        mock_tool.ainvoke.return_value = "blog result"
 
         mock_meta = MagicMock()
         mock_meta.concurrency_safe = True
@@ -150,6 +150,9 @@ class TestToolExecutorNode:
             assert isinstance(result["messages"][0], ToolMessage)
             assert result["messages"][0].content == "blog result"
             assert result["messages"][0].tool_call_id == "call_1"
+            call_kwargs = mock_tool.ainvoke.call_args.kwargs
+            assert call_kwargs["config"]["metadata"]["tool_call_id"] == "call_1"
+            assert call_kwargs["config"]["metadata"]["tool_name"] == "search_blog"
 
     @pytest.mark.asyncio
     async def test_unregistered_tool_returns_error_tool_message(self):
@@ -179,8 +182,8 @@ class TestToolExecutorNode:
 
     @pytest.mark.asyncio
     async def test_tool_exception_wrapped_as_tool_message(self):
-        mock_tool = MagicMock()
-        mock_tool.invoke.side_effect = RuntimeError("network error")
+        mock_tool = AsyncMock()
+        mock_tool.ainvoke.side_effect = RuntimeError("network error")
 
         mock_meta = MagicMock()
         mock_meta.concurrency_safe = True
@@ -215,13 +218,13 @@ class TestToolExecutorNode:
         call_order = []
 
         def make_mock_tool(name: str, delay: float):
-            mock_tool = MagicMock()
+            mock_tool = AsyncMock()
 
-            def side_effect(*args, **kwargs):
+            async def side_effect(*args, **kwargs):
                 call_order.append(name)
                 return f"{name} result"
 
-            mock_tool.invoke.side_effect = side_effect
+            mock_tool.ainvoke.side_effect = side_effect
             return mock_tool
 
         mock_meta_blog = MagicMock()

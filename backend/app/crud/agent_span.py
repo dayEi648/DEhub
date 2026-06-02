@@ -22,6 +22,7 @@ def batch_create_agent_spans(
         创建的 AgentSpan 对象列表
     """
     created: list[AgentSpan] = []
+    tmp_to_span: dict[str, AgentSpan] = {}
     for span_data in spans:
         span = AgentSpan(
             trace_id=trace_id,
@@ -40,6 +41,17 @@ def batch_create_agent_spans(
         )
         db.add(span)
         created.append(span)
+        tmp_span_id = span_data.get("tmp_span_id")
+        if tmp_span_id:
+            tmp_to_span[tmp_span_id] = span
+
+    db.flush()
+
+    for span, span_data in zip(created, spans, strict=False):
+        parent_tmp_span_id = span_data.get("parent_tmp_span_id")
+        if parent_tmp_span_id and parent_tmp_span_id in tmp_to_span:
+            span.parent_span_id = tmp_to_span[parent_tmp_span_id].id
+
     db.commit()
     for span in created:
         db.refresh(span)

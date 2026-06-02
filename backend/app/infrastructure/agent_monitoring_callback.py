@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any
 
@@ -30,6 +31,13 @@ from collections import OrderedDict
 _trace_buffers: OrderedDict[str, dict[str, Any]] = OrderedDict()
 _MAX_TRACE_BUFFER_SIZE = 1000
 
+_current_trace_id_var: ContextVar[str | None] = ContextVar(
+    "agent_monitoring_trace_id", default=None
+)
+_current_span_tmp_id_var: ContextVar[str | None] = ContextVar(
+    "agent_monitoring_span_tmp_id", default=None
+)
+
 
 class AgentMonitoringCallback(AsyncCallbackHandler):
     """Agent 监控 Callback。
@@ -42,6 +50,7 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
         super().__init__()
         self.trace_id: str | None = None
         self._trace_started_at: float = 0.0
+        self._run_span_tmp_ids: dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # 辅助方法
@@ -93,6 +102,85 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
         if len(text) <= max_len:
             return text
         return text[:max_len] + "..."
+
+    def _make_tmp_span_id(self, span_type: str, run_id) -> str:
+        return f"{span_type}-{str(run_id)}"
+
+    def _resolve_parent_tmp_span_id(self, parent_run_id, kwargs: dict) -> str | None:
+        metadata = kwargs.get("metadata") or {}
+        explicit_parent = metadata.get("agent_parent_span_tmp_id")
+        if explicit_parent:
+            return explicit_parent
+        if parent_run_id is not None:
+            parent_tmp = self._run_span_tmp_ids.get(str(parent_run_id))
+            if parent_tmp:
+                return parent_tmp
+        return None
+
+    def _append_span(
+        self,
+        buf: dict[str, Any],
+        *,
+        run_id,
+        parent_run_id=None,
+        span_type: str,
+        span_name: str,
+        input_data: dict | None = None,
+        metadata: dict | None = None,
+        kwargs: dict | None = None,
+    ) -> dict[str, Any]:
+        tmp_span_id = self._make_tmp_span_id(span_type, run_id)
+        parent_tmp_span_id = self._resolve_parent_tmp_span_id(
+            parent_run_id, kwargs or {}
+        )
+        span = {
+            "tmp_span_id": tmp_span_id,
+            "parent_tmp_span_id": parent_tmp_span_id,
+            "run_id": str(run_id),
+            "parent_run_id": str(parent_run_id) if parent_run_id else None,
+            "span_type": span_type,
+            "span_name": span_name,
+            "status": "started",
+            "started_at": datetime.now(timezone.utc),
+            "latency_ms": None,
+            "input_data": input_data,
+            "output_data": None,
+            "error_info": None,
+            "token_usage": None,
+            "metadata": metadata or {},
+        }
+        self._run_span_tmp_ids[str(run_id)] = tmp_span_id
+        buf["spans"].append(span)
+        _current_trace_id_var.set(buf["trace_id"])
+        _current_span_tmp_id_var.set(tmp_span_id)
+        return span
+
+    @staticmethod
+    def _complete_span(
+        span: dict[str, Any],
+        *,
+        output_data: dict | None = None,
+        token_usage: dict | None = None,
+    ) -> None:
+        span["status"] = "completed"
+        span["ended_at"] = datetime.now(timezone.utc)
+        if span.get("started_at"):
+            span["latency_ms"] = int(
+                (datetime.now(timezone.utc) - span["started_at"]).total_seconds()
+                * 1000
+            )
+        if output_data is not None:
+            span["output_data"] = output_data
+        if token_usage is not None:
+            span["token_usage"] = token_usage
+
+    @staticmethod
+    def _find_span_by_run_id(buf: dict[str, Any], run_id) -> dict[str, Any] | None:
+        run_id_text = str(run_id)
+        for span in reversed(buf.get("spans", [])):
+            if span.get("run_id") == run_id_text:
+                return span
+        return None
 
     # ------------------------------------------------------------------
     # on_chain_start / on_chain_end — Graph + Node 级别
@@ -146,6 +234,8 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
                     "error_message": None,
                     "metadata": {},
                 }
+                _current_trace_id_var.set(self.trace_id)
+                _current_span_tmp_id_var.set(None)
                 # 将 trace_id 写回 config metadata，供后续事件使用
                 if "metadata" in kwargs and isinstance(kwargs["metadata"], dict):
                     kwargs["metadata"]["agent_trace_id"] = self.trace_id
@@ -156,18 +246,14 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
                 buf = _trace_buffers.get(trace_id)
                 if buf:
                     buf["node_steps"] += 1
-                    buf["spans"].append({
-                        "span_type": "node",
-                        "span_name": node_name,
-                        "status": "started",
-                        "started_at": datetime.now(timezone.utc),
-                        "latency_ms": None,
-                        "input_data": None,
-                        "output_data": None,
-                        "error_info": None,
-                        "token_usage": None,
-                        "metadata": {},
-                    })
+                    self._append_span(
+                        buf,
+                        run_id=run_id,
+                        parent_run_id=parent_run_id,
+                        span_type="node",
+                        span_name=node_name,
+                        kwargs=kwargs,
+                    )
         except Exception:
             logger.exception("AgentMonitoringCallback.on_chain_start 异常")
 
@@ -216,15 +302,9 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
 
             # Node 级结束 — 更新对应 span
             if node_name:
-                for span in reversed(buf.get("spans", [])):
-                    if span["span_type"] == "node" and span["span_name"] == node_name and span.get("status") == "started":
-                        span["status"] = "completed"
-                        span["ended_at"] = datetime.now(timezone.utc)
-                        if span.get("started_at"):
-                            span["latency_ms"] = int(
-                                (datetime.now(timezone.utc) - span["started_at"]).total_seconds() * 1000
-                            )
-                        break
+                span = self._find_span_by_run_id(buf, run_id)
+                if span and span["span_type"] == "node":
+                    self._complete_span(span)
         except Exception:
             logger.exception("AgentMonitoringCallback.on_chain_end 异常")
 
@@ -247,18 +327,16 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
             if serialized and "kwargs" in serialized:
                 model_name = serialized["kwargs"].get("model", "")
 
-            buf["spans"].append({
-                "span_type": "llm",
-                "span_name": model_name or "llm",
-                "status": "started",
-                "started_at": datetime.now(timezone.utc),
-                "latency_ms": None,
-                "input_data": {"prompts_count": len(prompts)},
-                "output_data": None,
-                "error_info": None,
-                "token_usage": None,
-                "metadata": {"model_name": model_name},
-            })
+            self._append_span(
+                buf,
+                run_id=run_id,
+                parent_run_id=parent_run_id,
+                span_type="llm",
+                span_name=model_name or "llm",
+                input_data={"prompts_count": len(prompts)},
+                metadata={"model_name": model_name},
+                kwargs=kwargs,
+            )
         except Exception:
             logger.exception("AgentMonitoringCallback.on_llm_start 异常")
 
@@ -281,28 +359,23 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
             buf["prompt_cache_miss_tokens"] = (buf.get("prompt_cache_miss_tokens") or 0) + usage.get("prompt_cache_miss_tokens", 0)
             buf["reasoning_tokens"] = (buf.get("reasoning_tokens") or 0) + usage.get("reasoning_tokens", 0)
 
-            # 更新最后一个未完成的 llm span
-            for span in reversed(buf.get("spans", [])):
-                if span["span_type"] == "llm" and span.get("status") == "started":
-                    span["status"] = "completed"
-                    span["ended_at"] = datetime.now(timezone.utc)
-                    if span.get("started_at"):
-                        span["latency_ms"] = int(
-                            (datetime.now(timezone.utc) - span["started_at"]).total_seconds() * 1000
-                        )
-                    span["token_usage"] = usage
-                    # 尝试提取生成文本摘要
-                    try:
-                        if response.generations and response.generations[0]:
-                            gen = response.generations[0][0]
-                            msg = getattr(gen, "message", None)
-                            if msg:
-                                text = getattr(msg, "content", "")
-                                if isinstance(text, str):
-                                    span["output_data"] = {"content_preview": self._safe_truncate(text, 200)}
-                    except Exception:
-                        pass
-                    break
+            output_data = None
+            try:
+                if response.generations and response.generations[0]:
+                    gen = response.generations[0][0]
+                    msg = getattr(gen, "message", None)
+                    if msg:
+                        text = getattr(msg, "content", "")
+                        if isinstance(text, str):
+                            output_data = {
+                                "content_preview": self._safe_truncate(text, 200)
+                            }
+            except Exception:
+                pass
+
+            span = self._find_span_by_run_id(buf, run_id)
+            if span and span["span_type"] == "llm":
+                self._complete_span(span, output_data=output_data, token_usage=usage)
         except Exception:
             logger.exception("AgentMonitoringCallback.on_llm_end 异常")
 
@@ -324,18 +397,18 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
             tool_name = serialized.get("name", "unknown") if serialized else "unknown"
             buf["tool_calls_count"] = buf.get("tool_calls_count", 0) + 1
 
-            buf["spans"].append({
-                "span_type": "tool",
-                "span_name": tool_name,
-                "status": "started",
-                "started_at": datetime.now(timezone.utc),
-                "latency_ms": None,
-                "input_data": {"args": self._safe_truncate(input_str, 500)},
-                "output_data": None,
-                "error_info": None,
-                "token_usage": None,
-                "metadata": {},
-            })
+            span = self._append_span(
+                buf,
+                run_id=run_id,
+                parent_run_id=parent_run_id,
+                span_type="tool",
+                span_name=tool_name,
+                input_data={"args": self._safe_truncate(input_str, 500)},
+                kwargs=kwargs,
+            )
+            metadata = kwargs.get("metadata") or {}
+            if isinstance(metadata, dict):
+                metadata["agent_current_tool_tmp_span_id"] = span["tmp_span_id"]
         except Exception:
             logger.exception("AgentMonitoringCallback.on_tool_start 异常")
 
@@ -351,16 +424,14 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
                 return
 
             output_str = str(output) if output is not None else ""
-            for span in reversed(buf.get("spans", [])):
-                if span["span_type"] == "tool" and span.get("status") == "started":
-                    span["status"] = "completed"
-                    span["ended_at"] = datetime.now(timezone.utc)
-                    if span.get("started_at"):
-                        span["latency_ms"] = int(
-                            (datetime.now(timezone.utc) - span["started_at"]).total_seconds() * 1000
-                        )
-                    span["output_data"] = {"result_preview": self._safe_truncate(output_str, 500)}
-                    break
+            span = self._find_span_by_run_id(buf, run_id)
+            if span and span["span_type"] == "tool":
+                self._complete_span(
+                    span,
+                    output_data={
+                        "result_preview": self._safe_truncate(output_str, 500)
+                    },
+                )
         except Exception:
             logger.exception("AgentMonitoringCallback.on_tool_end 异常")
 
@@ -419,3 +490,13 @@ class AgentMonitoringCallback(AsyncCallbackHandler):
 def get_trace_buffer(trace_id: str) -> dict[str, Any] | None:
     """获取指定 trace_id 的内存缓冲（供外部业务埋点使用）。"""
     return _trace_buffers.get(trace_id)
+
+
+def get_current_trace_id() -> str | None:
+    """获取当前 callback 上下文中的 trace_id。"""
+    return _current_trace_id_var.get()
+
+
+def get_current_span_tmp_id() -> str | None:
+    """获取当前 callback 上下文中的 span 临时 ID。"""
+    return _current_span_tmp_id_var.get()

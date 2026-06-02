@@ -7,6 +7,7 @@ Phase 1 仅处理 agent_traces；Phase 2 扩展 agent_spans。
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -186,3 +187,86 @@ class AgentMonitoringService:
 
         buf["spans"].append(span)
         logger.debug("记录业务 span: trace=%s, type=%s, name=%s", trace_id, span_type, span_name)
+
+    @staticmethod
+    def start_buffered_span(
+        trace_id: str | None,
+        span_type: str,
+        span_name: str,
+        input_data: dict | None = None,
+        metadata: dict | None = None,
+        parent_tmp_span_id: str | None = None,
+    ) -> str | None:
+        """在当前 trace 缓冲中启动业务 span，返回临时 span id。
+
+        仅用于 graph 主 trace 尚未持久化时的细粒度内部步骤。
+        """
+        if not trace_id:
+            return None
+
+        from app.infrastructure.agent_monitoring_callback import (
+            get_current_span_tmp_id,
+            get_trace_buffer,
+        )
+
+        buf = get_trace_buffer(trace_id)
+        if not buf:
+            logger.debug("start_buffered_span 找不到 trace 缓冲，跳过: %s", trace_id)
+            return None
+
+        tmp_span_id = f"business-{uuid.uuid4().hex[:12]}"
+        span = {
+            "tmp_span_id": tmp_span_id,
+            "parent_tmp_span_id": parent_tmp_span_id or get_current_span_tmp_id(),
+            "span_type": span_type,
+            "span_name": span_name,
+            "status": "started",
+            "started_at": datetime.now(timezone.utc),
+            "ended_at": None,
+            "latency_ms": None,
+            "input_data": input_data,
+            "output_data": None,
+            "error_info": None,
+            "token_usage": None,
+            "metadata": metadata or {},
+        }
+        buf["spans"].append(span)
+        return tmp_span_id
+
+    @staticmethod
+    def end_buffered_span(
+        trace_id: str | None,
+        tmp_span_id: str | None,
+        status: str = "completed",
+        output_data: dict | None = None,
+        error_info: dict | None = None,
+        metadata: dict | None = None,
+    ) -> None:
+        """结束缓冲中的业务 span。"""
+        if not trace_id or not tmp_span_id:
+            return
+
+        from app.infrastructure.agent_monitoring_callback import get_trace_buffer
+
+        buf = get_trace_buffer(trace_id)
+        if not buf:
+            return
+
+        for span in reversed(buf.get("spans", [])):
+            if span.get("tmp_span_id") == tmp_span_id:
+                span["status"] = status
+                span["ended_at"] = datetime.now(timezone.utc)
+                if span.get("started_at"):
+                    span["latency_ms"] = int(
+                        (
+                            datetime.now(timezone.utc) - span["started_at"]
+                        ).total_seconds()
+                        * 1000
+                    )
+                if output_data is not None:
+                    span["output_data"] = output_data
+                if error_info is not None:
+                    span["error_info"] = error_info
+                if metadata:
+                    span["metadata"] = {**(span.get("metadata") or {}), **metadata}
+                return

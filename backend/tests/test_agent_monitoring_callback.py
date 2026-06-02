@@ -1,12 +1,16 @@
 """AgentMonitoringCallback 单元测试。"""
 
+import uuid
 from unittest.mock import MagicMock
 
 import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
 
-from app.infrastructure.agent_monitoring_callback import AgentMonitoringCallback
+from app.infrastructure.agent_monitoring_callback import (
+    AgentMonitoringCallback,
+    get_trace_buffer,
+)
 
 
 class TestSafeExtractUsage:
@@ -137,3 +141,104 @@ class TestSafeExtractUsage:
             LLMResult(generations=[])
         )
         assert result == {}
+
+
+class TestSpanRunMatching:
+    """测试 span 使用 run_id 精确匹配，支持嵌套与乱序结束。"""
+
+    def setup_method(self):
+        self.callback = AgentMonitoringCallback()
+
+    async def _start_trace(self):
+        run_id = uuid.uuid4()
+        await self.callback.on_chain_start(
+            None,
+            {"messages": []},
+            run_id=run_id,
+            metadata={
+                "user_id": 1,
+                "conversation_id": 2,
+                "input_message": "搜索 Python 新闻",
+            },
+        )
+        assert self.callback.trace_id is not None
+        return run_id, self.callback.trace_id
+
+    @staticmethod
+    def _make_llm_result(content: str) -> LLMResult:
+        message = AIMessage(content=content)
+        generation = ChatGeneration(message=message)
+        return LLMResult(generations=[[generation]])
+
+    @pytest.mark.asyncio
+    async def test_nested_spans_record_parent_tmp_id(self):
+        graph_run_id, trace_id = await self._start_trace()
+        node_run_id = uuid.uuid4()
+        tool_run_id = uuid.uuid4()
+        llm_run_id = uuid.uuid4()
+
+        await self.callback.on_chain_start(
+            None,
+            {},
+            run_id=node_run_id,
+            parent_run_id=graph_run_id,
+            metadata={"agent_trace_id": trace_id, "langgraph_node": "tool_executor"},
+        )
+        await self.callback.on_tool_start(
+            {"name": "search_web"},
+            '{"query":"python"}',
+            run_id=tool_run_id,
+            parent_run_id=node_run_id,
+            metadata={"agent_trace_id": trace_id},
+        )
+        await self.callback.on_llm_start(
+            {"kwargs": {"model": "small-model"}},
+            ["prompt"],
+            run_id=llm_run_id,
+            parent_run_id=tool_run_id,
+            metadata={"agent_trace_id": trace_id},
+        )
+
+        buf = get_trace_buffer(trace_id)
+        assert buf is not None
+        node_span = next(s for s in buf["spans"] if s["span_type"] == "node")
+        tool_span = next(s for s in buf["spans"] if s["span_type"] == "tool")
+        llm_span = next(s for s in buf["spans"] if s["span_type"] == "llm")
+
+        assert tool_span["parent_tmp_span_id"] == node_span["tmp_span_id"]
+        assert llm_span["parent_tmp_span_id"] == tool_span["tmp_span_id"]
+
+    @pytest.mark.asyncio
+    async def test_parallel_llm_end_updates_matching_run_only(self):
+        _, trace_id = await self._start_trace()
+        first_run_id = uuid.uuid4()
+        second_run_id = uuid.uuid4()
+
+        await self.callback.on_llm_start(
+            {"kwargs": {"model": "first-model"}},
+            ["first"],
+            run_id=first_run_id,
+            metadata={"agent_trace_id": trace_id},
+        )
+        await self.callback.on_llm_start(
+            {"kwargs": {"model": "second-model"}},
+            ["second"],
+            run_id=second_run_id,
+            metadata={"agent_trace_id": trace_id},
+        )
+
+        first_result = self._make_llm_result("first done")
+        await self.callback.on_llm_end(
+            first_result,
+            run_id=first_run_id,
+            metadata={"agent_trace_id": trace_id},
+        )
+
+        buf = get_trace_buffer(trace_id)
+        assert buf is not None
+        first_span = next(s for s in buf["spans"] if s["metadata"]["model_name"] == "first-model")
+        second_span = next(s for s in buf["spans"] if s["metadata"]["model_name"] == "second-model")
+
+        assert first_span["status"] == "completed"
+        assert first_span["output_data"]["content_preview"] == "first done"
+        assert second_span["status"] == "started"
