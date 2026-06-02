@@ -593,14 +593,18 @@ export default function BlogListPage() {
   }
 
   const handleCreateBlog = async (data: Parameters<typeof createBlogPost>[0] & { file?: File }) => {
+    if (!data.file) {
+      toast.error('请上传封面图片')
+      return
+    }
     setSubmitting(true)
     try {
-      await createBlogPost(data, data.file!)
+      await createBlogPost(data, data.file)
       toast.success('文章创建成功')
       setShowEditor(false)
       fetchBlogs()
     } catch {
-      toast.error('文章创建失败')
+      // request 拦截器已统一显示后端返回的具体错误信息，此处不再重复 toast
     } finally {
       setSubmitting(false)
     }

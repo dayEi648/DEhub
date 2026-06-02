@@ -169,17 +169,17 @@ export default function BlogEditorModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !isDirty || !title.trim() || !contentMd.trim() || !categoryId || (!isEdit && !coverFile)}
+            disabled={submitting}
             style={{
               height: 40,
               padding: '0 20px',
               borderRadius: 'var(--rounded-md)',
-              backgroundColor: submitting || !isDirty ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
+              backgroundColor: submitting ? 'var(--color-primary-disabled)' : 'var(--color-primary)',
               color: 'var(--color-on-primary)',
               fontSize: 14,
               fontWeight: 500,
               border: 'none',
-              cursor: submitting || !isDirty || !title.trim() || !contentMd.trim() || !categoryId ? 'not-allowed' : 'pointer',
+              cursor: submitting ? 'not-allowed' : 'pointer',
             }}
           >
             {submitting ? '保存中…' : '保存'}
