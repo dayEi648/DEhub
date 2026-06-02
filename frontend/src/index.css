@@ -531,6 +531,29 @@
   font-size: 11px;
 }
 
+.ai-chat-bubble--thinking {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background-color: var(--color-surface-soft);
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.ai-chat-thinking__spinner {
+  animation: ai-chat-spin 1.2s linear infinite;
+}
+
+@keyframes ai-chat-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .ai-chat-bubble__meta {
   display: flex;
   align-items: center;
