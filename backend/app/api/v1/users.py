@@ -74,7 +74,7 @@ def parse_user_update(user_in: str = Form(..., description="用户更新请求�
 async def update_user(
     user_id: int,
     user_in: UserUpdate = Depends(parse_user_update),
-    file: UploadFile | None = File(None, description="头像文件，前端限制 20MB，后端自动压缩至 5MB 以下"),
+    file: UploadFile | None = File(None, description="头像文件，前端限制 20MB，后端自动压缩至 2MB 以下"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> UserResponse:

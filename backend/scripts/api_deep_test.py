@@ -745,7 +745,7 @@ def test_upload_module():
              data.get("message") if isinstance(data, dict) else str(data)[:100], passed,
              "" if passed else f"期望400/422，实际{r.status_code}，响应: {data}")
 
-    # 大文件测试 - 创建一个超过5MB的文件（模拟）
+    # 大文件测试 - 创建一个超过2MB的文件（模拟）
     big_file_path = "/tmp/test_big.jpg"
     with open(big_file_path, "wb") as f:
         f.write(b"\x00" * (6 * 1024 * 1024))  # 6MB zeros
@@ -755,7 +755,7 @@ def test_upload_module():
     data = safe_json(r)
     # 大文件可能被拒绝413，或被压缩成功
     passed = r.status_code in [200, 413]
-    log_test(module, "大文件上传测试（>5MB）", "POST", "/api/v1/uploads/image", r.status_code,
+    log_test(module, "大文件上传测试（>2MB）", "POST", "/api/v1/uploads/image", r.status_code,
              data.get("message") if isinstance(data, dict) else str(data)[:100], passed,
              f"状态码: {r.status_code}, 6MB文件" if not passed else f"状态码: {r.status_code}")
 

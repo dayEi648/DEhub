@@ -10,7 +10,7 @@ router = APIRouter(prefix="/uploads", tags=["通用上传"])
 
 @router.post("/image", response_model=UploadImageResponse, status_code=200)
 async def upload_image_endpoint(
-    file: UploadFile = File(..., description="图片文件，前端限制 20MB，后端自动压缩至 5MB 以下"),
+    file: UploadFile = File(..., description="图片文件，前端限制 20MB，后端自动压缩至 2MB 以下"),
     scene: ImageUploadScene = Query(default=ImageUploadScene.generic, description="上传场景"),
     current_user: User = Depends(get_current_user),
 ) -> UploadImageResponse:

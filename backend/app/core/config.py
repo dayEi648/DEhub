@@ -106,8 +106,8 @@ class Settings(BaseSettings):
     OSS_ENDPOINT: str = Field(default="")
     OSS_BUCKET_NAME: str = Field(default="")
     OSS_DOMAIN: str = Field(default="")
-    # OSS 图片上传统一限制（5MB）
-    MAX_OSS_IMAGE_SIZE: int = Field(default=5 * 1024 * 1024)
+    # OSS 图片上传统一限制（2MB）
+    MAX_OSS_IMAGE_SIZE: int = Field(default=2 * 1024 * 1024)
 
     OSS_USERS_AVATAR_DIR: str = Field(default="users/avatar")
 

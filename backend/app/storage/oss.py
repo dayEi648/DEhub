@@ -146,7 +146,7 @@ def compress_image(content: bytes, max_size: int | None = None, max_dimension: i
     压缩图片，确保输出大小不超过 max_size
     Args:
         content: 原始图片字节
-        max_size: 允许的最大字节数，默认使用 settings.MAX_OSS_IMAGE_SIZE (5MB)
+        max_size: 允许的最大字节数，默认使用 settings.MAX_OSS_IMAGE_SIZE (2MB)
         max_dimension: 最大边长限制
     Returns:
         bytes: 压缩后的 JPEG 字节

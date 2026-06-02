@@ -105,8 +105,8 @@ class TestCompressImageDefaults:
     """验证 compress_image 默认值使用 MAX_OSS_IMAGE_SIZE"""
 
     def test_compress_image_uses_oss_default_max_size(self):
-        """不传 max_size 时，应使用 settings.MAX_OSS_IMAGE_SIZE (5MB)"""
-        with patch("app.storage.oss.settings.MAX_OSS_IMAGE_SIZE", 5 * 1024 * 1024):
+        """不传 max_size 时，应使用 settings.MAX_OSS_IMAGE_SIZE (2MB)"""
+        with patch("app.storage.oss.settings.MAX_OSS_IMAGE_SIZE", 2 * 1024 * 1024):
             with patch("PIL.Image.open") as mock_open:
                 mock_img = MagicMock()
                 mock_img._getexif.return_value = None
