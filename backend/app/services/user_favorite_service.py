@@ -176,3 +176,67 @@ class UserFavoriteService:
             items=[ForumPostResponse.model_validate(post) for post in items],
             total=total,
         )
+
+    # ---------- 供 LLM Tools 调用的辅助方法（接受 user_id，不依赖 User 对象）----------
+
+    def favorite_blog_post_by_slug(self, slug: str, user_id: int) -> None:
+        """通过 slug 收藏博客文章。"""
+        db_post = blog_post_crud.get_blog_post_by_slug(self.db, slug)
+        if not db_post or db_post.status != "published":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="文章不存在",
+            )
+        existing = favorite_crud.get_blog_post_favorite(
+            self.db, user_id, db_post.id
+        )
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="已收藏该文章",
+            )
+        favorite_crud.create_blog_post_favorite(self.db, user_id, db_post.id)
+
+    def unfavorite_blog_post_by_slug(self, slug: str, user_id: int) -> None:
+        """通过 slug 取消收藏博客文章。"""
+        db_post = blog_post_crud.get_blog_post_by_slug(self.db, slug)
+        if not db_post:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="文章不存在",
+            )
+        existing = favorite_crud.get_blog_post_favorite(
+            self.db, user_id, db_post.id
+        )
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="未收藏该文章",
+            )
+        favorite_crud.delete_blog_post_favorite(self.db, user_id, db_post.id)
+
+    def follow_zone_by_id(self, zone_id: int, user_id: int) -> None:
+        """通过分区 ID 关注分区。"""
+        zone = forum_zone_crud.get_zone_by_id(self.db, zone_id)
+        if not zone:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="分区不存在",
+            )
+        existing = favorite_crud.get_zone_follow(self.db, user_id, zone_id)
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="已关注该分区",
+            )
+        favorite_crud.create_zone_follow(self.db, user_id, zone_id)
+
+    def unfollow_zone_by_id(self, zone_id: int, user_id: int) -> None:
+        """通过分区 ID 取消关注分区。"""
+        existing = favorite_crud.get_zone_follow(self.db, user_id, zone_id)
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="未关注该分区",
+            )
+        favorite_crud.delete_zone_follow(self.db, user_id, zone_id)

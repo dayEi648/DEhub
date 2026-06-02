@@ -10,6 +10,7 @@ import logging
 from langchain_core.messages import AIMessage, ToolMessage
 
 from app.graphs.nodes.toolnodes import registry
+from app.graphs.nodes.toolnodes._context import current_user_id_var
 from app.graphs.states.chat_state import ChatState
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,9 @@ async def _execute_single_tool(tool_call: dict) -> ToolMessage:
 
 async def tool_executor_node(state: ChatState) -> dict:
     """工具执行节点：按并发策略调度 tool_calls，返回 ToolMessages 列表。"""
+    # 将当前用户 ID 注入上下文变量，供后续工具内部读取
+    current_user_id_var.set(state.get("user_id"))
+
     messages = state.get("messages", [])
     if not messages:
         return {"messages": []}

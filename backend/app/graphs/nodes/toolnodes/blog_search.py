@@ -52,6 +52,7 @@ def search_blog(query: str) -> str:
             if result.slug:
                 path = settings.FRONTEND_BLOG_DETAIL_PATH.format(slug=result.slug)
                 lines.append(f"链接：{path}")
+                lines.append(f"Slug: {result.slug}")
             if result.summary:
                 lines.append(f"摘要：{result.summary}")
             lines.append(f"相似度：{result.similarity_score:.4f}")
