@@ -1123,6 +1123,7 @@ export default function ProfilePage() {
                         {followedZones.map((zone) => (
                           <div
                             key={zone.id}
+                            onClick={() => navigate(`/forums/z/${zone.slug}`)}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
@@ -1130,6 +1131,14 @@ export default function ProfilePage() {
                               padding: '12px 16px',
                               borderRadius: 'var(--rounded-md)',
                               backgroundColor: 'var(--color-canvas)',
+                              cursor: 'pointer',
+                              transition: 'background-color 150ms ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--color-surface)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
@@ -1157,7 +1166,7 @@ export default function ProfilePage() {
                               </div>
                             </div>
                             <button
-                              onClick={() => handleUnfollowZone(zone.id)}
+                              onClick={(e) => { e.stopPropagation(); handleUnfollowZone(zone.id) }}
                               style={{
                                 width: 32,
                                 height: 32,
@@ -1226,6 +1235,7 @@ export default function ProfilePage() {
                         {favoritePosts.map((post) => (
                           <div
                             key={post.id}
+                            onClick={() => navigate(`/forums/p/${post.id}`)}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
@@ -1233,6 +1243,14 @@ export default function ProfilePage() {
                               padding: '12px 16px',
                               borderRadius: 'var(--rounded-md)',
                               backgroundColor: 'var(--color-canvas)',
+                              cursor: 'pointer',
+                              transition: 'background-color 150ms ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--color-surface)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
                             }}
                           >
                             <div style={{ minWidth: 0, flex: 1 }}>
@@ -1255,7 +1273,7 @@ export default function ProfilePage() {
                               </div>
                             </div>
                             <button
-                              onClick={() => handleUnfavoritePost(post.id)}
+                              onClick={(e) => { e.stopPropagation(); handleUnfavoritePost(post.id) }}
                               style={{
                                 width: 32,
                                 height: 32,
@@ -1326,6 +1344,7 @@ export default function ProfilePage() {
                         {favoriteBlogs.map((blog) => (
                           <div
                             key={blog.id}
+                            onClick={() => navigate(`/blogs/${blog.slug}`)}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
@@ -1333,6 +1352,14 @@ export default function ProfilePage() {
                               padding: '12px 16px',
                               borderRadius: 'var(--rounded-md)',
                               backgroundColor: 'var(--color-canvas)',
+                              cursor: 'pointer',
+                              transition: 'background-color 150ms ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--color-surface)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--color-canvas)'
                             }}
                           >
                             <div style={{ minWidth: 0, flex: 1 }}>
@@ -1365,7 +1392,7 @@ export default function ProfilePage() {
                               </div>
                             </div>
                             <button
-                              onClick={() => handleUnfavoriteBlog(blog.id)}
+                              onClick={(e) => { e.stopPropagation(); handleUnfavoriteBlog(blog.id) }}
                               style={{
                                 width: 32,
                                 height: 32,
