@@ -25,6 +25,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # 复制应用代码
 COPY app/ ./app/
 
+# 复制 alembic 配置与迁移脚本（启动时自动执行数据库迁移）
+COPY alembic.ini .
+COPY alembic/ ./alembic/
+
 # 暴露端口
 EXPOSE 8000
 
