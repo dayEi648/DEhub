@@ -13,7 +13,7 @@ def parse_json_form_payload(payload: str, model_cls: type[ModelType]) -> ModelTy
         data = json.loads(payload)
     except json.JSONDecodeError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="请求体 JSON 格式错误",
         ) from exc
     return model_cls.model_validate(data)

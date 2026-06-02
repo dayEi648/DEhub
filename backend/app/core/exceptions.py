@@ -60,7 +60,7 @@ def validation_exception_handler(request: Request, exc: RequestValidationError) 
     extra["extra"]["validation_errors"] = exc.errors()
     logger.warning("请求参数校验失败: %s", exc.errors(), extra=extra)
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={
             "code": 422,
             "message": "请求参数校验失败",
