@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Archive, Bot, Loader2, MessageSquarePlus, Send, ShieldAlert, Trash2 } from 'lucide-react'
+import { Archive, Bot, ChevronLeft, ChevronRight, Loader2, MessageSquarePlus, Send, ShieldAlert, Trash2 } from 'lucide-react'
 import { parseErrorMessage, isAuthError } from '../utils/error'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -65,6 +65,7 @@ export default function AIChatPage() {
   const [newConversationMode, setNewConversationMode] = useState(false)
   const [includeHidden, setIncludeHidden] = useState(false)
   const [panelError, setPanelError] = useState('')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const skipNextMessagesFetchRef = useRef<number | null>(null)
   const currentUser = getUser()
@@ -248,13 +249,21 @@ export default function AIChatPage() {
     <div className="ai-chat-page">
       <AppTopNav onLogout={handleLogout} />
 
-      <main className="ai-chat-main">
-        <aside className="ai-chat-sidebar">
+      <main className={`ai-chat-main ${sidebarCollapsed ? 'has-collapsed-sidebar' : ''}`}>
+        <aside className={`ai-chat-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
           <div className="ai-chat-sidebar__top">
             <div className="ai-chat-sidebar__title">
               <Bot size={17} />
               <span>AI 助手</span>
             </div>
+            <button
+              type="button"
+              className="ai-chat-sidebar__toggle"
+              onClick={() => setSidebarCollapsed(true)}
+              aria-label="收起侧边栏"
+            >
+              <ChevronLeft size={14} />
+            </button>
             <button
               type="button"
               className="ai-chat-sidebar__new-button"
@@ -302,7 +311,6 @@ export default function AIChatPage() {
                       {formatDateTime(conversation.last_message_at || conversation.updated_at)}
                     </span>
                   </div>
-                  <span className="ai-chat-sidebar__item-meta">ID: {conversation.id}</span>
                   <button
                     type="button"
                     className="ai-chat-sidebar__delete"
@@ -344,7 +352,17 @@ export default function AIChatPage() {
 
         <section className="ai-chat-panel">
           <header className="ai-chat-panel__header">
-            <div>
+            <div className="ai-chat-panel__header-left">
+              {sidebarCollapsed && (
+                <button
+                  type="button"
+                  className="ai-chat-panel__sidebar-toggle"
+                  onClick={() => setSidebarCollapsed(false)}
+                  aria-label="展开侧边栏"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              )}
               <h1 className="ai-chat-panel__title">AI 聊天助手</h1>
             </div>
 
