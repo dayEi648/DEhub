@@ -14,7 +14,7 @@ _checkpoint_redis_client: aioredis.Redis | None = None
 async def init_redis_client() -> None:
     """初始化 Redis 异步客户端。"""
     global redis_client
-    redis_client = aioredis.Redis(
+    client = aioredis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         password=settings.REDIS_PASSWORD or None,
@@ -22,9 +22,11 @@ async def init_redis_client() -> None:
         decode_responses=True,
     )
     try:
-        await redis_client.ping()
+        await client.ping()
+        redis_client = client
         logger.info("Redis 异步客户端初始化成功")
     except Exception:
+        await client.close()
         logger.exception("Redis 异步客户端初始化失败")
         raise
 
@@ -32,7 +34,7 @@ async def init_redis_client() -> None:
 def init_sync_redis_client() -> None:
     """初始化 Redis 同步客户端。"""
     global _sync_redis_client
-    _sync_redis_client = redis.Redis(
+    client = redis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         password=settings.REDIS_PASSWORD or None,
@@ -40,9 +42,11 @@ def init_sync_redis_client() -> None:
         decode_responses=True,
     )
     try:
-        _sync_redis_client.ping()
+        client.ping()
+        _sync_redis_client = client
         logger.info("Redis 同步客户端初始化成功")
     except Exception:
+        client.close()
         logger.exception("Redis 同步客户端初始化失败")
         raise
 
@@ -82,7 +86,7 @@ def get_sync_redis_client() -> redis.Redis:
 async def init_checkpoint_redis_client() -> None:
     """初始化专用于 Checkpoint 的 Redis 异步客户端（不自动解码响应）。"""
     global _checkpoint_redis_client
-    _checkpoint_redis_client = aioredis.Redis(
+    client = aioredis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         password=settings.REDIS_PASSWORD or None,
@@ -90,9 +94,11 @@ async def init_checkpoint_redis_client() -> None:
         decode_responses=False,
     )
     try:
-        await _checkpoint_redis_client.ping()
+        await client.ping()
+        _checkpoint_redis_client = client
         logger.info("Checkpoint Redis 异步客户端初始化成功")
     except Exception:
+        await client.close()
         logger.exception("Checkpoint Redis 异步客户端初始化失败")
         raise
 

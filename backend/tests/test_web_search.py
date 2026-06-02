@@ -9,6 +9,7 @@ import pytest
 
 from app.infrastructure.agent_monitoring_callback import (
     AgentMonitoringCallback,
+    clear_trace_buffer,
     get_trace_buffer,
 )
 from app.graphs.nodes.toolnodes.web_search import (
@@ -576,3 +577,5 @@ class TestSearchWebIntegration:
         aggregation = next(s for s in web_spans if s["span_name"] == "result_aggregation")
         assert aggregation["output_data"]["raw_count"] == 3
         assert aggregation["output_data"]["deduped_count"] == 3
+
+        clear_trace_buffer(trace_id)

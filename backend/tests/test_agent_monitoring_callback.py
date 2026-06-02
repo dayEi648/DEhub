@@ -9,6 +9,7 @@ from langchain_core.outputs import ChatGeneration, LLMResult
 
 from app.infrastructure.agent_monitoring_callback import (
     AgentMonitoringCallback,
+    clear_trace_buffer,
     get_trace_buffer,
 )
 
@@ -148,6 +149,10 @@ class TestSpanRunMatching:
 
     def setup_method(self):
         self.callback = AgentMonitoringCallback()
+
+    def teardown_method(self):
+        if self.callback.trace_id:
+            clear_trace_buffer(self.callback.trace_id)
 
     async def _start_trace(self):
         run_id = uuid.uuid4()

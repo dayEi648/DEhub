@@ -500,3 +500,15 @@ def get_current_trace_id() -> str | None:
 def get_current_span_tmp_id() -> str | None:
     """获取当前 callback 上下文中的 span 临时 ID。"""
     return _current_span_tmp_id_var.get()
+
+
+def clear_trace_buffer(trace_id: str | None = None) -> None:
+    """清理指定 trace_id 的内存缓冲，或清空全部缓冲。
+
+    Args:
+        trace_id: 为 None 时清空全部缓冲；否则仅移除该 trace_id。
+    """
+    if trace_id:
+        _trace_buffers.pop(trace_id, None)
+    else:
+        _trace_buffers.clear()

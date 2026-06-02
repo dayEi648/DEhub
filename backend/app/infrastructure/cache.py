@@ -24,6 +24,14 @@ CACHE_KEY_PREFIX = "dehub:cache:v1"
 CACHE_TAG_PREFIX = "dehub:cachetag:v1"
 CACHE_LOCK_PREFIX = "dehub:cachelock:v1"
 
+_RELEASE_LOCK_SCRIPT = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+else
+    return 0
+end
+"""
+
 
 def _get_redis():
     """获取 Redis 同步客户端；若未启用缓存或客户端异常则返回 None。"""
@@ -178,6 +186,7 @@ def release_cache_lock(key: str, token: str | None = None) -> None:
     """释放缓存重建锁。
 
     仅在 token 与 Redis 中存储的值一致时才删除，避免误删他人持有的锁。
+    使用 Redis Lua 脚本保证 get→判断→del 的原子性。
 
     Args:
         key: 业务 key。
@@ -188,8 +197,6 @@ def release_cache_lock(key: str, token: str | None = None) -> None:
         return
     try:
         lock_key = f"{CACHE_LOCK_PREFIX}:{key}"
-        current = redis.get(lock_key)
-        if current and current.decode("utf-8") == token:
-            redis.delete(lock_key)
+        redis.eval(_RELEASE_LOCK_SCRIPT, 1, lock_key, token)
     except Exception:
         pass

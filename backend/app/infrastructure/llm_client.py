@@ -80,6 +80,7 @@ def close_llm_client() -> None:
 
 
 def close_llm_small_client() -> None:
-    """释放全局小模型单例引用。"""
-    global _llm_small_client
+    """释放全局小模型单例引用及所有 override 实例。"""
+    global _llm_small_client, _llm_small_client_overrides
     _llm_small_client = None
+    _llm_small_client_overrides.clear()

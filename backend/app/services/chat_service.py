@@ -35,6 +35,14 @@ from app.services.user_profile_service import UserProfileService
 
 logger = logging.getLogger(__name__)
 
+_RELEASE_CONV_LOCK_SCRIPT = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+else
+    return 0
+end
+"""
+
 
 def _require_owner(conv: AIConversation, user_id: int) -> None:
     """校验当前用户是否为对话所有者。"""
@@ -171,18 +179,17 @@ class ChatService:
     async def _release_conversation_lock(
         cls, conversation_id: int, token: str | None
     ) -> None:
-        """释放对话级锁，仅释放自己持有的 token。"""
+        """释放对话级锁，仅释放自己持有的 token。
+
+        使用 Redis Lua 脚本保证 get→判断→del 的原子性，避免竞态条件下误删他人锁。
+        """
         if not token:
             return
 
         def _release() -> None:
             redis = get_sync_redis_client()
             key = cls._chat_lock_key(conversation_id)
-            current = redis.get(key)
-            if isinstance(current, bytes):
-                current = current.decode("utf-8")
-            if current == token:
-                redis.delete(key)
+            redis.eval(_RELEASE_CONV_LOCK_SCRIPT, 1, key, token)
 
         try:
             await asyncio.to_thread(_release)

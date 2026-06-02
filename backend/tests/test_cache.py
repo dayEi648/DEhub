@@ -279,23 +279,38 @@ class TestCacheLock:
 
     @patch("app.infrastructure.cache._get_redis")
     def test_release_lock_with_token(self, mock_get_redis):
-        """释放锁时 token 一致才删除对应 key。"""
+        """释放锁时应通过 Lua 脚本原子删除对应 key。"""
         mock_redis = MagicMock()
-        mock_redis.get.return_value = b"mytoken"
         mock_get_redis.return_value = mock_redis
 
         release_cache_lock("hot:key", token="mytoken")
-        mock_redis.delete.assert_called_once_with("dehub:cachelock:v1:hot:key")
+        mock_redis.eval.assert_called_once()
+        call_args = mock_redis.eval.call_args[0]
+        assert "redis.call" in call_args[0]
+        assert call_args[1] == 1
+        assert call_args[2] == "dehub:cachelock:v1:hot:key"
+        assert call_args[3] == "mytoken"
 
     @patch("app.infrastructure.cache._get_redis")
     def test_release_lock_token_mismatch_no_delete(self, mock_get_redis):
-        """token 不一致时不应删除锁。"""
+        """token 不一致时 Lua 脚本应返回 0 不删除锁。"""
+        stored_token = "other_token"
+        call_log = []
+
+        def mock_eval(script, numkeys, key, token):
+            call_log.append((script, numkeys, key, token))
+            return 1 if stored_token == token else 0
+
         mock_redis = MagicMock()
-        mock_redis.get.return_value = b"other_token"
+        mock_redis.eval = mock_eval
         mock_get_redis.return_value = mock_redis
 
-        release_cache_lock("hot:key", token="mytoken")
-        mock_redis.delete.assert_not_called()
+        result = release_cache_lock("hot:key", token="mytoken")
+        # 验证 eval 被调用且参数正确，mock_eval 返回 0 表示未删除
+        assert len(call_log) == 1
+        assert call_log[0][1] == 1
+        assert call_log[0][2] == "dehub:cachelock:v1:hot:key"
+        assert call_log[0][3] == "mytoken"
 
     @patch("app.infrastructure.cache._get_redis")
     def test_release_lock_no_token_no_op(self, mock_get_redis):
@@ -304,8 +319,7 @@ class TestCacheLock:
         mock_get_redis.return_value = mock_redis
 
         release_cache_lock("hot:key", token=None)
-        mock_redis.get.assert_not_called()
-        mock_redis.delete.assert_not_called()
+        mock_redis.eval.assert_not_called()
 
     @patch("app.infrastructure.cache._get_redis")
     def test_acquire_lock_redis_down_returns_none(self, mock_get_redis):
