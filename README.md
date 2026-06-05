@@ -229,7 +229,6 @@ START → agent_node → [含 tool_calls ?] → tool_executor_node → agent_nod
 - **Git 工作流**：功能分支开发，通过 Pull Request 合并
 - **依赖管理**：中国大陆网络环境下，包管理器默认使用国内镜像源
 
-更多规范请参考根目录及各子目录下的 [`AGENTS.md`](AGENTS.md) 文件。
 
 ---
 
